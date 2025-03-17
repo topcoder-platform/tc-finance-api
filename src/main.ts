@@ -9,8 +9,8 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Global prefix for all routes is configured as `/v5/payments`
-  app.setGlobalPrefix(process.env.API_BASE ?? '/v5/payments');
+  // Global prefix for all routes is configured as `/v5/finance`
+  app.setGlobalPrefix(process.env.API_BASE ?? '/v5/finance');
 
   // CORS related settings
   const corsConfig: cors.CorsOptions = {
