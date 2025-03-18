@@ -1,10 +1,9 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class TokenValidatorMiddleware implements NestMiddleware {
-  use(req: any, res: Response, next: NextFunction) {
+  use(req: any, res: Response, next: (error?: any) => void) {
     const [type, idToken] = req.headers.authorization?.split(' ') ?? [];
 
     if (type !== 'Bearer' || !idToken) {

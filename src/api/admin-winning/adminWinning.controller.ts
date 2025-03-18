@@ -5,12 +5,12 @@ import {
   Patch,
   Param,
   Body,
+  Header,
   HttpCode,
   HttpStatus,
   Res,
   BadRequestException,
 } from '@nestjs/common';
-import { Response } from 'express';
 import {
   ApiOperation,
   ApiTags,
@@ -89,7 +89,9 @@ export class AdminWinningController {
     type: ResponseDto<SearchWinningResult>,
   })
   @HttpCode(HttpStatus.OK)
-  async exportWinnings(@Body() body: WinningRequestDto, @Res() res: Response) {
+  @Header('Content-Type', 'text/csv')
+  @Header('Content-Disposition', 'attachment; filename="winnings.csv"')
+  async exportWinnings(@Body() body: WinningRequestDto) {
     const result = await this.adminWinningService.searchWinnings(body);
     const csvRes = result.data.winnings.map((item) => {
       const payment =
@@ -133,9 +135,7 @@ export class AdminWinningController {
       ],
     });
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="winnings.csv"');
-    res.send(output);
+    return output;
   }
 
   @Patch('/winnings')
