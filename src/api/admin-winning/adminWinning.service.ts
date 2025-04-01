@@ -749,7 +749,7 @@ export class AdminWinningService {
         status: item.status ?? '',
         totalNetAmount: item.total_net_amount.toNumber(),
         createdAt: item.created_at!,
-        metadata: item.metadata as object,
+        metadata: JSON.stringify(item.metadata),
         paymentMethodUsed: item.payment_method.name,
         externalTransactionDetails: {},
       }));
