@@ -8,7 +8,6 @@ import {
   Header,
   HttpCode,
   HttpStatus,
-  Res,
   BadRequestException,
 } from '@nestjs/common';
 import {

@@ -84,31 +84,17 @@ export class AdminWinningService {
         this.prisma.winnings.count({ where: query.where }),
       ]);
 
-      // find release date by winning id
-      let releaseDates;
-      if (winnings && winnings.length > 0) {
-        const transactions = winnings.map((item) =>
-          this.getPaymentReleaseByWinningsId(item.winning_id),
-        );
-        releaseDates = await this.prisma.$transaction(transactions);
-      }
-
       result.data = {
-        // @ts-expect-error: Let's ignore typescript error for enum type checking
-        winnings: winnings.map((item, index) => ({
+        winnings: winnings.map((item) => ({
           id: item.winning_id,
           type: item.type,
           winnerId: item.winner_id,
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-expect-error
           origin: item.origin?.origin_name,
           category: item.category,
           title: item.title,
           description: item.description,
           externalId: item.external_id,
           attributes: item.attributes,
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-expect-error
           details: item.payment?.map((paymentItem) => ({
             id: paymentItem.payment_id,
             netAmount: paymentItem.net_amount,
@@ -122,8 +108,8 @@ export class AdminWinningService {
             category: item.category,
           })),
           createdAt: item.created_at,
-          updatedAt: item.updated_at,
-          releaseDate: this.findReleaseDate(releaseDates, index),
+          updatedAt: item.updated_at ?? item.payment?.[0].updated_at,
+          releaseDate: item.payment?.[0]?.release_date,
         })),
         pagination: {
           totalItems: count,
@@ -143,18 +129,6 @@ export class AdminWinningService {
     }
 
     return result;
-  }
-
-  private findReleaseDate(
-    releaseDates: any[],
-    index: number,
-  ): Date | undefined {
-    if (!releaseDates || releaseDates.length == 0) {
-      return undefined;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return releaseDates[index]?.release_date;
   }
 
   private generateFilterDate(body: WinningRequestDto) {
@@ -548,29 +522,6 @@ export class AdminWinningService {
     });
 
     return paymentReleases?.release_date;
-  }
-
-  private getPaymentReleaseByWinningsId(winningsId: string) {
-    return this.prisma.payment_releases.findFirst({
-      where: {
-        payment_release_associations: {
-          some: {
-            payment: {
-              winnings_id: {
-                equals: winningsId,
-              },
-            },
-          },
-        },
-      },
-      include: {
-        payment_release_associations: {
-          include: {
-            payment: true,
-          },
-        },
-      },
-    });
   }
 
   private markPaymentReleaseAsFailedByWinningsId(winningsId: string) {
