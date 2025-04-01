@@ -93,7 +93,7 @@ export class AdminWinningController {
   async exportWinnings(@Body() body: WinningRequestDto) {
     const result = await this.adminWinningService.searchWinnings({
       ...body,
-      limit: 99999,
+      limit: 999,
     });
     const csvRes = result.data.winnings.map((item) => {
       const payment =

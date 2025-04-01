@@ -34,7 +34,7 @@ import { AdminWinningService } from '../admin-winning/adminWinning.service';
 export class UserWinningController {
   constructor(private readonly adminWinningService: AdminWinningService) {}
 
-  @Post('/winnings/search')
+  @Post('/winnings')
   @Roles(Role.User)
   @ApiOperation({
     summary: 'List user winnings with pagination parameters',
