@@ -8,7 +8,6 @@ import {
   Header,
   HttpCode,
   HttpStatus,
-  Res,
   BadRequestException,
 } from '@nestjs/common';
 import {
@@ -92,7 +91,10 @@ export class AdminWinningController {
   @Header('Content-Type', 'text/csv')
   @Header('Content-Disposition', 'attachment; filename="winnings.csv"')
   async exportWinnings(@Body() body: WinningRequestDto) {
-    const result = await this.adminWinningService.searchWinnings(body);
+    const result = await this.adminWinningService.searchWinnings({
+      ...body,
+      limit: 99999,
+    });
     const csvRes = result.data.winnings.map((item) => {
       const payment =
         item.details && item.details.length > 0 ? item.details[0] : null;
@@ -123,8 +125,8 @@ export class AdminWinningController {
         { key: 'handle', header: 'Handle' },
         { key: 'origin', header: 'Origin' },
         { key: 'category', header: 'Category' },
-        { key: 'title', header: 'Winnings ID' },
-        { key: 'description', header: 'Winnings ID' },
+        { key: 'title', header: 'Title' },
+        { key: 'description', header: 'Description' },
         { key: 'externalId', header: 'External ID' },
         { key: 'status', header: 'Status' },
         { key: 'totalAmount', header: 'Total Amount' },
