@@ -91,7 +91,10 @@ export class AdminWinningController {
   @Header('Content-Type', 'text/csv')
   @Header('Content-Disposition', 'attachment; filename="winnings.csv"')
   async exportWinnings(@Body() body: WinningRequestDto) {
-    const result = await this.adminWinningService.searchWinnings(body);
+    const result = await this.adminWinningService.searchWinnings({
+      ...body,
+      limit: 99999,
+    });
     const csvRes = result.data.winnings.map((item) => {
       const payment =
         item.details && item.details.length > 0 ? item.details[0] : null;
