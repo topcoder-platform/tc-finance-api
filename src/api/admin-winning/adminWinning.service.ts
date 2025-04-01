@@ -104,13 +104,17 @@ export class AdminWinningService {
             grossAmount: paymentItem.gross_amount,
             totalAmount: paymentItem.total_amount,
             installmentNumber: paymentItem.installment_number,
+            datePaid: paymentItem.date_paid ?? undefined,
             status: paymentItem.payment_status,
             currency: paymentItem.currency,
             releaseDate: paymentItem.release_date,
             category: item.category,
           })),
           createdAt: item.created_at,
-          updatedAt: item.payment?.[0].date_paid ?? undefined,
+          updatedAt:
+            item.payment?.[0].date_paid ??
+            item.payment?.[0].updated_at ??
+            undefined,
           releaseDate: item.payment?.[0]?.release_date,
         })),
         pagination: {
