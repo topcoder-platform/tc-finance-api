@@ -309,7 +309,6 @@ export class WinningUpdateRequestDto {
   })
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
   auditNote: string;
 
   @ApiProperty({
