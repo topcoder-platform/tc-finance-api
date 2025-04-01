@@ -141,11 +141,11 @@ export class AdminWinningController {
   }
 
   @Patch('/winnings')
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer)
+  @Roles(Role.PaymentAdmin, Role.PaymentEditor)
   @ApiOperation({
     summary: 'Update winnings with given parameter',
     description:
-      'User with role "Payment Admin", "Payment Editor" or "Payment Viewer" can access. \n paymentStatus, releaseDate and paymentAmount cannot be null at the same time.r',
+      'User with role "Payment Admin" or "Payment Editor" can access. \n paymentStatus, releaseDate and paymentAmount cannot be null at the same time.r',
   })
   @ApiResponse({
     status: 200,

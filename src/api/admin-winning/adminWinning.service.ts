@@ -69,6 +69,9 @@ export class AdminWinningService {
           ...query,
           include: {
             payment: {
+              where: {
+                installment_number: 1,
+              },
               orderBy: [
                 {
                   created_at: 'desc',
@@ -101,14 +104,13 @@ export class AdminWinningService {
             grossAmount: paymentItem.gross_amount,
             totalAmount: paymentItem.total_amount,
             installmentNumber: paymentItem.installment_number,
-            datePaid: paymentItem.date_paid,
             status: paymentItem.payment_status,
             currency: paymentItem.currency,
             releaseDate: paymentItem.release_date,
             category: item.category,
           })),
           createdAt: item.created_at,
-          updatedAt: item.updated_at ?? item.payment?.[0].updated_at,
+          updatedAt: item.payment?.[0].date_paid ?? undefined,
           releaseDate: item.payment?.[0]?.release_date,
         })),
         pagination: {
