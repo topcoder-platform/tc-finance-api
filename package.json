@@ -33,6 +33,7 @@
     "csv": "^6.3.11",
     "csv-stringify": "^6.5.2",
     "jsonwebtoken": "^9.0.2",
+    "lodash": "^4.17.21",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "winston": "^3.17.0"
@@ -47,6 +48,7 @@
     "@swc/core": "^1.10.7",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
+    "@types/lodash": "^4.17.16",
     "@types/node": "^22.13.1",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
