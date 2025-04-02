@@ -66,7 +66,7 @@ export class WinningController {
 
   @Post('/list')
   @M2M()
-  @AllowedM2mScope(M2mScope.ReadPayments)
+  @AllowedM2mScope(M2mScope.CreatePayments, M2mScope.ReadPayments)
   @ApiOperation({
     summary: 'Search winning with parameters.',
     description: 'User must have "read:payments" scope to access.',
