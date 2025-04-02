@@ -18,7 +18,9 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { stringify } from 'csv-stringify/sync';
 
+import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { Role } from 'src/core/auth/auth.constants';
 import { Roles, User } from 'src/core/auth/decorators';
 
@@ -35,13 +37,14 @@ import {
   AuditPayoutDto,
 } from 'src/dto/adminWinning.dto';
 
-import { stringify } from 'csv-stringify/sync';
-
 @ApiTags('AdminWinning')
 @Controller('/admin')
 @ApiBearerAuth()
 export class AdminWinningController {
-  constructor(private readonly adminWinningService: AdminWinningService) {}
+  constructor(
+    private readonly adminWinningService: AdminWinningService,
+    private readonly tcMembersService: TopcoderMembersService,
+  ) {}
 
   @Post('/winnings/search')
   @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer)
@@ -95,6 +98,11 @@ export class AdminWinningController {
       ...body,
       limit: 999,
     });
+
+    const handles = await this.tcMembersService.getHandlesByUserIds(
+      result.data.winnings.map((d) => d.winnerId),
+    );
+
     const csvRes = result.data.winnings.map((item) => {
       const payment =
         item.details && item.details.length > 0 ? item.details[0] : null;
@@ -102,7 +110,7 @@ export class AdminWinningController {
       return {
         id: item.id,
         winnerId: item.winnerId,
-        handle: 'admin mess', //current service does not have member service, we can not get member handle now
+        handle: handles?.[item.winnerId] ?? '', //current service does not have member service, we can not get member handle now
         origin: item.origin,
         category: item.category,
         title: item.title,

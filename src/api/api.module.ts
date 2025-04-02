@@ -11,9 +11,10 @@ import { GlobalProvidersModule } from 'src/shared/global/globalProviders.module'
 import { APP_GUARD } from '@nestjs/core';
 import { TokenValidatorMiddleware } from 'src/core/auth/middleware/tokenValidator.middleware';
 import { AuthGuard, RolesGuard } from 'src/core/auth/guards';
+import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
 
 @Module({
-  imports: [GlobalProvidersModule],
+  imports: [GlobalProvidersModule, TopcoderModule],
   controllers: [
     HealthCheckController,
     AdminWinningController,
