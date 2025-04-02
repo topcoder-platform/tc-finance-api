@@ -102,7 +102,7 @@ export class AdminWinningService {
             id: paymentItem.payment_id,
             netAmount: paymentItem.net_amount,
             grossAmount: paymentItem.gross_amount,
-            totalAmount: paymentItem.total_amount,
+            totalAmount: Number(paymentItem.total_amount),
             installmentNumber: paymentItem.installment_number,
             datePaid: paymentItem.date_paid ?? undefined,
             status: paymentItem.payment_status,

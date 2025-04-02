@@ -50,7 +50,8 @@ export class AuthGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (allowedM2mScopes.includes(req.m2mTokenScope)) {
+    const reqScopes = req.m2mTokenScope.split(' ')
+    if (reqScopes.some(reqScope => allowedM2mScopes.includes(reqScope))) {
       return true;
     }
     return false;
