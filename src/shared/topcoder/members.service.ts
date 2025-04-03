@@ -4,7 +4,6 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class TopcoderMembersService {
-
   /**
    * Retrieves a mapping of user IDs to their corresponding handles from the Topcoder API.
    *
@@ -16,12 +15,14 @@ export class TopcoderMembersService {
    */
   async getHandlesByUserIds(userIds: string[]) {
     // Remove duplicate user IDs to avoid redundant API calls
-    const uniqUserIds = [...new Set(userIds).values()];
+    const uniqUserIds = [...new Set(userIds.filter(Boolean)).values()];
 
     // Split the unique user IDs into chunks of 100 to comply with API request limits
     const requests = chunk(uniqUserIds, 100).map((chunk) => {
       const requestUrl = `${process.env.TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
-      return axios.get(requestUrl).then(({ data }) => data);
+      return axios
+        .get(requestUrl)
+        .then(({ data }) => data as { handle: string; userId: string });
     });
 
     try {
@@ -30,7 +31,7 @@ export class TopcoderMembersService {
       // Transform the API response into a mapping of user IDs to handles
       return Object.fromEntries(
         data.map(({ handle, userId }) => [userId, handle] as string[]),
-      );
+      ) as { [userId: string]: string };
     } catch (e) {
       console.error('Failed to fetch tc members handles!', e?.message ?? e, e);
       return {};
