@@ -85,11 +85,10 @@ export class WinningController {
     @Body() body: WinningRequestDto,
   ): Promise<ResponseDto<SearchWinningResult>> {
     const result = await this.adminWinningService.searchWinnings(body);
-    if (result.error) {
-      result.status = ResponseStatusType.ERROR;
-    }
 
-    result.status = ResponseStatusType.SUCCESS;
+    result.status = result.error
+      ? ResponseStatusType.ERROR
+      : ResponseStatusType.SUCCESS;
 
     return result;
   }
