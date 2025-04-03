@@ -691,17 +691,17 @@ export class AdminWinningService {
    * @param toStatus to status
    * @param tx transaction
    */
-  async updateWinningsStatus(userId, fromStatus, toStatus) {
-    await this.prisma.$executeRaw`
+  updateWinningsStatus(userId, fromStatus, toStatus) {
+    return this.prisma.$executeRaw`
       UPDATE payment
-      SET payment_status = '${toStatus}',
+      SET payment_status = ${toStatus}::payment_status,
         updated_at     = now(),
         updated_by     = 'system',
         version        = version + 1
       FROM winnings
       WHERE payment.winnings_id = winnings.winning_id
-        AND winnings.winner_id = '${userId}'
-        AND payment.payment_status = '${fromStatus}' AND version = version
+        AND winnings.winner_id = ${userId}
+        AND payment.payment_status = ${fromStatus}::payment_status AND version = version
     `;
   }
 
