@@ -50,6 +50,7 @@ export class WinningService {
 
       const paymentData: Prisma.paymentCreateManyInput[] = body.details.map(
         (item) => ({
+          net_amount: new Prisma.Decimal(item.grossAmount),
           total_amount: new Prisma.Decimal(item.totalAmount),
           gross_amount: new Prisma.Decimal(item.grossAmount),
           installment_number: item.installmentNumber,
