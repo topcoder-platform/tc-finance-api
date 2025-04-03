@@ -100,8 +100,8 @@ export class AdminWinningService {
           attributes: item.attributes,
           details: item.payment?.map((paymentItem) => ({
             id: paymentItem.payment_id,
-            netAmount: paymentItem.net_amount,
-            grossAmount: paymentItem.gross_amount,
+            netAmount: Number(paymentItem.net_amount),
+            grossAmount: Number(paymentItem.gross_amount),
             totalAmount: Number(paymentItem.total_amount),
             installmentNumber: paymentItem.installment_number,
             datePaid: paymentItem.date_paid ?? undefined,

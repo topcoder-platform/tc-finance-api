@@ -16,23 +16,28 @@ export class TokenValidatorMiddleware implements NestMiddleware {
 
     let decoded: any;
     try {
-      decoded = jwt.verify(idToken, process.env.AUTH0_CERT, {
-        audience: process.env.AUTH0_CLIENT_ID,
-      });
+      decoded = jwt.verify(idToken, process.env.AUTH0_CERT);
     } catch (error) {
       console.error('Error verifying JWT', error);
       throw new UnauthorizedException('Invalid or expired JWT!');
     }
 
-    // TODO: verify decoded.aud
     if (!decoded) {
       req.idTokenVerified = false;
       return next();
     }
 
-    req.idTokenVerified = true;
     req.isM2M = !!decoded.scope;
+    const aud = req.isM2M
+      ? process.env.AUTH0_M2M_AUDIENCE
+      : process.env.AUTH0_CLIENT_ID;
 
+    if (decoded.aud !== aud) {
+      req.idTokenVerified = false;
+      return next();
+    }
+
+    req.idTokenVerified = true;
     if (decoded.scope) {
       req.m2mTokenScope = decoded.scope;
       req.m2mTokenAudience = decoded.aud;
