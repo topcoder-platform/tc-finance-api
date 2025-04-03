@@ -18,7 +18,7 @@ export class TopcoderMembersService {
     const uniqUserIds = [...new Set(userIds.filter(Boolean)).values()];
 
     // Split the unique user IDs into chunks of 100 to comply with API request limits
-    const requests = chunk(uniqUserIds, 100).map((chunk) => {
+    const requests = chunk(uniqUserIds, 30).map((chunk) => {
       const requestUrl = `${process.env.TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
       return axios
         .get(requestUrl)
@@ -27,7 +27,7 @@ export class TopcoderMembersService {
 
     try {
       // Execute all API requests in parallel and flatten the resulting data
-      const data = await Promise.all(requests).then(d => d.flat());
+      const data = await Promise.all(requests).then((d) => d.flat());
       // Transform the API response into a mapping of user IDs to handles
       return Object.fromEntries(
         data.map(({ handle, userId }) => [userId, handle] as string[]),

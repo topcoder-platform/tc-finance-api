@@ -110,7 +110,7 @@ export class AdminWinningController {
       return {
         id: item.id,
         winnerId: item.winnerId,
-        handle: handles?.[item.winnerId] ?? '', //current service does not have member service, we can not get member handle now
+        handle: handles[`${item.winnerId}`] ?? item.winnerId,
         origin: item.origin,
         category: item.category,
         title: item.title,
