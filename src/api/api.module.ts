@@ -12,6 +12,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { TokenValidatorMiddleware } from 'src/core/auth/middleware/tokenValidator.middleware';
 import { AuthGuard, RolesGuard } from 'src/core/auth/guards';
 import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
+import { OriginRepository } from './repository/origin.repo';
+import { TaxFormRepository } from './repository/taxForm.repo';
+import { PaymentMethodRepository } from './repository/paymentMethod.repo';
 
 @Module({
   imports: [GlobalProvidersModule, TopcoderModule],
@@ -34,6 +37,9 @@ import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
     AdminWinningService,
     WinningService,
     WalletService,
+    OriginRepository,
+    TaxFormRepository,
+    PaymentMethodRepository,
   ],
 })
 export class ApiModule implements NestModule {

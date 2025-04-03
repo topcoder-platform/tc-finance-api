@@ -18,6 +18,8 @@ import {
   PaymentStatus,
   AuditPayoutDto,
 } from 'src/dto/adminWinning.dto';
+import { TaxFormRepository } from '../repository/taxForm.repo';
+import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
@@ -30,7 +32,11 @@ export class AdminWinningService {
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
    */
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taxFormRepo: TaxFormRepository,
+    private readonly paymentMethodRepo: PaymentMethodRepository,
+  ) {}
 
   /**
    * Search winnings with parameters
@@ -101,7 +107,7 @@ export class AdminWinningService {
           details: item.payment?.map((paymentItem) => ({
             id: paymentItem.payment_id,
             netAmount: Number(paymentItem.net_amount),
-            grossAmount: Number(paymentItem.gross_amount),
+            grossAmount: (paymentItem.gross_amount),
             totalAmount: Number(paymentItem.total_amount),
             installmentNumber: paymentItem.installment_number,
             datePaid: paymentItem.date_paid ?? undefined,
@@ -276,6 +282,21 @@ export class AdminWinningService {
     return orderBy;
   }
 
+  private getPaymentsByWinningsId(winningsId: string, paymentId?: string) {
+    return this.prisma.payment.findMany({
+      where: {
+        winnings_id: {
+          equals: winningsId,
+        },
+        payment_id: paymentId
+          ? {
+              equals: paymentId,
+            }
+          : undefined,
+      },
+    });
+  }
+
   /**
    * Update winnings with parameters
    * @param body the request body
@@ -291,18 +312,10 @@ export class AdminWinningService {
     let needsReconciliation = false;
     const winningsId = body.winningsId;
     try {
-      const payments = await this.prisma.payment.findMany({
-        where: {
-          winnings_id: {
-            equals: winningsId,
-          },
-          payment_id: body.paymentId
-            ? {
-                equals: body.paymentId,
-              }
-            : undefined,
-        },
-      });
+      const payments = await this.getPaymentsByWinningsId(
+        winningsId,
+        body.paymentId,
+      );
 
       if (payments.length === 0) {
         throw new NotFoundException('failed to get current payments');
@@ -316,6 +329,13 @@ export class AdminWinningService {
       const transactions: PrismaPromise<any>[] = [];
       const now = new Date().getTime();
       payments.forEach((payment) => {
+        if (
+          payment.payment_status &&
+          payment.payment_status === PaymentStatus.CANCELLED
+        ) {
+          throw new BadRequestException('cannot update cancelled winnings');
+        }
+
         let version = payment.version ?? 1;
         // Update Payment Status if requested
         if (body.paymentStatus) {
@@ -356,7 +376,10 @@ export class AdminWinningService {
               break;
           }
 
-          if (errMessage) {
+          if (
+            errMessage &&
+            payment.payment_status === PaymentStatus.PROCESSING
+          ) {
             throw new BadRequestException(errMessage);
           }
 
@@ -371,7 +394,10 @@ export class AdminWinningService {
             ),
           );
           version += 1;
-          needsReconciliation = true;
+
+          if (body.paymentStatus === PaymentStatus.OWED) {
+            needsReconciliation = true;
+          }
 
           if (payment.installment_number === 1) {
             transactions.push(
@@ -388,11 +414,6 @@ export class AdminWinningService {
         // Update Release Date if requested
         if (body.releaseDate) {
           const newReleaseDate = new Date(body.releaseDate);
-          if (newReleaseDate.getTime() < now) {
-            throw new BadRequestException(
-              'new release date cannot be in the past',
-            );
-          }
 
           transactions.push(
             this.updateReleaseDate(
@@ -417,10 +438,11 @@ export class AdminWinningService {
           }
         }
 
-        // Update Release Date if requested
+        // Update payment amount if requested
         if (
           body.paymentAmount !== undefined &&
           (payment.payment_status === PaymentStatus.OWED ||
+            payment.payment_status === PaymentStatus.ON_HOLD ||
             payment.payment_status === PaymentStatus.ON_HOLD ||
             payment.payment_status === PaymentStatus.ON_HOLD_ADMIN)
         ) {
@@ -661,9 +683,47 @@ export class AdminWinningService {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async reconcileWinningsStatusOnUserDetailsUpdate(userId: string) {
-    // not implement, because it's about detail payment
+  /**
+   * Update payment for user from one status to another
+   *
+   * @param userId user id
+   * @param fromStatus from status
+   * @param toStatus to status
+   * @param tx transaction
+   */
+  async updateWinningsStatus(userId, fromStatus, toStatus) {
+    await this.prisma.$executeRaw`
+      UPDATE payment
+      SET payment_status = '${toStatus}',
+        updated_at     = now(),
+        updated_by     = 'system',
+        version        = version + 1
+      FROM winnings
+      WHERE payment.winnings_id = winnings.winning_id
+        AND winnings.winner_id = '${userId}'
+        AND payment.payment_status = '${fromStatus}' AND version = version
+    `;
+  }
+
+  /**
+   * Reconcile winning if user data updated
+   *
+   * @param userId user id
+   */
+  async reconcileWinningsStatusOnUserDetailsUpdate(userId) {
+    const hasTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
+    const hasPaymentMethod =
+      await this.paymentMethodRepo.hasVerifiedPaymentMethod(userId);
+    let fromStatus, toStatus;
+    if (hasTaxForm && hasPaymentMethod) {
+      fromStatus = PaymentStatus.ON_HOLD;
+      toStatus = PaymentStatus.OWED;
+    } else {
+      fromStatus = PaymentStatus.OWED;
+      toStatus = PaymentStatus.ON_HOLD;
+    }
+
+    await this.updateWinningsStatus(userId, fromStatus, toStatus);
   }
 
   /**

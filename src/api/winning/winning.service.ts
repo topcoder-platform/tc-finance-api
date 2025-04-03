@@ -1,9 +1,16 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, payment, payment_status } from '@prisma/client';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import { ResponseDto, WinningCreateRequestDto } from 'src/dto/adminWinning.dto';
+import {
+  PaymentStatus,
+  ResponseDto,
+  WinningCreateRequestDto,
+} from 'src/dto/adminWinning.dto';
+import { OriginRepository } from '../repository/origin.repo';
+import { TaxFormRepository } from '../repository/taxForm.repo';
+import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 
 /**
  * The winning service.
@@ -14,7 +21,12 @@ export class WinningService {
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
    */
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taxFormRepo: TaxFormRepository,
+    private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly originRepo: OriginRepository,
+  ) {}
 
   /**
    * Create winnings with parameters
@@ -28,54 +40,93 @@ export class WinningService {
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
 
-    try {
-      const winningsEntity = await this.prisma.winnings.create({
-        data: {
-          winner_id: body.winnerId,
-          type: body.type,
-          origin: {
-            create: {
-              origin_name: body.origin,
-            },
+    return this.prisma.$transaction(async (tx) => {
+      const originId = await this.originRepo.getOriginIdByName(body.origin, tx);
+
+      if (!originId) {
+        return {
+          ...result,
+          error: {
+            code: HttpStatus.BAD_REQUEST,
+            message: 'Origin name does not exist',
           },
-          category: body.category,
-          title: body.title,
-          description: body.description,
-          external_id: body.externalId,
-          attributes: body.attributes,
-          created_by: userId,
-          created_at: new Date(),
+        };
+      }
+
+      const winningModel = {
+        winner_id: body.winnerId,
+        type: body.type,
+        origin_id: originId,
+        category: body.category,
+        title: body.title,
+        description: body.description,
+        external_id: body.externalId,
+        attributes: body.attributes,
+        created_by: userId,
+        payment: {
+          create: [] as Partial<payment>[],
         },
-      });
-
-      const paymentData: Prisma.paymentCreateManyInput[] = body.details.map(
-        (item) => ({
-          total_amount: new Prisma.Decimal(item.totalAmount),
-          gross_amount: new Prisma.Decimal(item.grossAmount),
-          installment_number: item.installmentNumber,
-          currency: item.currency,
-          created_by: userId,
-          created_at: new Date(),
-          payment_status: 'ON_HOLD',
-          version: 1,
-          winnings_id: winningsEntity.winning_id,
-        }),
-      );
-
-      await this.prisma.payment.createMany({
-        data: paymentData,
-      });
-
-      result.data = 'Create winnings successfully';
-    } catch (error) {
-      console.error('Getting winnings audit failed', error);
-      const message = 'Searching winnings failed. ' + error;
-      result.error = {
-        code: HttpStatus.INTERNAL_SERVER_ERROR,
-        message,
       };
-    }
+      const taxForms = await this.taxFormRepo.findTaxFormByUserId(
+        body.winnerId,
+        tx,
+      );
+      const payrollPayment = (body.attributes || {})['payroll'] === true;
 
-    return result;
+      const hasPaymentMethod =
+        await this.paymentMethodRepo.hasVerifiedPaymentMethod(
+          body.winnerId,
+          tx,
+        );
+
+      for (const detail of body.details || []) {
+        const paymentModel = {
+          gross_amount: Prisma.Decimal(detail.grossAmount),
+          total_amount: Prisma.Decimal(detail.totalAmount),
+          installment_number: detail.installmentNumber,
+          currency: detail.currency,
+          net_amount: Prisma.Decimal(0),
+          payment_status: '' as payment_status,
+          created_by: userId,
+        };
+        if (taxForms.length > 0) {
+          let netAmount = detail.grossAmount;
+          for (const taxForm of taxForms) {
+            const withholding = taxForm.withholding_amount;
+            netAmount -= withholding;
+            if (netAmount <= 0) {
+              netAmount = 0;
+              break;
+            }
+          }
+          paymentModel.net_amount = Prisma.Decimal(netAmount);
+          paymentModel.payment_status = PaymentStatus.OWED;
+        } else {
+          paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
+          paymentModel.payment_status = PaymentStatus.ON_HOLD;
+        }
+
+        if (!hasPaymentMethod) {
+          paymentModel.payment_status = PaymentStatus.ON_HOLD;
+        }
+        if (payrollPayment) {
+          paymentModel.payment_status = PaymentStatus.PAID;
+        }
+
+        winningModel.payment.create.push(paymentModel);
+      }
+      // use prisma nested writes to avoid foreign key checks
+      const createdWinning = await this.prisma.winnings.create({
+        data: winningModel as any,
+      });
+      if (!createdWinning) {
+        result.error = {
+          code: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to create winning!',
+        };
+      }
+
+      return result;
+    });
   }
 }
