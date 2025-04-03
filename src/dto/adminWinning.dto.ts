@@ -349,6 +349,14 @@ export class WinningUpdateRequestDto {
 
 export class PaymentCreateRequestDto {
   @ApiProperty({
+    description: 'The net amount of the payment',
+    example: 12.3,
+  })
+  @IsNumber()
+  @Min(0)
+  netAmount: number;
+
+  @ApiProperty({
     description: 'The total amount of the payment',
     example: 12.3,
   })
