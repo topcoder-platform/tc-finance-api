@@ -1,4 +1,8 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 
 @Injectable()
@@ -10,11 +14,15 @@ export class TokenValidatorMiddleware implements NestMiddleware {
       return next();
     }
 
-    // TODO: use jwt.verify to verify against auth0 secret
-    const decoded: any = jwt.decode(idToken, {
-      ignoreExpiration: true,
-      ignoreNotBefore: true,
-    });
+    let decoded: any;
+    try {
+      decoded = jwt.verify(idToken, process.env.AUTH0_CERT, {
+        audience: process.env.AUTH0_CLIENT_ID,
+      });
+    } catch (error) {
+      console.error('Error verifying JWT', error);
+      throw new UnauthorizedException('Invalid or expired JWT!');
+    }
 
     // TODO: verify decoded.aud
     if (!decoded) {
