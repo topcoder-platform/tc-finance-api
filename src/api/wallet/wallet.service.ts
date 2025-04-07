@@ -8,6 +8,8 @@ import {
   PaymentStatus,
 } from 'src/dto/adminWinning.dto';
 import { WalletDetailDto } from 'src/dto/wallet.dto';
+import { TaxFormRepository } from '../repository/taxForm.repo';
+import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 
 /**
  * The winning service.
@@ -18,7 +20,11 @@ export class WalletService {
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
    */
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taxFormRepo: TaxFormRepository,
+    private readonly paymentMethodRepo: PaymentMethodRepository,
+  ) {}
 
   /**
    * Get wallet detail.
@@ -63,6 +69,7 @@ export class WalletService {
 
       // count PAYMENT and REWARD totals
       let paymentTotal = 0;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       let rewardTotal = 0;
       winnings.forEach((item) => {
         if (item.type === WinningsType.PAYMENT) {
@@ -90,6 +97,10 @@ export class WalletService {
         }
       });
 
+      const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
+      const hasVerifiedPaymentMethod =
+        await this.paymentMethodRepo.hasVerifiedPaymentMethod(userId);
+
       const winningTotals: WalletDetailDto = {
         account: {
           balances: [
@@ -98,18 +109,19 @@ export class WalletService {
               amount: paymentTotal,
               unit: 'currency',
             },
-            {
-              type: WinningsType.REWARD,
-              amount: rewardTotal,
-              unit: 'points',
-            },
+            // hide rewards for now
+            // {
+            //   type: WinningsType.REWARD,
+            //   amount: rewardTotal,
+            //   unit: 'points',
+            // },
           ],
         },
         withdrawalMethod: {
-          isSetupComplete: true,
+          isSetupComplete: hasVerifiedPaymentMethod,
         },
         taxForm: {
-          isSetupComplete: true,
+          isSetupComplete: hasActiveTaxForm,
         },
       };
 

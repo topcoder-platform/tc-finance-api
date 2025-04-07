@@ -34,15 +34,14 @@ export class TaxFormRepository {
     userId: string,
     tx?,
   ): Promise<TaxFormQueryResult[]> {
-    const query = `
+    const db = tx || this.prisma;
+
+    const ret = await db.$queryRaw`
       SELECT u.id, u.user_id, t.tax_form_id, t.name, t.text, t.description, u.date_filed, u.withholding_amount, u.withholding_percentage, u.status_id::text, u.use_percentage 
           FROM user_tax_form_associations AS u
           JOIN tax_forms AS t ON u.tax_form_id = t.tax_form_id
-          WHERE u.user_id = '${userId}'
+          WHERE u.user_id=${userId}
     `;
-    const db = tx || this.prisma;
-
-    const ret = await db.$queryRawUnsafe(query);
     return (ret || []) as TaxFormQueryResult[];
   }
 }
