@@ -14,8 +14,8 @@ import {
   ResponseStatusType,
   ResponseDto,
   WinningRequestDto,
-  SearchWinningResult,
   WinningCreateRequestDto,
+  WinningDto,
 } from 'src/dto/adminWinning.dto';
 
 import { AdminWinningService } from '../admin-winning/adminWinning.service';
@@ -78,18 +78,21 @@ export class WinningController {
   @ApiResponse({
     status: 200,
     description: 'Search winnings successfully.',
-    type: ResponseDto<SearchWinningResult>,
+    type: ResponseDto<WinningDto[]>,
   })
   @HttpCode(HttpStatus.OK)
   async searchWinnings(
     @Body() body: WinningRequestDto,
-  ): Promise<ResponseDto<SearchWinningResult>> {
+  ): Promise<ResponseDto<WinningDto[]>> {
     const result = await this.adminWinningService.searchWinnings(body);
 
     result.status = result.error
       ? ResponseStatusType.ERROR
       : ResponseStatusType.SUCCESS;
 
-    return result;
+    return {
+      ...result,
+      data: result.data.winnings,
+    };
   }
 }
