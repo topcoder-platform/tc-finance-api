@@ -36,14 +36,13 @@ export class PaymentMethodRepository {
    * @returns payment methods
    */
   private async findPaymentMethodByUserId(userId: string, tx?) {
-    const query = `
+    const db = tx || this.prisma;
+    const ret = await db.$queryRaw`
       SELECT pm.payment_method_id, pm.payment_method_type, pm.name, pm.description, upm.status, upm.id
       FROM payment_method pm
       JOIN user_payment_methods upm ON pm.payment_method_id = upm.payment_method_id
-      WHERE upm.user_id = '${userId}'
+      WHERE upm.user_id=${userId}
     `;
-    const db = tx || this.prisma;
-    const ret = await db.$queryRawUnsafe(query);
     return (ret || []) as PaymentMethodQueryResult[];
   }
 }
