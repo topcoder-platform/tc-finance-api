@@ -364,19 +364,22 @@ export class AdminWinningService {
                   payment.payment_status !== PaymentStatus.ON_HOLD_ADMIN &&
                   payment.payment_status !== PaymentStatus.PAID
                 ) {
-                  errMessage =
-                    "cannot put a payment back to owed unless it is on hold by an admin, or it's been paid";
+                  throw new BadRequestException(
+                    "cannot put a payment back to owed unless it is on hold by an admin, or it's been paid",
+                  );
                 }
               }
 
               break;
 
             default:
-              errMessage = 'invalid payment status provided';
-              break;
+              throw new BadRequestException('invalid payment status provided');
           }
 
-          if (errMessage) {
+          if (
+            errMessage &&
+            payment.payment_status === PaymentStatus.PROCESSING
+          ) {
             throw new BadRequestException(errMessage);
           }
 
@@ -412,6 +415,22 @@ export class AdminWinningService {
         if (body.releaseDate) {
           const newReleaseDate = new Date(body.releaseDate);
 
+          if (
+            ![
+              PaymentStatus.OWED,
+              PaymentStatus.ON_HOLD,
+              PaymentStatus.ON_HOLD_ADMIN,
+            ].includes(payment.payment_status as PaymentStatus)
+          ) {
+            throw new BadRequestException(
+              `Cannot update release date for payment unless it's in one of the states: ${[
+                PaymentStatus.OWED,
+                PaymentStatus.ON_HOLD,
+                PaymentStatus.ON_HOLD_ADMIN,
+              ].join(', ')}`,
+            );
+          }
+
           transactions.push(
             this.updateReleaseDate(
               userId,
@@ -439,7 +458,6 @@ export class AdminWinningService {
         if (
           body.paymentAmount !== undefined &&
           (payment.payment_status === PaymentStatus.OWED ||
-            payment.payment_status === PaymentStatus.ON_HOLD ||
             payment.payment_status === PaymentStatus.ON_HOLD ||
             payment.payment_status === PaymentStatus.ON_HOLD_ADMIN)
         ) {
