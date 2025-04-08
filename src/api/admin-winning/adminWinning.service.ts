@@ -350,7 +350,7 @@ export class AdminWinningService {
             case PaymentStatus.OWED:
               if (releaseDate) {
                 const sinceRelease =
-                  (releaseDate.getTime() - now) / (3600 * 1000);
+                  (now - releaseDate.getTime()) / (3600 * 1000);
                 if (sinceRelease < 12) {
                   errMessage = `Cannot put a processing payment back to owed, unless it's been processing for at least 12 hours.  Currently it's only been ${sinceRelease.toFixed(1)} hours`;
                 } else {
@@ -376,10 +376,7 @@ export class AdminWinningService {
               break;
           }
 
-          if (
-            errMessage &&
-            payment.payment_status === PaymentStatus.PROCESSING
-          ) {
+          if (errMessage) {
             throw new BadRequestException(errMessage);
           }
 
