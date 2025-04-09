@@ -337,6 +337,7 @@ export class AdminWinningService {
         }
 
         let version = payment.version ?? 1;
+        let paymentStatus = payment.payment_status as PaymentStatus;
         // Update Payment Status if requested
         if (body.paymentStatus) {
           let errMessage = '';
@@ -394,6 +395,7 @@ export class AdminWinningService {
             ),
           );
           version += 1;
+          paymentStatus = body.paymentStatus as PaymentStatus;
 
           if (body.paymentStatus === PaymentStatus.OWED) {
             needsReconciliation = true;
@@ -420,7 +422,7 @@ export class AdminWinningService {
               PaymentStatus.OWED,
               PaymentStatus.ON_HOLD,
               PaymentStatus.ON_HOLD_ADMIN,
-            ].includes(payment.payment_status as PaymentStatus)
+            ].includes(paymentStatus)
           ) {
             throw new BadRequestException(
               `Cannot update release date for payment unless it's in one of the states: ${[
