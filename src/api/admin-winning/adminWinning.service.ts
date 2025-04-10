@@ -50,29 +50,24 @@ export class AdminWinningService {
 
     try {
       let winnerIds: string[] | undefined;
+      let externalIds: string[] | undefined;
       if (body.winnerId) {
         winnerIds = [body.winnerId];
       } else if (body.winnerIds) {
         winnerIds = [...body.winnerIds];
+      } else if (body.externalIds?.length > 0) {
+        externalIds = body.externalIds;
       }
 
-      let query;
-      let orderBy;
-
-      if (winnerIds?.length) {
-        query = this.getQueryByWinnerId(body, winnerIds);
-        orderBy = this.getOrderByWithWinnerId(body);
-      } else if (body.externalIds && body.externalIds.length > 0) {
-        query = this.getQueryByExternalIDs(body);
-        orderBy = this.getOrderByWithExternalIDs(body);
-      } else {
-        query = this.getQueryByWinnerId(body, undefined);
-        orderBy = this.getOrderByWithExternalIDs(body);
-      }
+      const queryWhere = this.getQueryByWinnerId(body, winnerIds, externalIds);
+      const orderBy = this.getOrderByWithWinnerId(
+        body,
+        !winnerIds && !!externalIds?.length,
+      );
 
       const [winnings, count] = await this.prisma.$transaction([
         this.prisma.winnings.findMany({
-          ...query,
+          ...queryWhere,
           include: {
             payment: {
               where: {
@@ -90,7 +85,7 @@ export class AdminWinningService {
           skip: body.offset,
           take: body.limit,
         }),
-        this.prisma.winnings.count({ where: query.where }),
+        this.prisma.winnings.count({ where: queryWhere.where }),
       ]);
 
       result.data = {
@@ -173,6 +168,7 @@ export class AdminWinningService {
   private getQueryByWinnerId(
     body: WinningRequestDto,
     winnerIds: string[] | undefined,
+    externalIds: string[] | undefined,
   ) {
     const filterDate: object | undefined = this.generateFilterDate(body);
 
@@ -181,6 +177,11 @@ export class AdminWinningService {
         winner_id: winnerIds
           ? {
               in: winnerIds,
+            }
+          : undefined,
+        external_id: externalIds
+          ? {
+              in: body.externalIds,
             }
           : undefined,
         category: body.type
@@ -213,70 +214,21 @@ export class AdminWinningService {
     return query;
   }
 
-  private getOrderByWithWinnerId(body: WinningRequestDto) {
-    let orderBy: object = [
+  private getOrderByWithWinnerId(
+    body: WinningRequestDto,
+    externalIds?: boolean,
+  ) {
+    const orderBy: object = [
       {
         created_at: 'desc',
       },
-      {
-        external_id: 'asc',
-      },
+      ...(externalIds ? [{ external_id: 'asc' }] : []),
     ];
+
     if (body.sortBy && body.sortOrder) {
-      orderBy = [
-        {
-          [body.sortBy]: body.sortOrder.toString(),
-        },
-        {
-          external_id: 'asc',
-        },
-      ];
-    }
-
-    return orderBy;
-  }
-
-  private getQueryByExternalIDs(body: WinningRequestDto) {
-    const filterDate: object | undefined = this.generateFilterDate(body);
-
-    const query = {
-      where: {
-        external_id: {
-          in: body.externalIds,
-        },
-        category: body.type
-          ? {
-              equals: body.type,
-            }
-          : undefined,
-        created_at: filterDate,
-        payment: body.status
-          ? {
-              some: {
-                payment_status: {
-                  equals: body.status,
-                },
-              },
-            }
-          : undefined,
-      },
-    };
-
-    return query;
-  }
-
-  private getOrderByWithExternalIDs(body: WinningRequestDto) {
-    let orderBy: object = [
-      {
-        created_at: 'desc',
-      },
-    ];
-    if (body.sortBy && body.sortOrder) {
-      orderBy = [
-        {
-          [body.sortBy]: body.sortOrder.toString(),
-        },
-      ];
+      orderBy[0] = {
+        [body.sortBy]: body.sortOrder.toString(),
+      };
     }
 
     return orderBy;
