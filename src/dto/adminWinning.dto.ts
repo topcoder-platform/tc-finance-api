@@ -456,6 +456,15 @@ export class WinningCreateRequestDto {
 
   @ApiProperty({
     description: 'The payment details',
+    type: [PaymentCreateRequestDto],
+    example: [
+      {
+        totalAmount: 12.3,
+        grossAmount: 15.0,
+        installmentNumber: 1,
+        currency: 'string',
+      },
+    ],
   })
   @IsArray()
   @ValidateNested({ each: true })
