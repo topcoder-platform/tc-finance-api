@@ -59,12 +59,12 @@ export class AdminWinningService {
       let query;
       let orderBy;
 
-      if (body.externalIds && body.externalIds.length > 0) {
-        query = this.getQueryByExternalIDs(body);
-        orderBy = this.getOrderByWithExternalIDs(body);
-      } else if (winnerIds) {
+      if (winnerIds?.length) {
         query = this.getQueryByWinnerId(body, winnerIds);
         orderBy = this.getOrderByWithWinnerId(body);
+      } else if (body.externalIds && body.externalIds.length > 0) {
+        query = this.getQueryByExternalIDs(body);
+        orderBy = this.getOrderByWithExternalIDs(body);
       } else {
         query = this.getQueryByWinnerId(body, undefined);
         orderBy = this.getOrderByWithExternalIDs(body);
