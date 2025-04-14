@@ -2,11 +2,7 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import {
-  ResponseDto,
-  WinningsType,
-  PaymentStatus,
-} from 'src/dto/adminWinning.dto';
+import { ResponseDto, WinningsType } from 'src/dto/adminWinning.dto';
 import { WalletDetailDto } from 'src/dto/wallet.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
@@ -37,65 +33,7 @@ export class WalletService {
     const result = new ResponseDto<WalletDetailDto>();
 
     try {
-      const latestPaymentVersion = await this.prisma.payment.groupBy({
-        by: ['winnings_id'],
-        _max: {
-          version: true,
-        },
-      });
-
-      const winnings = await this.prisma.winnings.findMany({
-        where: {
-          type: {
-            in: [WinningsType.PAYMENT, WinningsType.REWARD],
-          },
-          winner_id: userId,
-          payment: {
-            some: {
-              payment_status: {
-                in: [PaymentStatus.OWED, PaymentStatus.ON_HOLD],
-              },
-              installment_number: {
-                equals: 1,
-              },
-            },
-          },
-        },
-        include: {
-          payment: true,
-          reward: true,
-        },
-      });
-
-      // count PAYMENT and REWARD totals
-      let paymentTotal = 0;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      let rewardTotal = 0;
-      winnings.forEach((item) => {
-        if (item.type === WinningsType.PAYMENT) {
-          const latestVersion = this.findMaxVersion(
-            latestPaymentVersion,
-            item.winning_id,
-          );
-          const foundPayment = item.payment.find(
-            (p) =>
-              p.installment_number === 1 &&
-              p.version === latestVersion &&
-              (p.payment_status === PaymentStatus.OWED ||
-                p.payment_status === PaymentStatus.ON_HOLD),
-          );
-          if (foundPayment) {
-            paymentTotal += foundPayment.total_amount!.toNumber();
-          }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-        } else if (item.type === WinningsType.REWARD) {
-          if (item.reward && item.reward.length > 0) {
-            item.reward.forEach((r) => {
-              rewardTotal += r.points ?? 0;
-            });
-          }
-        }
-      });
+      const winnings = await this.getWinningsTotalsByWinnerID(userId);
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
       const hasVerifiedPaymentMethod =
@@ -106,7 +44,10 @@ export class WalletService {
           balances: [
             {
               type: WinningsType.PAYMENT,
-              amount: paymentTotal,
+              amount: Number(
+                winnings.find((it) => it.payment_type === 'PAYMENT')
+                  ?.total_owed ?? 0,
+              ),
               unit: 'currency',
             },
             // hide rewards for now
@@ -136,6 +77,43 @@ export class WalletService {
     }
 
     return result;
+  }
+
+  getWinningsTotalsByWinnerID(winnerId: string) {
+    return this.prisma.$queryRaw<
+      { payment_type: 'PAYMENT' | 'REWARD'; total_owed: number }[]
+    >`
+      WITH latest_payment_version AS (
+        SELECT
+          winnings_id,
+          MAX(version) AS max_version
+        FROM
+          payment
+        GROUP BY
+          winnings_id
+      )
+      SELECT
+        w.type AS payment_type,
+        CASE
+          WHEN w.type = 'PAYMENT' THEN SUM(p.total_amount)
+          WHEN w.type = 'REWARD' THEN SUM(r.points)
+          ELSE 0
+        END AS total_owed
+      FROM
+        winnings w
+        LEFT JOIN payment p ON w.winning_id = p.winnings_id
+        AND w.type = 'PAYMENT'
+        AND p.payment_status IN ('OWED', 'ON_HOLD')
+        AND p.installment_number = 1
+        INNER JOIN latest_payment_version lpv ON p.winnings_id = lpv.winnings_id
+        AND p.version = lpv.max_version
+        LEFT JOIN reward r ON w.winning_id = r.winnings_id
+        AND w.type = 'REWARD'
+      WHERE
+        w.winner_id = ${winnerId}
+      GROUP BY
+        w.type
+    `;
   }
 
   private findMaxVersion(latest: any[], winningId: string): number {
