@@ -17,9 +17,9 @@ async function bootstrap() {
     allowedHeaders:
       'Origin, X-Requested-With, Content-Type, Accept, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Headers,currentOrg,overrideOrg,x-atlassian-cloud-id,x-api-key,x-orgid',
     credentials: true,
-    origin: process.env.CORS_ALLOWED_ORIGIN
-      ? new RegExp(process.env.CORS_ALLOWED_ORIGIN)
-      : ['http://localhost:3000', /\.localhost:3000$/],
+    // origin: process.env.CORS_ALLOWED_ORIGIN
+    //   ? new RegExp(process.env.CORS_ALLOWED_ORIGIN)
+    //   : ['http://localhost:3000', /\.localhost:3000$/],
     methods: 'GET, POST, OPTIONS, PUT, DELETE, PATCH',
   };
   app.use(cors(corsConfig));
