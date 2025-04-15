@@ -122,6 +122,7 @@ export class AdminWinningController {
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt?.toISOString() ?? '',
         releaseDate: item.releaseDate?.toISOString() ?? '',
+        billingAccount: payment?.billingAccount,
       };
     });
 
@@ -142,6 +143,7 @@ export class AdminWinningController {
         { key: 'createdAt', header: 'Created At' },
         { key: 'updatedAt', header: 'Updated At' },
         { key: 'releaseDate', header: 'Release Date' },
+        { key: 'billingAccount', header: 'Billing Account' },
       ],
     });
 

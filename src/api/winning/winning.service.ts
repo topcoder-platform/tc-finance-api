@@ -88,6 +88,7 @@ export class WinningService {
           net_amount: Prisma.Decimal(0),
           payment_status: '' as payment_status,
           created_by: userId,
+          billing_account: detail.billingAccount,
         };
         if (taxForms.length > 0) {
           let netAmount = detail.grossAmount;

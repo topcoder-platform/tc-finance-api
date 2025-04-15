@@ -110,6 +110,7 @@ export class AdminWinningService {
             currency: paymentItem.currency,
             releaseDate: paymentItem.release_date,
             category: item.category,
+            billingAccount: paymentItem.billing_account,
           })),
           createdAt: item.created_at,
           updatedAt:
