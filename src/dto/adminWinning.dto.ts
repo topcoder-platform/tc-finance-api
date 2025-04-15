@@ -386,6 +386,14 @@ export class PaymentCreateRequestDto {
   @IsString()
   @IsNotEmpty()
   currency: string;
+
+  @ApiProperty({
+    description: 'Billing Account number for the payment',
+    example: '1231231',
+  })
+  @IsString()
+  @IsNotEmpty()
+  billingAccount: string;
 }
 
 export class WinningCreateRequestDto {
@@ -490,6 +498,7 @@ export class PaymentDetailDto {
   currency: string;
   releaseDate: Date;
   category: string;
+  billing_account: string;
 }
 
 export class WinningDto {
