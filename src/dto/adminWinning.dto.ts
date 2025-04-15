@@ -498,7 +498,7 @@ export class PaymentDetailDto {
   currency: string;
   releaseDate: Date;
   category: string;
-  billing_account: string;
+  billingAccount: string;
 }
 
 export class WinningDto {
