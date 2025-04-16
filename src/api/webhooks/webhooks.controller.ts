@@ -8,7 +8,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TrolleyService } from './trolley.service';
+import { TrolleyService } from './trolley/trolley.service';
 import { Public } from 'src/core/auth/decorators';
 
 @Public()

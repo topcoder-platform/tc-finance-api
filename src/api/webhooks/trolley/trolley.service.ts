@@ -120,7 +120,7 @@ export class TrolleyService {
       const { model, action, body } = payload;
       const handler = this.handlers.get(`${model}.${action}`);
       if (!handler) {
-        throw new Error('Webhook event handler not found!');
+        throw new Error('Event handler not found!');
       }
 
       await handler(body);

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { TrolleyWebhookEvent } from '../webhooks.types';
-import { WebhookEvent } from './decorators';
+import { WebhookEvent } from '../../webhooks.decorators';
+import { TrolleyWebhookEvent } from '../trolley.types';
 
 @Injectable()
 export class PaymentHandler {

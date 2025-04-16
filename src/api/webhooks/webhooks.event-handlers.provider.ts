@@ -1,8 +1,5 @@
-import { Provider } from '@nestjs/common';
-import { PaymentHandler } from './payment.handler';
-import { TrolleyWebhookEvent } from '../webhooks.types';
 import { Reflector } from '@nestjs/core';
-import { WEBHOOK_EVENT_METADATA_KEY } from './decorators';
+import { WEBHOOK_EVENT_METADATA_KEY } from './webhooks.decorators';
 
 /**
  * Factory function to create a map of Trolley webhook event handlers.
@@ -18,8 +15,8 @@ import { WEBHOOK_EVENT_METADATA_KEY } from './decorators';
  * @returns A `Map` where the keys are `TrolleyWebhookEvent` types and the values are
  *          bound handler functions for those events.
  */
-const trolleyHandlerFnsFactory = (reflector: Reflector, handlerClasses) => {
-  const handlersMap = new Map<TrolleyWebhookEvent, () => void>();
+const whEventHandlersFactory = (reflector: Reflector, handlerClasses) => {
+  const handlersMap = new Map<string, () => void>();
 
   for (const handlerClass of handlerClasses) {
     const prototype = Object.getPrototypeOf(handlerClass);
@@ -29,7 +26,7 @@ const trolleyHandlerFnsFactory = (reflector: Reflector, handlerClasses) => {
         continue;
       }
 
-      const eventTypes = reflector.get<TrolleyWebhookEvent[]>(
+      const eventTypes = reflector.get<string[]>(
         WEBHOOK_EVENT_METADATA_KEY,
         method,
       );
@@ -46,16 +43,18 @@ const trolleyHandlerFnsFactory = (reflector: Reflector, handlerClasses) => {
   return handlersMap;
 };
 
-export const TrolleyWebhookHandlersProviders: Provider[] = [
-  PaymentHandler,
-  {
-    provide: 'TrolleyWebhookHandlers',
-    useFactory: (paymentHandler: PaymentHandler) => [paymentHandler],
-    inject: [PaymentHandler],
-  },
-  {
-    provide: 'trolleyHandlerFns',
-    useFactory: trolleyHandlerFnsFactory,
-    inject: [Reflector, 'TrolleyWebhookHandlers'],
-  },
-];
+/**
+ * Creates a provider object for webhook event handlers.
+ *
+ * @param provide - The token that will be used to provide the dependency.
+ * @param handlersKey - The key used to identify the specific handlers to inject.
+ * @returns An object defining the provider with a factory function and its dependencies.
+ */
+export const getWebhooksEventHandlersProvider = (
+  provide: string,
+  handlersKey: string,
+) => ({
+  provide,
+  useFactory: whEventHandlersFactory,
+  inject: [Reflector, handlersKey],
+});
