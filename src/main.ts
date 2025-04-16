@@ -7,7 +7,9 @@ import { ApiModule } from './api/api.module';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
 
   // Global prefix for all routes is configured as `/v5/finance`
   app.setGlobalPrefix(process.env.API_BASE ?? '/v5/finance');

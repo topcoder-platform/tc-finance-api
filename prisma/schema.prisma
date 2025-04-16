@@ -1,7 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["extendedIndexes"]
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -208,6 +208,27 @@ model winnings {
   payment     payment[]
   reward      reward[]
   origin      origin?            @relation(fields: [origin_id], references: [origin_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+enum webhook_status {
+  error
+  processed
+  processing
+}
+
+model trolley_webhook_log {
+  id            String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  event_id      String         @unique
+  event_time    DateTime       @default(now()) @db.Timestamp(6)
+  event_payload String
+  event_model   String?
+  event_action  String?
+  status        webhook_status
+  error_message String?
+  created_by    String?        @db.VarChar(80)
+  updated_by    String?        @db.VarChar(80)
+  created_at    DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?      @default(now()) @db.Timestamp(6)
 }
 
 enum action_type {

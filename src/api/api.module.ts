@@ -15,9 +15,10 @@ import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
 import { OriginRepository } from './repository/origin.repo';
 import { TaxFormRepository } from './repository/taxForm.repo';
 import { PaymentMethodRepository } from './repository/paymentMethod.repo';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
-  imports: [GlobalProvidersModule, TopcoderModule],
+  imports: [WebhooksModule, GlobalProvidersModule, TopcoderModule],
   controllers: [
     HealthCheckController,
     AdminWinningController,
