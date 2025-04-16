@@ -33,14 +33,12 @@ export class TrolleyService {
    * @returns A boolean indicating whether the signature is valid.
    */
   validateSignature(headers: Request['headers'], bodyPayload: string): boolean {
-    if (!headers[TrolleyHeaders.signature]) {
+    const headerSignature = headers[TrolleyHeaders.signature] ?? '';
+    if (!headerSignature || !headerSignature.match(/t=\d+,v1=[a-f0-9]{64}/i)) {
       return false;
     }
 
-    const headerSignatureValues = (
-      headers[TrolleyHeaders.signature] ?? ''
-    ).split(',');
-
+    const headerSignatureValues = headerSignature.split(',');
     const t = headerSignatureValues[0].split('=')[1];
     const v1 = headerSignatureValues[1].split('=')[1];
 
@@ -59,6 +57,11 @@ export class TrolleyService {
    */
   async validateUnique(headers: Request['headers']): Promise<boolean> {
     const requestId = headers[TrolleyHeaders.id];
+
+    if (!requestId) {
+      return false;
+    }
+
     const whEvent = await this.prisma.trolley_webhook_log.findUnique({
       where: { event_id: requestId },
     });
@@ -126,7 +129,6 @@ export class TrolleyService {
       await handler(body);
       await this.setEventState(requestId, webhook_status.processed);
     } catch (e) {
-      console.log(e);
       await this.setEventState(requestId, webhook_status.error, void 0, {
         error_message: e.message ?? e,
       });

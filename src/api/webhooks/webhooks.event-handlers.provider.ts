@@ -16,7 +16,10 @@ import { WEBHOOK_EVENT_METADATA_KEY } from './webhooks.decorators';
  *          bound handler functions for those events.
  */
 const whEventHandlersFactory = (reflector: Reflector, handlerClasses) => {
-  const handlersMap = new Map<string, () => void>();
+  const handlersMap = new Map<
+    string,
+    (eventPayload: any) => Promise<unknown>
+  >();
 
   for (const handlerClass of handlerClasses) {
     const prototype = Object.getPrototypeOf(handlerClass);
@@ -34,7 +37,6 @@ const whEventHandlersFactory = (reflector: Reflector, handlerClasses) => {
       if (eventTypes?.length > 0) {
         eventTypes.forEach((eventType) => {
           handlersMap.set(eventType, method.bind(handlerClass));
-          console.log(`Found event handler: ${eventType} -> ${propertyName}`);
         });
       }
     }
