@@ -4,8 +4,6 @@ import {
   BadRequestException,
   Req,
   RawBodyRequest,
-  InternalServerErrorException,
-  ConflictException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TrolleyService } from './trolley/trolley.service';
@@ -39,15 +37,11 @@ export class WebhooksController {
       throw new BadRequestException('Missing or invalid signature!');
     }
 
+    // do not proceed any further if event has already been processed
     if (!(await this.trolleyService.validateUnique(request.headers))) {
-      throw new ConflictException('Webhook already processed!');
+      return;
     }
 
-    try {
-      return this.trolleyService.handleEvent(request.headers, request.body);
-    } catch (e) {
-      console.log('Error processing the webhook!', e);
-      throw new InternalServerErrorException('Error processing the webhook!');
-    }
+    return this.trolleyService.handleEvent(request.headers, request.body);
   }
 }

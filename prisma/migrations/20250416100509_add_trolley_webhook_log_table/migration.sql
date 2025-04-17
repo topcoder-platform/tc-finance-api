@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "webhook_status" AS ENUM ('error', 'processed', 'processing');
+CREATE TYPE "webhook_status" AS ENUM ('error', 'processed', 'logged');
 
 -- CreateTable
 CREATE TABLE "trolley_webhook_log" (

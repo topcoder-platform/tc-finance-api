@@ -213,7 +213,7 @@ model winnings {
 enum webhook_status {
   error
   processed
-  processing
+  logged
 }
 
 model trolley_webhook_log {

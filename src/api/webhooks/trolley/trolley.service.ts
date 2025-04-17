@@ -116,14 +116,15 @@ export class TrolleyService {
     const requestId = headers[TrolleyHeaders.id];
 
     try {
-      await this.setEventState(requestId, webhook_status.processing, payload, {
+      await this.setEventState(requestId, webhook_status.logged, payload, {
         event_time: headers[TrolleyHeaders.created],
       });
 
       const { model, action, body } = payload;
       const handler = this.handlers.get(`${model}.${action}`);
+      // do nothing if there's no handler for the event (event was logged in db)
       if (!handler) {
-        throw new Error('Event handler not found!');
+        return;
       }
 
       await handler(body);
