@@ -16,9 +16,15 @@ import { OriginRepository } from './repository/origin.repo';
 import { TaxFormRepository } from './repository/taxForm.repo';
 import { PaymentMethodRepository } from './repository/paymentMethod.repo';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { PaymentProvidersModule } from './payment-providers/payment-providers.module';
 
 @Module({
-  imports: [WebhooksModule, GlobalProvidersModule, TopcoderModule],
+  imports: [
+    GlobalProvidersModule,
+    TopcoderModule,
+    PaymentProvidersModule,
+    WebhooksModule,
+  ],
   controllers: [
     HealthCheckController,
     AdminWinningController,

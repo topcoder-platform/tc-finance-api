@@ -10,6 +10,7 @@ import {
 export class UserInfo {
   id: string;
   handle: string;
+  email: string;
 }
 
 export class UserWinningRequestDto extends SortPagination {
