@@ -1,9 +1,9 @@
 import {
   Controller,
   Post,
-  BadRequestException,
   Req,
   RawBodyRequest,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TrolleyService } from './trolley/trolley.service';
@@ -24,7 +24,7 @@ export class WebhooksController {
    *
    * @param request - The incoming webhook request containing headers, raw body, and parsed body.
    * @returns A success message if the webhook is processed successfully.
-   * @throws {BadRequestException} If the signature is invalid or the webhook has already been processed.
+   * @throws {ForbiddenException} If the signature is invalid or the webhook has already been processed.
    */
   @Post('trolley')
   async handleTrolleyWebhook(@Req() request: RawBodyRequest<Request>) {
@@ -34,7 +34,7 @@ export class WebhooksController {
         request.rawBody?.toString('utf-8') ?? '',
       )
     ) {
-      throw new BadRequestException('Missing or invalid signature!');
+      throw new ForbiddenException('Missing or invalid signature!');
     }
 
     // do not proceed any further if event has already been processed
