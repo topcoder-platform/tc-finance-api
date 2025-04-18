@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { trolley_webhook_log, webhook_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
+import { ENV_CONFIG } from 'src/config';
 
 enum TrolleyHeaders {
   id = 'x-paymentrails-delivery',
@@ -9,7 +10,7 @@ enum TrolleyHeaders {
   created = 'x-paymentrails-created',
 }
 
-const trolleyWhHmac = process.env.TROLLEY_WH_HMAC;
+const trolleyWhHmac = ENV_CONFIG.TROLLEY_WH_HMAC;
 if (!trolleyWhHmac) {
   throw new Error('TROLLEY_WH_HMAC is not set!');
 }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ENV_CONFIG } from 'src/config';
 
 @Injectable()
 export class TopcoderM2MService {
@@ -18,17 +19,17 @@ export class TopcoderM2MService {
    * - `AUTH0_M2M_GRANT_TYPE`: The grant type for the M2M token request.
    */
   async getToken(): Promise<string | undefined> {
-    const tokenURL = `${process.env.AUTH0_TC_PROXY_URL}/token`;
+    const tokenURL = `${ENV_CONFIG.AUTH0_TC_PROXY_URL}/token`;
     try {
       const response = await fetch(tokenURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          auth0_url: `${process.env.AUTH0_M2M_TOKEN_URL}/oauth/token`,
-          client_id: process.env.AUTH0_M2M_CLIENT_ID,
-          client_secret: process.env.AUTH0_M2M_SECRET,
-          audience: process.env.AUTH0_M2M_AUDIENCE,
-          grant_type: process.env.AUTH0_M2M_GRANT_TYPE,
+          auth0_url: `${ENV_CONFIG.AUTH0_M2M_TOKEN_URL}/oauth/token`,
+          client_id: ENV_CONFIG.AUTH0_M2M_CLIENT_ID,
+          client_secret: ENV_CONFIG.AUTH0_M2M_SECRET,
+          audience: ENV_CONFIG.AUTH0_M2M_AUDIENCE,
+          grant_type: ENV_CONFIG.AUTH0_M2M_GRANT_TYPE,
         }),
       });
 

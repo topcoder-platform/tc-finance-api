@@ -7,14 +7,15 @@ import { ApiModule } from './api/api.module';
 import { AppModule } from './app.module';
 import { PaymentProvidersModule } from './api/payment-providers/payment-providers.module';
 import { WebhooksModule } from './api/webhooks/webhooks.module';
+import { ENV_CONFIG } from './config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
 
-  // Global prefix for all routes is configured as `/v5/finance`
-  app.setGlobalPrefix(process.env.API_BASE ?? '/v5/finance');
+  // Global prefix for all routes
+  app.setGlobalPrefix(ENV_CONFIG.API_BASE);
 
   // CORS related settings
   const corsConfig: cors.CorsOptions = {
@@ -67,7 +68,7 @@ async function bootstrap() {
     );
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(ENV_CONFIG.PORT ?? 3000);
 }
 
 void bootstrap();

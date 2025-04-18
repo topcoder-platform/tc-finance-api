@@ -2,6 +2,9 @@ import { chunk } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { MEMBER_FIELDS } from './member.types';
 import { TopcoderM2MService } from './topcoder-m2m.service';
+import { ENV_CONFIG } from 'src/config';
+
+const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
 
 @Injectable()
 export class TopcoderMembersService {
@@ -21,7 +24,7 @@ export class TopcoderMembersService {
 
     // Split the unique user IDs into chunks of 100 to comply with API request limits
     const requests = chunk(uniqUserIds, 30).map((chunk) => {
-      const requestUrl = `${process.env.TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
+      const requestUrl = `${TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
       return fetch(requestUrl).then(
         async (response) =>
           (await response.json()) as { handle: string; userId: string },
@@ -67,7 +70,7 @@ export class TopcoderMembersService {
         e.message ?? e,
       );
     }
-    const requestUrl = `${process.env.TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
+    const requestUrl = `${TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
 
     try {
       const response: { [key: string]: string } = await fetch(requestUrl, {

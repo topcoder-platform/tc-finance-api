@@ -2,9 +2,12 @@ import url from 'url';
 import crypto from 'crypto';
 import trolley from 'trolleyhq';
 import { Injectable } from '@nestjs/common';
+import { ENV_CONFIG } from 'src/config';
 
-const { TROLLEY_ACCESS_KEY, TROLLEY_SECRET_KEY, TROLLEY_WIDGET_BASE_URL } =
-  process.env;
+
+const TROLLEY_ACCESS_KEY = ENV_CONFIG.TROLLEY_ACCESS_KEY;
+const TROLLEY_SECRET_KEY = ENV_CONFIG.TROLLEY_SECRET_KEY;
+const TROLLEY_WIDGET_BASE_URL = ENV_CONFIG.TROLLEY_WIDGET_BASE_URL;
 
 const client = trolley({
   key: TROLLEY_ACCESS_KEY as string,
