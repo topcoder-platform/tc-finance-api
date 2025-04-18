@@ -49,6 +49,7 @@ export class RolesGuard implements CanActivate {
     request.user = {
       id: userId,
       handle: userHandle,
+      email: request.email,
     };
 
     return true;

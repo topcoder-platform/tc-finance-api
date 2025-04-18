@@ -5,6 +5,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ApiModule } from './api/api.module';
 import { AppModule } from './app.module';
+import { PaymentProvidersModule } from './api/payment-providers/payment-providers.module';
+import { WebhooksModule } from './api/webhooks/webhooks.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -49,7 +51,7 @@ async function bootstrap() {
     })
     .build();
   const document = SwaggerModule.createDocument(app, config, {
-    include: [ApiModule],
+    include: [ApiModule, PaymentProvidersModule, WebhooksModule],
   });
   SwaggerModule.setup('/v5/finance/api-docs', app, document);
 
