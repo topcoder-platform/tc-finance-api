@@ -1,11 +1,11 @@
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString } from 'class-validator';
 
 export class ConfigEnv {
   @IsString()
   @IsOptional()
   API_BASE = '/v5/finance';
 
-  @IsNumber()
+  @IsInt()
   @IsOptional()
   PORT = 3000;
 
