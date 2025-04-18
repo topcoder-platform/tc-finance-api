@@ -3,12 +3,12 @@ import crypto from 'crypto';
 import trolley from 'trolleyhq';
 import { Injectable } from '@nestjs/common';
 
-const { TORLLEY_ACCESS_KEY, TORLLEY_SECRET_KEY, TROLLEY_WIDGET_BASE_URL } =
+const { TROLLEY_ACCESS_KEY, TROLLEY_SECRET_KEY, TROLLEY_WIDGET_BASE_URL } =
   process.env;
 
 const client = trolley({
-  key: TORLLEY_ACCESS_KEY as string,
-  secret: TORLLEY_SECRET_KEY as string,
+  key: TROLLEY_ACCESS_KEY as string,
+  secret: TROLLEY_SECRET_KEY as string,
 });
 
 @Injectable()
@@ -23,14 +23,14 @@ export class TrolleyService {
    * @param recipient - recipient's details
    * @returns A string representing the fully constructed and signed URL for the Trolley widget.
    *
-   * @throws This function assumes that `TROLLEY_WIDGET_BASE_URL`, `TORLLEY_ACCESS_KEY`,
-   * and `TORLLEY_SECRET_KEY` are defined and valid. Ensure these constants are properly set.
+   * @throws This function assumes that `TROLLEY_WIDGET_BASE_URL`, `TROLLEY_ACCESS_KEY`,
+   * and `TROLLEY_SECRET_KEY` are defined and valid. Ensure these constants are properly set.
    */
   getRecipientPortalUrl(recipient: { email: string; trolleyId: string }) {
     const widgetBaseUrl = new url.URL(TROLLEY_WIDGET_BASE_URL as string);
     const querystring = new url.URLSearchParams({
       ts: `${Math.floor(new Date().getTime() / 1000)}`,
-      key: TORLLEY_ACCESS_KEY,
+      key: TROLLEY_ACCESS_KEY,
       email: recipient.email,
       refid: recipient.trolleyId,
       hideEmail: 'false',
@@ -41,7 +41,7 @@ export class TrolleyService {
       .toString()
       .replace(/\+/g, '%20');
 
-    const hmac = crypto.createHmac('sha256', TORLLEY_SECRET_KEY as string);
+    const hmac = crypto.createHmac('sha256', TROLLEY_SECRET_KEY as string);
     hmac.update(querystring);
 
     // Signature is only valid for 30 seconds

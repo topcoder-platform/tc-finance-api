@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { chunk } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { MEMBER_FIELDS } from './member.types';
@@ -23,9 +22,10 @@ export class TopcoderMembersService {
     // Split the unique user IDs into chunks of 100 to comply with API request limits
     const requests = chunk(uniqUserIds, 30).map((chunk) => {
       const requestUrl = `${process.env.TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
-      return axios
-        .get(requestUrl)
-        .then(({ data }) => data as { handle: string; userId: string });
+      return fetch(requestUrl).then(
+        async (response) =>
+          (await response.json()) as { handle: string; userId: string },
+      );
     });
 
     try {
@@ -57,13 +57,22 @@ export class TopcoderMembersService {
     options = {} as { fields: MEMBER_FIELDS[] },
   ) {
     const { fields } = options;
-    const m2mToken = await this.m2MService.getToken();
+
+    let m2mToken: string | undefined;
+    try {
+      m2mToken = await this.m2MService.getToken();
+    } catch (e) {
+      console.error(
+        'Failed to fetch m2m token for fetching member details!',
+        e.message ?? e,
+      );
+    }
     const requestUrl = `${process.env.TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
 
     try {
-      const response = await axios
-        .get(requestUrl, { headers: { Authorization: `Bearer ${m2mToken}` } })
-        .then(({ data }) => data as { [key: string]: string });
+      const response: { [key: string]: string } = await fetch(requestUrl, {
+        headers: { Authorization: `Bearer ${m2mToken}` },
+      }).then((r) => r.json());
       return response;
     } catch (e) {
       console.error(

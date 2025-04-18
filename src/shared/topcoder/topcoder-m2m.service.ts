@@ -38,7 +38,7 @@ export class TopcoderM2MService {
       return m2mToken;
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.log('Failed fetching TC M2M Token!', error);
+      console.error('Failed fetching TC M2M Token!', error);
       return undefined;
     }
   }
