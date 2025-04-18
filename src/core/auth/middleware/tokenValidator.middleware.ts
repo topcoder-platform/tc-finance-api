@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
+import { ENV_CONFIG } from 'src/config';
 
 @Injectable()
 export class TokenValidatorMiddleware implements NestMiddleware {
@@ -16,7 +17,7 @@ export class TokenValidatorMiddleware implements NestMiddleware {
 
     let decoded: any;
     try {
-      decoded = jwt.verify(idToken, process.env.AUTH0_CERT);
+      decoded = jwt.verify(idToken, ENV_CONFIG.AUTH0_CERT);
     } catch (error) {
       console.error('Error verifying JWT', error);
       throw new UnauthorizedException('Invalid or expired JWT!');
@@ -29,8 +30,8 @@ export class TokenValidatorMiddleware implements NestMiddleware {
 
     req.isM2M = !!decoded.scope;
     const aud = req.isM2M
-      ? process.env.AUTH0_M2M_AUDIENCE
-      : process.env.AUTH0_CLIENT_ID;
+      ? ENV_CONFIG.AUTH0_M2M_AUDIENCE
+      : ENV_CONFIG.AUTH0_CLIENT_ID;
 
     if (decoded.aud !== aud) {
       req.idTokenVerified = false;
