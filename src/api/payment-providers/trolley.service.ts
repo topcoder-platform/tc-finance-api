@@ -42,7 +42,11 @@ export class TrolleyService {
       user.email,
     );
 
-    if (foundRecipient?.length === 1) {
+    if (
+      foundRecipient?.length === 1 &&
+      // make sure it's same email address
+      foundRecipient[0].email === user.email
+    ) {
       return foundRecipient[0];
     }
 
@@ -50,7 +54,9 @@ export class TrolleyService {
       user.handle,
       { fields: BASIC_MEMBER_FIELDS },
     );
-    const address = userInfo.addresses?.[0] ?? {};
+    const address = (userInfo.addresses?.[0] ?? {}) as unknown as {
+      [key: string]: string;
+    };
 
     const recipientPayload = {
       type: 'individual' as const,
@@ -148,7 +154,7 @@ export class TrolleyService {
     const recipient = await this.getPayeeRecipient(user);
     const link = this.trolley.getRecipientPortalUrl({
       email: user.email,
-      trolleyId: recipient.trolley_id,
+      userId: user.id,
     });
 
     return { link, recipientId: recipient.trolley_id };
