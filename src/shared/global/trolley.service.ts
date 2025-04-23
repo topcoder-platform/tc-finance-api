@@ -29,13 +29,13 @@ export class TrolleyService {
    * @throws This function assumes that `TROLLEY_WIDGET_BASE_URL`, `TROLLEY_ACCESS_KEY`,
    * and `TROLLEY_SECRET_KEY` are defined and valid. Ensure these constants are properly set.
    */
-  getRecipientPortalUrl(recipient: { email: string; trolleyId: string }) {
+  getRecipientPortalUrl(recipient: { email: string; userId: string }) {
     const widgetBaseUrl = new url.URL(TROLLEY_WIDGET_BASE_URL as string);
     const querystring = new url.URLSearchParams({
       ts: `${Math.floor(new Date().getTime() / 1000)}`,
       key: TROLLEY_ACCESS_KEY,
       email: recipient.email,
-      refid: recipient.trolleyId,
+      refid: recipient.userId,
       hideEmail: 'false',
       roEmail: 'true',
       locale: 'en',
