@@ -47,6 +47,12 @@ export class TrolleyService {
       // make sure it's same email address
       foundRecipient[0].email === user.email
     ) {
+      if (foundRecipient[0].referenceId !== user.id) {
+        await this.trolley.client.recipient.update(foundRecipient[0].id, {
+          referenceId: user.id,
+        });
+      }
+
       return foundRecipient[0];
     }
 
