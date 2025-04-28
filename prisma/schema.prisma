@@ -249,10 +249,8 @@ enum reference_type {
 }
 
 enum tax_form_status {
-  incomplete
-  submitted
-  reviewed
-  voided
+  ACTIVE
+  INACTIVE
 }
 
 enum transaction_status {

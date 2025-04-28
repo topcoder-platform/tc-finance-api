@@ -6,7 +6,12 @@ export enum TrolleyWebhookEvent {
 
 export type TrolleyEventHandler = (eventPayload: any) => Promise<unknown>;
 
-export type TaxFormStatus = 'incomplete' | 'submitted' | 'reviewed' | 'voided';
+export enum TaxFormStatus {
+  Incomplete = 'incomplete',
+  Submitted = 'submitted',
+  Reviewed = 'reviewed',
+  Voided = 'voided',
+}
 
 export interface TaxFormStatusUpdatedEventData {
   recipientId: string;

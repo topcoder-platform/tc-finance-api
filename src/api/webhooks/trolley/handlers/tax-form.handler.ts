@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
 import {
+  TaxFormStatus,
   TaxFormStatusUpdatedEvent,
   TaxFormStatusUpdatedEventData,
   TrolleyWebhookEvent,
@@ -23,12 +24,17 @@ export class TaxFormHandler {
     recipient: trolley_recipient,
     taxFormData: TaxFormStatusUpdatedEventData,
   ) {
+    const taxFormStatus =
+      taxFormData.status === TaxFormStatus.Reviewed
+        ? tax_form_status.ACTIVE
+        : tax_form_status.INACTIVE;
+
     const existingFormAssociation =
       await this.prisma.user_tax_form_associations.findFirst({
         where: {
           user_id: recipient.user_id,
           tax_form_id: taxFormId,
-          tax_form_status: { notIn: [tax_form_status.voided] },
+          tax_form_status: tax_form_status.ACTIVE,
         },
       });
 
@@ -36,7 +42,7 @@ export class TaxFormHandler {
       return this.prisma.user_tax_form_associations.create({
         data: {
           user_id: recipient.user_id,
-          tax_form_status: taxFormData.status,
+          tax_form_status: taxFormStatus,
           date_filed: taxFormData.signedAt,
           tax_form_id: taxFormId,
         },
@@ -44,7 +50,7 @@ export class TaxFormHandler {
     }
 
     // voided forms associations are removed from DB
-    if (taxFormData.status === tax_form_status.voided) {
+    if (taxFormData.status === TaxFormStatus.Voided) {
       return this.prisma.user_tax_form_associations.delete({
         where: {
           id: existingFormAssociation.id,
@@ -55,7 +61,7 @@ export class TaxFormHandler {
     return this.prisma.user_tax_form_associations.update({
       where: { id: existingFormAssociation?.id },
       data: {
-        tax_form_status: taxFormData.status,
+        tax_form_status: taxFormStatus,
         date_filed: taxFormData.signedAt,
       },
     });

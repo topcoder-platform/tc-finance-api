@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TaxFormStatus } from 'src/dto/adminWinning.dto';
+import { tax_form_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class TaxFormRepository {
     const count = await this.prisma.user_tax_form_associations.count({
       where: {
         user_id: userId,
-        tax_form_status: TaxFormStatus.Reviewed,
+        tax_form_status: tax_form_status.ACTIVE,
       },
     });
 
