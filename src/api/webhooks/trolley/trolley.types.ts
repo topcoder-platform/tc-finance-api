@@ -19,8 +19,8 @@ export interface TaxFormStatusUpdatedEventData {
   status: TaxFormStatus;
   taxFormType: string;
   taxFormAddressCountry: string;
-  mailingAddressCountry: null;
-  registrationCountry: null;
+  mailingAddressCountry: string | null;
+  registrationCountry: string | null;
   createdAt: string;
   signedAt: string;
   reviewedAt: string;

@@ -83,7 +83,7 @@ export class TaxFormHandler {
   @WebhookEvent(TrolleyWebhookEvent.taxFormStatusUpdated)
   async handleTaxFormStatusUpdated(
     payload: TaxFormStatusUpdatedEvent,
-  ): Promise<any> {
+  ): Promise<void> {
     const taxFormData = payload.taxForm.data;
     const recipient = await this.getDbRecipientById(taxFormData.recipientId);
 
