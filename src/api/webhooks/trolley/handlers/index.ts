@@ -1,5 +1,6 @@
 import { Provider } from '@nestjs/common';
 import { PaymentHandler } from './payment.handler';
+import { TaxFormHandler } from './tax-form.handler';
 import { getWebhooksEventHandlersProvider } from '../../webhooks.event-handlers.provider';
 
 export const TrolleyWebhookHandlers: Provider[] = [
@@ -9,9 +10,13 @@ export const TrolleyWebhookHandlers: Provider[] = [
   ),
 
   PaymentHandler,
+  TaxFormHandler,
   {
     provide: 'TrolleyWebhookHandlers',
-    useFactory: (paymentHandler: PaymentHandler) => [paymentHandler],
-    inject: [PaymentHandler],
+    inject: [PaymentHandler, TaxFormHandler],
+    useFactory: (
+      paymentHandler: PaymentHandler,
+      taxFormHandler: TaxFormHandler,
+    ) => [paymentHandler, taxFormHandler],
   },
 ];

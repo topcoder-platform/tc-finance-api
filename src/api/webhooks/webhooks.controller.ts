@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TrolleyService } from './trolley/trolley.service';
+import { TrolleyHeaders, TrolleyService } from './trolley/trolley.service';
 import { Public } from 'src/core/auth/decorators';
 
 @Public()
@@ -39,6 +39,9 @@ export class WebhooksController {
 
     // do not proceed any further if event has already been processed
     if (!(await this.trolleyService.validateUnique(request.headers))) {
+      console.info(
+        `Webhook event '${request.headers[TrolleyHeaders.id]}' has already been processed!`,
+      );
       return;
     }
 
