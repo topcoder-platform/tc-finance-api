@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { TaxFormStatus } from 'src/dto/adminWinning.dto';
-import { TaxFormQueryResult } from 'src/dto/taxForm.dto';
 import { PrismaService } from 'src/shared/global/prisma.service';
 
 @Injectable()
@@ -14,34 +13,13 @@ export class TaxFormRepository {
    * @returns true if user has active tax form
    */
   async hasActiveTaxForm(userId: string): Promise<boolean> {
-    const ret = await this.findTaxFormByUserId(userId);
-    for (const r of ret) {
-      if (r.status_id === TaxFormStatus.Active.toString()) {
-        return true;
-      }
-    }
-    return false;
-  }
+    const count = await this.prisma.user_tax_form_associations.count({
+      where: {
+        user_id: userId,
+        tax_form_status: TaxFormStatus.Reviewed,
+      },
+    });
 
-  /**
-   * Find tax forms by user id
-   *
-   * @param userId user id
-   * @param tx transaction
-   * @returns tax forms
-   */
-  async findTaxFormByUserId(
-    userId: string,
-    tx?,
-  ): Promise<TaxFormQueryResult[]> {
-    const db = tx || this.prisma;
-
-    const ret = await db.$queryRaw`
-      SELECT u.id, u.user_id, t.tax_form_id, t.name, t.text, t.description, u.date_filed, u.withholding_amount, u.withholding_percentage, u.status_id::text, u.use_percentage 
-          FROM user_tax_form_associations AS u
-          JOIN tax_forms AS t ON u.tax_form_id = t.tax_form_id
-          WHERE u.user_id=${userId}
-    `;
-    return (ret || []) as TaxFormQueryResult[];
+    return count > 0;
   }
 }

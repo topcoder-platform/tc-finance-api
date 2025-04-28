@@ -17,6 +17,7 @@ import {
   WinningUpdateRequestDto,
   PaymentStatus,
   AuditPayoutDto,
+  WinningsCategory,
 } from 'src/dto/adminWinning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
@@ -94,30 +95,29 @@ export class AdminWinningService {
           type: item.type,
           winnerId: item.winner_id,
           origin: item.origin?.origin_name,
-          category: item.category,
-          title: item.title,
-          description: item.description,
-          externalId: item.external_id,
-          attributes: item.attributes,
+          category: (item.category ?? '') as WinningsCategory,
+          title: item.title as string,
+          description: item.description as string,
+          externalId: item.external_id as string,
+          attributes: (item.attributes ?? {}) as object,
           details: item.payment?.map((paymentItem) => ({
             id: paymentItem.payment_id,
             netAmount: Number(paymentItem.net_amount),
             grossAmount: Number(paymentItem.gross_amount),
             totalAmount: Number(paymentItem.total_amount),
-            installmentNumber: paymentItem.installment_number,
-            datePaid: paymentItem.date_paid ?? undefined,
-            status: paymentItem.payment_status,
-            currency: paymentItem.currency,
-            releaseDate: paymentItem.release_date,
-            category: item.category,
+            installmentNumber: paymentItem.installment_number as number,
+            datePaid: (paymentItem.date_paid ?? undefined) as Date,
+            status: paymentItem.payment_status as PaymentStatus,
+            currency: paymentItem.currency as string,
+            releaseDate: paymentItem.release_date as Date,
+            category: item.category as string,
             billingAccount: paymentItem.billing_account,
           })),
-          createdAt: item.created_at,
-          updatedAt:
-            item.payment?.[0].date_paid ??
+          createdAt: item.created_at as Date,
+          updatedAt: (item.payment?.[0].date_paid ??
             item.payment?.[0].updated_at ??
-            undefined,
-          releaseDate: item.payment?.[0]?.release_date,
+            undefined) as Date,
+          releaseDate: item.payment?.[0]?.release_date as Date,
         })),
         pagination: {
           totalItems: count,

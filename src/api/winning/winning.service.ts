@@ -67,10 +67,7 @@ export class WinningService {
           create: [] as Partial<payment>[],
         },
       };
-      const taxForms = await this.taxFormRepo.findTaxFormByUserId(
-        body.winnerId,
-        tx,
-      );
+
       const payrollPayment = (body.attributes || {})['payroll'] === true;
 
       const hasPaymentMethod =
@@ -90,22 +87,9 @@ export class WinningService {
           created_by: userId,
           billing_account: detail.billingAccount,
         };
-        if (taxForms.length > 0) {
-          let netAmount = detail.grossAmount;
-          for (const taxForm of taxForms) {
-            const withholding = taxForm.withholding_amount;
-            netAmount -= withholding;
-            if (netAmount <= 0) {
-              netAmount = 0;
-              break;
-            }
-          }
-          paymentModel.net_amount = Prisma.Decimal(netAmount);
-          paymentModel.payment_status = PaymentStatus.OWED;
-        } else {
-          paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
-          paymentModel.payment_status = PaymentStatus.ON_HOLD;
-        }
+
+        paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
+        paymentModel.payment_status = PaymentStatus.ON_HOLD;
 
         if (!hasPaymentMethod) {
           paymentModel.payment_status = PaymentStatus.ON_HOLD;

@@ -93,10 +93,10 @@ export enum WinningsCategory {
 }
 
 export enum TaxFormStatus {
-  Active = 'ACTIVE',
-  Inactive = 'INACTIVE',
-  Verified = 'OTP_VERIFIED',
-  OtpPending = 'OTP_PENDING',
+  Incomplete = 'incomplete',
+  Submitted = 'submitted',
+  Reviewed = 'reviewed',
+  Voided = 'voided',
 }
 
 export enum PaymentStatus {
@@ -528,7 +528,7 @@ export class AuditPayoutDto {
   status: string;
   totalNetAmount: number;
   createdAt: Date;
-  metadata: object;
+  metadata: string;
   paymentMethodUsed: string;
   externalTransactionDetails: object;
 }

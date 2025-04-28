@@ -19,15 +19,6 @@ model audit {
   winnings    winnings @relation(fields: [winnings_id], references: [winning_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model docusign_envelopes {
-  id                           String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_tax_form_association_id String                     @db.Uuid
-  envelope_id                  String                     @db.VarChar(80)
-  template_id                  String                     @db.VarChar(80)
-  status_id                    docusign_envelope_status?
-  user_tax_form_associations   user_tax_form_associations @relation(fields: [user_tax_form_association_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-}
-
 model origin {
   origin_id   Int        @id @default(autoincrement())
   origin_name String     @db.VarChar(255)
@@ -137,18 +128,6 @@ model reward {
   winnings    winnings  @relation(fields: [winnings_id], references: [winning_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model tax_forms {
-  tax_form_id                    String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name                           String?                      @db.VarChar(30)
-  text                           String?
-  description                    String?                      @db.VarChar(255)
-  default_withholding_amount     Decimal?                     @db.Decimal(12, 2)
-  default_withholding_percentage Decimal?                     @db.Decimal(5, 5)
-  use_percentage                 Boolean?
-  e_sign_template_id             String                       @db.VarChar(80)
-  user_tax_form_associations     user_tax_form_associations[]
-}
-
 model transaction {
   id             String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   user_id        String             @db.VarChar(255)
@@ -181,14 +160,9 @@ model user_payment_methods {
 model user_tax_form_associations {
   id                     String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   user_id                String               @db.VarChar(80)
-  tax_form_id            String               @db.Uuid
+  tax_form_id            String?
   date_filed             DateTime?            @db.Timestamp(6)
-  withholding_amount     Decimal?             @db.Decimal
-  withholding_percentage Decimal?             @db.Decimal(5, 5)
-  status_id              tax_form_status?
-  use_percentage         Boolean?
-  docusign_envelopes     docusign_envelopes[]
-  tax_forms              tax_forms            @relation(fields: [tax_form_id], references: [tax_form_id], onDelete: NoAction, onUpdate: NoAction)
+  tax_form_status        tax_form_status?
 }
 
 model winnings {
@@ -248,13 +222,6 @@ enum action_type {
   REMOVE_TAX_FORMS
 }
 
-enum docusign_envelope_status {
-  CREATED
-  OTP_VERIFIED
-  COMPLETED
-  DECLINED
-}
-
 enum payment_method_status {
   OTP_PENDING
   OTP_VERIFIED
@@ -282,10 +249,10 @@ enum reference_type {
 }
 
 enum tax_form_status {
-  OTP_PENDING
-  OTP_VERIFIED
-  ACTIVE
-  INACTIVE
+  incomplete
+  submitted
+  reviewed
+  voided
 }
 
 enum transaction_status {
