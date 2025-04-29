@@ -4,7 +4,7 @@ export enum RecipientAccountWebhookEvent {
   deleted = 'recipientAccount.deleted',
 }
 
-export interface RecipientAccountEventData {
+export interface RecipientAccountEventDataFields {
   status: string;
   type: string;
   primary: boolean;
@@ -15,6 +15,10 @@ export interface RecipientAccountEventData {
   disabledAt: string | null;
   recipientReferenceId: string | null;
   deliveryBusinessDaysEstimate: number;
+}
+
+export interface RecipientAccountEventDataWithBankDetails
+  extends RecipientAccountEventDataFields {
   country: string;
   iban: string;
   accountNum: string;
@@ -32,6 +36,15 @@ export interface RecipientAccountEventData {
   routeType: string;
   recipientFees: string;
 }
+
+export interface RecipientAccountEventDataWithPaypalDetails
+  extends RecipientAccountEventDataFields {
+  emailAddress: string;
+}
+
+export type RecipientAccountEventData =
+  | RecipientAccountEventDataWithBankDetails
+  | RecipientAccountEventDataWithPaypalDetails;
 
 export type RecipientAccountDeleteEventData = Pick<
   RecipientAccountEventData,
