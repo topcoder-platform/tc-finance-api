@@ -91,9 +91,6 @@ export class WinningService {
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
         paymentModel.payment_status = PaymentStatus.ON_HOLD;
 
-        if (!hasPaymentMethod) {
-          paymentModel.payment_status = PaymentStatus.ON_HOLD;
-        }
         if (payrollPayment) {
           paymentModel.payment_status = PaymentStatus.PAID;
         }
