@@ -18,10 +18,6 @@ export class PrismaService
         { level: 'error', emit: 'event' },
       ],
     });
-
-    // this.$on("query", async (e) => {
-    //   console.log(`${e.query} ${e.params}`)
-    // });
   }
 
   async onModuleInit() {

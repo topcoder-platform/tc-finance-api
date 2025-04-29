@@ -160,9 +160,9 @@ model user_payment_methods {
 model user_tax_form_associations {
   id                     String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   user_id                String               @db.VarChar(80)
-  tax_form_id            String?
-  date_filed             DateTime?            @db.Timestamp(6)
-  tax_form_status        tax_form_status?
+  tax_form_id            String
+  date_filed             DateTime            @db.Timestamp(6)
+  tax_form_status        tax_form_status
 }
 
 model winnings {
