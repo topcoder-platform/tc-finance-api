@@ -97,7 +97,6 @@ export class RecipientAccountHandler {
           recipient_account_id: recipientAccountId,
         },
       });
-      return;
     }
 
     // no recipient, and payment method is not primary in trolley, return and do nothing
@@ -106,7 +105,7 @@ export class RecipientAccountHandler {
     }
 
     // update the payment method if it exists & it was set to primary in trolley
-    if (isPrimaryPaymentMethod) {
+    if (recipientPaymentMethod && isPrimaryPaymentMethod) {
       await this.prisma.trolley_recipient_payment_method.update({
         where: { id: recipientPaymentMethod.id },
         data: {
@@ -117,6 +116,7 @@ export class RecipientAccountHandler {
 
     // remove the payment method if it exists (with the same ID) and it was set as inactive in trolley
     if (
+      recipientPaymentMethod &&
       !isPrimaryPaymentMethod &&
       recipientPaymentMethod.recipient_account_id === recipientAccountId
     ) {
