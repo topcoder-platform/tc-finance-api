@@ -92,13 +92,6 @@ export enum WinningsCategory {
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
 }
 
-export enum TaxFormStatus {
-  Incomplete = 'incomplete',
-  Submitted = 'submitted',
-  Reviewed = 'reviewed',
-  Voided = 'voided',
-}
-
 export enum PaymentStatus {
   PAID = 'PAID',
   ON_HOLD = 'ON_HOLD',

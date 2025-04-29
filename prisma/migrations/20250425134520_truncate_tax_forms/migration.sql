@@ -8,7 +8,7 @@ ALTER TABLE "user_tax_form_associations" DROP CONSTRAINT "user_tax_form_associat
 DROP TABLE "user_tax_form_associations";
 DROP TYPE "tax_form_status";
 
-CREATE TYPE "tax_form_status" AS ENUM ('incomplete', 'submitted', 'reviewed', 'voided');
+CREATE TYPE "tax_form_status" AS ENUM ('ACTIVE', 'INACTIVE');
 
 -- CreateTable
 CREATE TABLE "user_tax_form_associations" (

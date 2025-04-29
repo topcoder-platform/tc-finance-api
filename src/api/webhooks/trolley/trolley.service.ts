@@ -4,7 +4,7 @@ import { trolley_webhook_log, webhook_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { ENV_CONFIG } from 'src/config';
 
-enum TrolleyHeaders {
+export enum TrolleyHeaders {
   id = 'x-paymentrails-delivery',
   signature = 'x-paymentrails-signature',
   created = 'x-paymentrails-created',
