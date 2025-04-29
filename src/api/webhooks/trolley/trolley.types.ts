@@ -6,7 +6,7 @@ export enum TrolleyWebhookEvent {
 
 export type TrolleyEventHandler = (eventPayload: any) => Promise<unknown>;
 
-export enum TaxFormStatus {
+export enum TrolleyTaxFormStatus {
   Incomplete = 'incomplete',
   Submitted = 'submitted',
   Reviewed = 'reviewed',
@@ -16,7 +16,7 @@ export enum TaxFormStatus {
 export interface TaxFormStatusUpdatedEventData {
   recipientId: string;
   taxFormId: string;
-  status: TaxFormStatus;
+  status: TrolleyTaxFormStatus;
   taxFormType: string;
   taxFormAddressCountry: string;
   mailingAddressCountry: string | null;
@@ -34,7 +34,7 @@ export interface TaxFormStatusUpdatedEventData {
 export interface TaxFormStatusUpdatedEvent {
   taxForm: {
     previousFields: {
-      status: TaxFormStatus;
+      status: TrolleyTaxFormStatus;
     };
     data: TaxFormStatusUpdatedEventData;
   };
