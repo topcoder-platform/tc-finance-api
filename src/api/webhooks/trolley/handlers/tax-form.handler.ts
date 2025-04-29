@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
+import { PrismaService } from 'src/shared/global/prisma.service';
+import { tax_form_status, trolley_recipient } from '@prisma/client';
 import {
   TaxFormStatus,
   TaxFormStatusUpdatedEvent,
   TaxFormStatusUpdatedEventData,
-  TrolleyWebhookEvent,
-} from '../trolley.types';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { tax_form_status, trolley_recipient } from '@prisma/client';
+  TaxFormWebhookEvent,
+} from './tax-form.types';
 
 @Injectable()
 export class TaxFormHandler {
@@ -80,11 +80,11 @@ export class TaxFormHandler {
    * - If the recipient is found, the tax form association is created or updated
    *   in the database.
    */
-  @WebhookEvent(TrolleyWebhookEvent.taxFormStatusUpdated)
+  @WebhookEvent(TaxFormWebhookEvent.statusUpdated)
   async handleTaxFormStatusUpdated(
     payload: TaxFormStatusUpdatedEvent,
   ): Promise<void> {
-    const taxFormData = payload.taxForm.data;
+    const taxFormData = payload.data;
     const recipient = await this.getDbRecipientById(taxFormData.recipientId);
 
     if (!recipient) {
