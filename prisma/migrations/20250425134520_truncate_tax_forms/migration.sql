@@ -16,7 +16,7 @@ CREATE TABLE "user_tax_form_associations" (
     "user_id" VARCHAR(80) NOT NULL,
     "tax_form_id" TEXT NOT NULL,
     "date_filed" TIMESTAMP(6) NOT NULL,
-    "tax_form_status" "tax_form_status",
+    "tax_form_status" "tax_form_status" NOT NULL,
 
     CONSTRAINT "user_tax_form_associations_pkey" PRIMARY KEY ("id")
 );
