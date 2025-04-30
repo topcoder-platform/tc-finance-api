@@ -1,5 +1,11 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { payment_status, Prisma, winnings_category } from '@prisma/client';
+import {
+  payment_status,
+  Prisma,
+  winnings,
+  winnings_category,
+} from '@prisma/client';
+import { uniq } from 'lodash';
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { DateFilterType } from 'src/dto/date-filter.type';
 import { PaymentStatus } from 'src/dto/payment.dto';
@@ -110,6 +116,32 @@ export class WinningsRepository {
     return orderBy;
   }
 
+  private async getUsersPayoutStatusForWinnings(winnings: winnings[]) {
+    const usersPayoutStatus = await this.prisma.$queryRaw<
+      {
+        userId: string;
+        taxFormSetupComplete: boolean;
+        paymentMethodSetupComplete: boolean;
+      }[]
+    >`
+      SELECT
+        upm.user_id as "userId",
+        CASE WHEN utx.tax_form_status = 'ACTIVE' THEN TRUE ELSE FALSE END as "taxFormSetupComplete",
+        CASE WHEN upm.status = 'CONNECTED' THEN TRUE ELSE FALSE END as "payoutSetupComplete"
+      FROM user_payment_methods upm
+      LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id
+      WHERE upm.user_id IN (${Prisma.join(uniq(winnings.map((w) => w.winner_id)))})
+    `;
+
+    return usersPayoutStatus.reduce(
+      (map, userPayoutStatus) =>
+        Object.assign(map, {
+          [userPayoutStatus.userId]: { ...userPayoutStatus, userId: undefined },
+        }),
+      {},
+    );
+  }
+
   /**
    * Search winnings with parameters
    * @param searchProps the request body
@@ -168,6 +200,9 @@ export class WinningsRepository {
         this.prisma.winnings.count({ where: queryWhere }),
       ]);
 
+      const usersPayoutStatusMap =
+        await this.getUsersPayoutStatusForWinnings(winnings);
+
       result.data = {
         winnings: winnings.map((item) => ({
           id: item.winning_id,
@@ -197,6 +232,7 @@ export class WinningsRepository {
             item.payment?.[0].updated_at ??
             undefined) as Date,
           releaseDate: item.payment?.[0]?.release_date as Date,
+          paymentStatus: usersPayoutStatusMap[item.winner_id],
         })),
         pagination: {
           totalItems: count,

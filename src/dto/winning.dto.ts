@@ -98,6 +98,11 @@ export enum WinningsCategory {
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
 }
 
+export class PayoutStatus {
+  payoutSetupComplete: boolean;
+  taxFormSetupComplete: boolean;
+}
+
 export class WinningDto {
   id: string;
   type: string;
@@ -109,6 +114,7 @@ export class WinningDto {
   externalId: string;
   attributes: object;
   details: PaymentDetailDto[];
+  paymentStatus: PayoutStatus;
   createdAt: Date;
   updatedAt: Date;
   releaseDate: Date;
