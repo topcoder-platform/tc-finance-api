@@ -3,11 +3,9 @@ import { Prisma, payment, payment_status } from '@prisma/client';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import {
-  PaymentStatus,
-  ResponseDto,
-  WinningCreateRequestDto,
-} from 'src/dto/adminWinning.dto';
+import { WinningCreateRequestDto } from 'src/dto/winning.dto';
+import { ResponseDto } from 'src/dto/api-response.dto';
+import { PaymentStatus } from 'src/dto/payment.dto';
 import { OriginRepository } from '../repository/origin.repo';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
@@ -16,7 +14,7 @@ import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
  * The winning service.
  */
 @Injectable()
-export class WinningService {
+export class WinningsService {
   /**
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
@@ -44,13 +42,11 @@ export class WinningService {
       const originId = await this.originRepo.getOriginIdByName(body.origin, tx);
 
       if (!originId) {
-        return {
-          ...result,
-          error: {
-            code: HttpStatus.BAD_REQUEST,
-            message: 'Origin name does not exist',
-          },
+        result.error = {
+          code: HttpStatus.BAD_REQUEST,
+          message: 'Origin name does not exist',
         };
+        return result;
       }
 
       const winningModel = {
@@ -70,11 +66,11 @@ export class WinningService {
 
       const payrollPayment = (body.attributes || {})['payroll'] === true;
 
+      const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
+        body.winnerId,
+      );
       const hasPaymentMethod =
-        await this.paymentMethodRepo.hasVerifiedPaymentMethod(
-          body.winnerId,
-          tx,
-        );
+        await this.paymentMethodRepo.hasVerifiedPaymentMethod(body.winnerId);
 
       for (const detail of body.details || []) {
         const paymentModel = {
@@ -89,7 +85,10 @@ export class WinningService {
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
-        paymentModel.payment_status = PaymentStatus.ON_HOLD;
+        paymentModel.payment_status =
+          hasPaymentMethod && hasActiveTaxForm
+            ? PaymentStatus.OWED
+            : PaymentStatus.ON_HOLD;
 
         if (payrollPayment) {
           paymentModel.payment_status = PaymentStatus.PAID;

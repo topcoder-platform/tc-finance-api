@@ -2,8 +2,9 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import { ResponseDto, WinningsType } from 'src/dto/adminWinning.dto';
 import { WalletDetailDto } from 'src/dto/wallet.dto';
+import { ResponseDto } from 'src/dto/api-response.dto';
+import { WinningsType } from 'src/dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 
