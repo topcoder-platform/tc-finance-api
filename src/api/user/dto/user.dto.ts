@@ -1,17 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsEnum } from 'class-validator';
-import {
-  WinningsCategory,
-  PaymentStatus,
-  DateFilterType,
-  SortPagination,
-} from './adminWinning.dto';
-
-export class UserInfo {
-  id: string;
-  handle: string;
-  email: string;
-}
+import { DateFilterType } from 'src/dto/date-filter.type';
+import { PaymentStatus } from 'src/dto/payment.dto';
+import { SortPagination } from 'src/dto/sort-pagination.dto';
+import { WinningsCategory } from 'src/dto/winning.dto';
 
 export class UserWinningRequestDto extends SortPagination {
   @ApiProperty({

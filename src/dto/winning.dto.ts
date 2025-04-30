@@ -1,21 +1,27 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsDateString,
-  IsNotEmpty,
   IsOptional,
+  IsString,
+  IsNotEmpty,
   IsArray,
   ArrayNotEmpty,
-  IsString,
   IsEnum,
-  IsInt,
-  Min,
-  IsIn,
-  IsUUID,
-  IsNumber,
   IsObject,
   ValidateNested,
 } from 'class-validator';
+import { PaginationInfo, SortPagination } from './sort-pagination.dto';
+import { DateFilterType } from './date-filter.type';
 import { Type } from 'class-transformer';
+import {
+  PaymentStatus,
+  PaymentCreateRequestDto,
+  PaymentDetailDto,
+} from './payment.dto';
+
+export enum WinningsType {
+  PAYMENT = 'PAYMENT',
+  REWARD = 'REWARD',
+}
 
 export enum WinningsCategory {
   ALGORITHM_CONTEST_PAYMENT = 'ALGORITHM_CONTEST_PAYMENT',
@@ -92,146 +98,20 @@ export enum WinningsCategory {
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
 }
 
-export enum PaymentStatus {
-  PAID = 'PAID',
-  ON_HOLD = 'ON_HOLD',
-  ON_HOLD_ADMIN = 'ON_HOLD_ADMIN',
-  OWED = 'OWED',
-  PROCESSING = 'PROCESSING',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum DateFilterType {
-  LAST7DAYS = 'last7days',
-  LAST30DAYS = 'last30days',
-  ALL = 'all',
-}
-
-export enum WinningsType {
-  PAYMENT = 'PAYMENT',
-  REWARD = 'REWARD',
-}
-
-export enum SortOrder {
-  ASC = 'asc',
-  DESC = 'desc',
-}
-
-export enum ResponseStatusType {
-  SUCCESS = 'success',
-  ERROR = 'error',
-}
-
-export const OrderBy = [
-  'winning_id',
-  'winner_id',
-  'type',
-  'category',
-  'title',
-  'external_id',
-  'created_at',
-  'updated_at',
-  'created_by',
-  'updated_by',
-] as const;
-
-export class Error {
-  code: number;
-  message: string;
-}
-
-export class ResponseDto<T> {
-  @ApiProperty({
-    description: 'Type of the response',
-    enum: ResponseStatusType,
-    example: ResponseStatusType.SUCCESS,
-  })
-  status: ResponseStatusType;
-
-  @ApiProperty({
-    description: 'The response data',
-  })
-  data: T;
-
-  @ApiProperty({
-    description: 'The error message',
-  })
-  error: Error;
-}
-
-export class SortPagination {
-  @ApiProperty({
-    description: 'The limit parameter for pagination',
-    example: 10,
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  limit: number = 10;
-
-  @ApiProperty({
-    description: 'The offset parameter for pagination',
-    example: 0,
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  offset: number = 0;
-
-  @ApiProperty({
-    description: 'The sortBy parameter for sorting',
-    example: 'type',
-  })
-  @IsOptional()
-  @IsIn(OrderBy)
-  sortBy: string;
-
-  @ApiProperty({
-    description: 'The sort order',
-    enum: SortOrder,
-    example: SortOrder.ASC,
-  })
-  @IsOptional()
-  @IsEnum(SortOrder)
-  sortOrder: SortOrder = SortOrder.ASC;
-}
-
-export class WinningAuditDto {
-  @ApiProperty({
-    description: 'The ID of the audit',
-    example: '2ccba36d-8db7-49da-94c9-b6c5b7bf47fb',
-  })
+export class WinningDto {
   id: string;
-
-  @ApiProperty({
-    description: 'The ID of the winning',
-    example: '2ccba36d-8db7-49da-94c9-b6c5b7bf47fc',
-  })
-  winningsId: string;
-
-  @ApiProperty({
-    description: 'The ID of the user',
-    example: '123',
-  })
-  userId: string;
-
-  @ApiProperty({
-    description: 'The audit action',
-    example: 'create payment',
-  })
-  action: string;
-
-  @ApiProperty({
-    description: 'The audit note',
-    example: 'note 01',
-  })
-  note: string | null;
-
-  @ApiProperty({
-    description: 'The creation timestamp',
-    example: '2023-10-01T00:00:00Z',
-  })
+  type: string;
+  winnerId: string;
+  origin?: string;
+  category: WinningsCategory;
+  title: string;
+  description: string;
+  externalId: string;
+  attributes: object;
+  details: PaymentDetailDto[];
   createdAt: Date;
+  updatedAt: Date;
+  releaseDate: Date;
 }
 
 export class WinningRequestDto extends SortPagination {
@@ -292,101 +172,6 @@ export class WinningRequestDto extends SortPagination {
   @IsOptional()
   @IsEnum(DateFilterType)
   date: DateFilterType;
-}
-
-export class WinningUpdateRequestDto {
-  @ApiProperty({
-    description: 'The ID of the winnings',
-    example: '2ccba36d-8db7-49da-94c9-b6c5b7bf47fb',
-  })
-  @IsString()
-  @IsUUID()
-  winningsId: string;
-
-  @ApiProperty({
-    description: 'The audit note',
-    example: 'audit note',
-  })
-  @IsOptional()
-  @IsString()
-  auditNote: string;
-
-  @ApiProperty({
-    description: 'The ID of the payment',
-    example: '2ccba36d-8db7-49da-94c9-b6c5b7bf47fb',
-  })
-  @IsOptional()
-  @IsString()
-  @IsUUID()
-  paymentId: string;
-
-  @ApiProperty({
-    description: 'The payment status',
-    enum: PaymentStatus,
-    example: PaymentStatus.PAID,
-  })
-  @IsOptional()
-  @IsEnum(PaymentStatus)
-  paymentStatus: PaymentStatus;
-
-  @ApiProperty({
-    description: 'The payment amount',
-    example: 0,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  paymentAmount: number;
-
-  @ApiProperty({
-    description: 'The filter date',
-    example: '2025-03-05T01:58:05.726Z',
-  })
-  @IsOptional()
-  @IsDateString()
-  releaseDate: string;
-}
-
-export class PaymentCreateRequestDto {
-  @ApiProperty({
-    description: 'The total amount of the payment',
-    example: 12.3,
-  })
-  @IsNumber()
-  @Min(0)
-  totalAmount: number;
-
-  @ApiProperty({
-    description: 'The gross amount of the payment',
-    example: 12.3,
-  })
-  @IsNumber()
-  @Min(0)
-  grossAmount: number;
-
-  @ApiProperty({
-    description: 'The installment number of the payment',
-    example: 1,
-  })
-  @IsInt()
-  @Min(0)
-  installmentNumber: number;
-
-  @ApiProperty({
-    description: 'The currency of the payment',
-    example: 12.3,
-  })
-  @IsString()
-  @IsNotEmpty()
-  currency: string;
-
-  @ApiProperty({
-    description: 'Billing Account number for the payment',
-    example: '1231231',
-  })
-  @IsString()
-  @IsNotEmpty()
-  billingAccount: string;
 }
 
 export class WinningCreateRequestDto {
@@ -474,54 +259,7 @@ export class WinningCreateRequestDto {
   details: PaymentCreateRequestDto[];
 }
 
-export class PaginationInfo {
-  totalItems: number;
-  totalPages: number;
-  pageSize: number;
-  currentPage: number;
-}
-
-export class PaymentDetailDto {
-  id: string;
-  netAmount: number;
-  grossAmount: number;
-  totalAmount: number;
-  installmentNumber: number;
-  datePaid: Date;
-  status: PaymentStatus;
-  currency: string;
-  releaseDate: Date;
-  category: string;
-  billingAccount: string;
-}
-
-export class WinningDto {
-  id: string;
-  type: string;
-  winnerId: string;
-  origin?: string;
-  category: WinningsCategory;
-  title: string;
-  description: string;
-  externalId: string;
-  attributes: object;
-  details: PaymentDetailDto[];
-  createdAt: Date;
-  updatedAt: Date;
-  releaseDate: Date;
-}
-
 export class SearchWinningResult {
   winnings: WinningDto[];
   pagination: PaginationInfo;
-}
-
-export class AuditPayoutDto {
-  externalTransactionId: string;
-  status: string;
-  totalNetAmount: number;
-  createdAt: Date;
-  metadata: string;
-  paymentMethodUsed: string;
-  externalTransactionDetails: object;
 }

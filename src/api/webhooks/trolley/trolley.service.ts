@@ -43,7 +43,7 @@ export class TrolleyService {
     const t = headerSignatureValues[0].split('=')[1];
     const v1 = headerSignatureValues[1].split('=')[1];
 
-    const hmac = crypto.createHmac('sha256', trolleyWhHmac as string);
+    const hmac = crypto.createHmac('sha256', trolleyWhHmac);
     hmac.update(`${t}${bodyPayload}`);
     const digest = hmac.digest('hex');
 
@@ -128,7 +128,7 @@ export class TrolleyService {
         return;
       }
 
-      await handler(body);
+      await handler(body[model]);
       await this.setEventState(requestId, webhook_status.processed);
     } catch (e) {
       await this.setEventState(requestId, webhook_status.error, void 0, {

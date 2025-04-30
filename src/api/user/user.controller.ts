@@ -18,21 +18,17 @@ import {
 
 import { Role } from 'src/core/auth/auth.constants';
 import { Roles, User } from 'src/core/auth/decorators';
-import { UserInfo, UserWinningRequestDto } from 'src/dto/user.dto';
-import {
-  ResponseStatusType,
-  ResponseDto,
-  WinningRequestDto,
-  SearchWinningResult,
-} from 'src/dto/adminWinning.dto';
-
-import { AdminWinningService } from '../admin-winning/adminWinning.service';
+import { WinningsRepository } from '../repository/winnings.repo';
+import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { SearchWinningResult, WinningRequestDto } from 'src/dto/winning.dto';
+import { UserInfo } from 'src/dto/user.type';
+import { UserWinningRequestDto } from './dto/user.dto';
 
 @ApiTags('UserWinning')
 @Controller('/user')
 @ApiBearerAuth()
-export class UserWinningController {
-  constructor(private readonly adminWinningService: AdminWinningService) {}
+export class UserController {
+  constructor(private readonly winningsRepo: WinningsRepository) {}
 
   @Post('/winnings')
   @Roles(Role.User)
@@ -63,7 +59,7 @@ export class UserWinningController {
       throw new ForbiddenException('insufficient permissions');
     }
 
-    const result = await this.adminWinningService.searchWinnings(
+    const result = await this.winningsRepo.searchWinnings(
       body as WinningRequestDto,
     );
     if (result.error) {

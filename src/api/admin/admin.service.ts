@@ -8,27 +8,18 @@ import {
 import { PrismaPromise } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import {
-  DateFilterType,
-  ResponseDto,
-  WinningAuditDto,
-  WinningRequestDto,
-  SearchWinningResult,
-  WinningUpdateRequestDto,
-  PaymentStatus,
-  AuditPayoutDto,
-  WinningsCategory,
-} from 'src/dto/adminWinning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-
-const ONE_DAY = 24 * 60 * 60 * 1000;
+import { ResponseDto } from 'src/dto/api-response.dto';
+import { PaymentStatus } from 'src/dto/payment.dto';
+import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
+import { WinningUpdateRequestDto } from './dto/winnings.dto';
 
 /**
  * The admin winning service.
  */
 @Injectable()
-export class AdminWinningService {
+export class AdminService {
   /**
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
@@ -38,202 +29,6 @@ export class AdminWinningService {
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentMethodRepo: PaymentMethodRepository,
   ) {}
-
-  /**
-   * Search winnings with parameters
-   * @param body the request body
-   * @returns the Promise with response result
-   */
-  async searchWinnings(
-    body: WinningRequestDto,
-  ): Promise<ResponseDto<SearchWinningResult>> {
-    const result = new ResponseDto<SearchWinningResult>();
-
-    try {
-      let winnerIds: string[] | undefined;
-      let externalIds: string[] | undefined;
-      if (body.winnerId) {
-        winnerIds = [body.winnerId];
-      } else if (body.winnerIds) {
-        winnerIds = [...body.winnerIds];
-      } else if (body.externalIds?.length > 0) {
-        externalIds = body.externalIds;
-      }
-
-      const queryWhere = this.getQueryByWinnerId(body, winnerIds, externalIds);
-      const orderBy = this.getOrderByWithWinnerId(
-        body,
-        !winnerIds && !!externalIds?.length,
-      );
-
-      const [winnings, count] = await this.prisma.$transaction([
-        this.prisma.winnings.findMany({
-          ...queryWhere,
-          include: {
-            payment: {
-              where: {
-                installment_number: 1,
-              },
-              orderBy: [
-                {
-                  created_at: 'desc',
-                },
-              ],
-            },
-            origin: true,
-          },
-          orderBy,
-          skip: body.offset,
-          take: body.limit,
-        }),
-        this.prisma.winnings.count({ where: queryWhere.where }),
-      ]);
-
-      result.data = {
-        winnings: winnings.map((item) => ({
-          id: item.winning_id,
-          type: item.type,
-          winnerId: item.winner_id,
-          origin: item.origin?.origin_name,
-          category: (item.category ?? '') as WinningsCategory,
-          title: item.title as string,
-          description: item.description as string,
-          externalId: item.external_id as string,
-          attributes: (item.attributes ?? {}) as object,
-          details: item.payment?.map((paymentItem) => ({
-            id: paymentItem.payment_id,
-            netAmount: Number(paymentItem.net_amount),
-            grossAmount: Number(paymentItem.gross_amount),
-            totalAmount: Number(paymentItem.total_amount),
-            installmentNumber: paymentItem.installment_number as number,
-            datePaid: (paymentItem.date_paid ?? undefined) as Date,
-            status: paymentItem.payment_status as PaymentStatus,
-            currency: paymentItem.currency as string,
-            releaseDate: paymentItem.release_date as Date,
-            category: item.category as string,
-            billingAccount: paymentItem.billing_account,
-          })),
-          createdAt: item.created_at as Date,
-          updatedAt: (item.payment?.[0].date_paid ??
-            item.payment?.[0].updated_at ??
-            undefined) as Date,
-          releaseDate: item.payment?.[0]?.release_date as Date,
-        })),
-        pagination: {
-          totalItems: count,
-          totalPages: Math.ceil(count / body.limit),
-          pageSize: body.limit,
-          currentPage: Math.ceil(body.offset / body.limit) + 1,
-        },
-      };
-      // response.data = winnings as any
-    } catch (error) {
-      console.error('Searching winnings failed', error);
-      const message = 'Searching winnings failed. ' + error;
-      result.error = {
-        code: HttpStatus.INTERNAL_SERVER_ERROR,
-        message,
-      };
-    }
-
-    return result;
-  }
-
-  private generateFilterDate(body: WinningRequestDto) {
-    let filterDate: object | undefined;
-    const currentDay = new Date(new Date().setHours(0, 0, 0, 0));
-    switch (body.date) {
-      case DateFilterType.LAST7DAYS:
-        // eslint-disable-next-line no-case-declarations
-        const last7days = new Date(currentDay.getTime() - 6 * ONE_DAY);
-        filterDate = {
-          gte: last7days,
-        };
-        break;
-      case DateFilterType.LAST30DAYS:
-        // eslint-disable-next-line no-case-declarations
-        const last30days = new Date(currentDay.getTime() - 29 * ONE_DAY);
-        filterDate = {
-          gte: last30days,
-        };
-        break;
-      case DateFilterType.ALL:
-        filterDate = undefined;
-        break;
-      default:
-        break;
-    }
-    return filterDate;
-  }
-
-  private getQueryByWinnerId(
-    body: WinningRequestDto,
-    winnerIds: string[] | undefined,
-    externalIds: string[] | undefined,
-  ) {
-    const filterDate: object | undefined = this.generateFilterDate(body);
-
-    const query = {
-      where: {
-        winner_id: winnerIds
-          ? {
-              in: winnerIds,
-            }
-          : undefined,
-        external_id: externalIds
-          ? {
-              in: body.externalIds,
-            }
-          : undefined,
-        category: body.type
-          ? {
-              equals: body.type,
-            }
-          : undefined,
-        created_at: filterDate,
-        payment: body.status
-          ? {
-              some: {
-                payment_status: {
-                  equals: body.status,
-                },
-                installment_number: {
-                  equals: 1,
-                },
-              },
-            }
-          : {
-              some: {
-                installment_number: {
-                  equals: 1,
-                },
-              },
-            },
-      },
-    };
-
-    return query;
-  }
-
-  private getOrderByWithWinnerId(
-    body: WinningRequestDto,
-    externalIds?: boolean,
-  ) {
-    const orderBy: object = [
-      {
-        created_at: 'desc',
-      },
-      ...(externalIds ? [{ external_id: 'asc' }] : []),
-    ];
-
-    if (body.sortBy && body.sortOrder) {
-      orderBy[0] = {
-        [body.sortBy]: body.sortOrder.toString(),
-      };
-    }
-
-    return orderBy;
-  }
 
   private getPaymentsByWinningsId(winningsId: string, paymentId?: string) {
     return this.prisma.payment.findMany({

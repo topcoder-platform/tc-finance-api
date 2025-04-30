@@ -8,8 +8,8 @@ import {
 
 import { Role } from 'src/core/auth/auth.constants';
 import { Roles, User } from 'src/core/auth/decorators';
-import { UserInfo } from 'src/dto/user.dto';
-import { ResponseStatusType, ResponseDto } from 'src/dto/adminWinning.dto';
+import { UserInfo } from 'src/dto/user.type';
+import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 import { WalletDetailDto } from 'src/dto/wallet.dto';
 
 import { WalletService } from './wallet.service';

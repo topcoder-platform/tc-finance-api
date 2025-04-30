@@ -24,25 +24,23 @@ import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { Role } from 'src/core/auth/auth.constants';
 import { Roles, User } from 'src/core/auth/decorators';
 
-import { AdminWinningService } from './adminWinning.service';
-import { UserInfo } from 'src/dto/user.dto';
+import { UserInfo } from 'src/dto/user.type';
 
-import {
-  ResponseStatusType,
-  ResponseDto,
-  WinningAuditDto,
-  WinningRequestDto,
-  SearchWinningResult,
-  WinningUpdateRequestDto,
-  AuditPayoutDto,
-} from 'src/dto/adminWinning.dto';
+import { AdminService } from './admin.service';
+import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 
-@ApiTags('AdminWinning')
+import { WinningRequestDto, SearchWinningResult } from 'src/dto/winning.dto';
+import { WinningsRepository } from '../repository/winnings.repo';
+import { WinningUpdateRequestDto } from './dto/winnings.dto';
+
+@ApiTags('AdminWinnings')
 @Controller('/admin')
 @ApiBearerAuth()
-export class AdminWinningController {
+export class AdminController {
   constructor(
-    private readonly adminWinningService: AdminWinningService,
+    private readonly adminService: AdminService,
+    private readonly winningsRepo: WinningsRepository,
     private readonly tcMembersService: TopcoderMembersService,
   ) {}
 
@@ -65,7 +63,7 @@ export class AdminWinningController {
   async searchWinnings(
     @Body() body: WinningRequestDto,
   ): Promise<ResponseDto<SearchWinningResult>> {
-    const result = await this.adminWinningService.searchWinnings(body);
+    const result = await this.winningsRepo.searchWinnings(body);
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
@@ -94,7 +92,7 @@ export class AdminWinningController {
   @Header('Content-Type', 'text/csv')
   @Header('Content-Disposition', 'attachment; filename="winnings.csv"')
   async exportWinnings(@Body() body: WinningRequestDto) {
-    const result = await this.adminWinningService.searchWinnings({
+    const result = await this.winningsRepo.searchWinnings({
       ...body,
       limit: 999,
     });
@@ -172,7 +170,7 @@ export class AdminWinningController {
       );
     }
 
-    const result = await this.adminWinningService.updateWinnings(body, user.id);
+    const result = await this.adminService.updateWinnings(body, user.id);
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
@@ -201,7 +199,7 @@ export class AdminWinningController {
   async getWinningAudit(
     @Param('winningID') winningId: string,
   ): Promise<ResponseDto<WinningAuditDto[]>> {
-    const result = await this.adminWinningService.getWinningAudit(winningId);
+    const result = await this.adminService.getWinningAudit(winningId);
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
@@ -231,8 +229,7 @@ export class AdminWinningController {
   async getWinningAuditPayout(
     @Param('winningID') winningId: string,
   ): Promise<ResponseDto<AuditPayoutDto[]>> {
-    const result =
-      await this.adminWinningService.getWinningAuditPayout(winningId);
+    const result = await this.adminService.getWinningAuditPayout(winningId);
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }

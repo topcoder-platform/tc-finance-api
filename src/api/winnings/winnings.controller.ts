@@ -9,25 +9,23 @@ import {
 
 import { M2mScope } from 'src/core/auth/auth.constants';
 import { M2M, AllowedM2mScope, User } from 'src/core/auth/decorators';
-import { UserInfo } from 'src/dto/user.dto';
+import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { UserInfo } from 'src/dto/user.type';
 import {
-  ResponseStatusType,
-  ResponseDto,
-  WinningRequestDto,
   WinningCreateRequestDto,
+  WinningRequestDto,
   WinningDto,
-} from 'src/dto/adminWinning.dto';
-
-import { AdminWinningService } from '../admin-winning/adminWinning.service';
-import { WinningService } from './winning.service';
+} from 'src/dto/winning.dto';
+import { WinningsService } from './winnings.service';
+import { WinningsRepository } from '../repository/winnings.repo';
 
 @ApiTags('Winning')
 @Controller('/winnings')
 @ApiBearerAuth()
-export class WinningController {
+export class WinningsController {
   constructor(
-    private readonly winningService: WinningService,
-    private readonly adminWinningService: AdminWinningService,
+    private readonly winningsService: WinningsService,
+    private readonly winningsRepo: WinningsRepository,
   ) {}
 
   @Post()
@@ -51,7 +49,7 @@ export class WinningController {
     @Body() body: WinningCreateRequestDto,
     @User() user: UserInfo,
   ): Promise<ResponseDto<string>> {
-    const result = await this.winningService.createWinningWithPayments(
+    const result = await this.winningsService.createWinningWithPayments(
       body,
       user.id,
     );
@@ -84,7 +82,7 @@ export class WinningController {
   async searchWinnings(
     @Body() body: WinningRequestDto,
   ): Promise<ResponseDto<WinningDto[]>> {
-    const result = await this.adminWinningService.searchWinnings(body);
+    const result = await this.winningsRepo.searchWinnings(body);
 
     result.status = result.error
       ? ResponseStatusType.ERROR

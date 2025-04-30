@@ -7,9 +7,9 @@ import {
 } from '@nestjs/swagger';
 import { TrolleyService } from './trolley.service';
 import { Roles, User } from 'src/core/auth/decorators';
-import { UserInfo } from 'src/dto/user.dto';
+import { UserInfo } from 'src/dto/user.type';
 import { Role } from 'src/core/auth/auth.constants';
-import { ResponseDto } from 'src/dto/adminWinning.dto';
+import { ResponseDto } from 'src/dto/api-response.dto';
 
 @ApiTags('PaymentProviders')
 @Controller('/trolley')
