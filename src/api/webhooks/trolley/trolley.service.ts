@@ -22,7 +22,10 @@ if (!trolleyWhHmac) {
 export class TrolleyService {
   constructor(
     @Inject('trolleyHandlerFns')
-    private readonly handlers,
+    private readonly handlers: Map<
+      string,
+      (eventPayload: any) => Promise<unknown>
+    >,
     private readonly prisma: PrismaService,
   ) {}
 

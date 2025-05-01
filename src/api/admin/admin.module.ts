@@ -5,9 +5,10 @@ import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
+import { PaymentsService } from 'src/shared/payments';
 
 @Module({
-  imports: [TopcoderModule],
+  imports: [TopcoderModule, PaymentsService],
   controllers: [AdminController],
   providers: [
     AdminService,

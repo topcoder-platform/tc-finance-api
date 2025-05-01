@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { tax_form_status, trolley_recipient } from '@prisma/client';
+import { PaymentsService } from 'src/shared/payments';
 import {
   TrolleyTaxFormStatus,
   TaxFormStatusUpdatedEvent,
@@ -11,7 +12,10 @@ import {
 
 @Injectable()
 export class TaxFormHandler {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
 
   getDbRecipientById(id: string) {
     return this.prisma.trolley_recipient.findUnique({
@@ -34,7 +38,6 @@ export class TaxFormHandler {
         where: {
           user_id: recipient.user_id,
           tax_form_id: taxFormId,
-          tax_form_status: tax_form_status.ACTIVE,
         },
       });
 
@@ -43,9 +46,10 @@ export class TaxFormHandler {
       taxFormData.status === TrolleyTaxFormStatus.Voided &&
       existingFormAssociation
     ) {
-      return this.prisma.user_tax_form_associations.delete({
+      return this.prisma.user_tax_form_associations.deleteMany({
         where: {
-          id: existingFormAssociation.id,
+          user_id: recipient.user_id,
+          tax_form_id: taxFormId,
         },
       });
     }
@@ -102,5 +106,7 @@ export class TaxFormHandler {
       recipient,
       taxFormData,
     );
+
+    await this.paymentsService.reconcileUserPayments(recipient.user_id);
   }
 }

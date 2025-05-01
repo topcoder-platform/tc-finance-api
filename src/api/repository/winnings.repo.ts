@@ -129,7 +129,7 @@ export class WinningsRepository {
         CASE WHEN utx.tax_form_status = 'ACTIVE' THEN TRUE ELSE FALSE END as "taxFormSetupComplete",
         CASE WHEN upm.status = 'CONNECTED' THEN TRUE ELSE FALSE END as "payoutSetupComplete"
       FROM user_payment_methods upm
-      LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id
+      LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id AND utx.tax_form_status = 'ACTIVE'
       WHERE upm.user_id IN (${Prisma.join(uniq(winnings.map((w) => w.winner_id)))})
     `;
 

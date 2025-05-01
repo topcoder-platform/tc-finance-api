@@ -7,10 +7,14 @@ import {
   RecipientAccountWebhookEvent,
 } from './recipient-account.types';
 import { payment_method_status } from '@prisma/client';
+import { PaymentsService } from 'src/shared/payments';
 
 @Injectable()
 export class RecipientAccountHandler {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
 
   /**
    * Updates the status of the related trolley user_payment_method based on the presence of primary
@@ -126,6 +130,8 @@ export class RecipientAccountHandler {
     }
 
     await this.updateUserPaymentMethod(payload.recipientId);
+
+    await this.paymentsService.reconcileUserPayments(recipient.user_id);
   }
 
   /**
@@ -161,6 +167,10 @@ export class RecipientAccountHandler {
 
     await this.updateUserPaymentMethod(
       recipientPaymentMethod.trolley_recipient.trolley_id,
+    );
+
+    await this.paymentsService.reconcileUserPayments(
+      recipientPaymentMethod.trolley_recipient.user_id,
     );
   }
 }
