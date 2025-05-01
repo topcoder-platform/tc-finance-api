@@ -8,6 +8,10 @@ import { AppModule } from './app.module';
 import { PaymentProvidersModule } from './api/payment-providers/payment-providers.module';
 import { WebhooksModule } from './api/webhooks/webhooks.module';
 import { ENV_CONFIG } from './config';
+import { AdminModule } from './api/admin/admin.module';
+import { UserModule } from './api/user/user.module';
+import { WalletModule } from './api/wallet/wallet.module';
+import { WinningsModule } from './api/winnings/winnings.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -52,7 +56,15 @@ async function bootstrap() {
     })
     .build();
   const document = SwaggerModule.createDocument(app, config, {
-    include: [ApiModule, PaymentProvidersModule, WebhooksModule],
+    include: [
+      ApiModule,
+      AdminModule,
+      UserModule,
+      WinningsModule,
+      WalletModule,
+      PaymentProvidersModule,
+      WebhooksModule,
+    ],
   });
   SwaggerModule.setup('/v5/finance/api-docs', app, document);
 
