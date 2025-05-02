@@ -7,6 +7,7 @@ import {
 
 import { PrismaPromise } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
+import { PaymentsService } from 'src/shared/payments';
 
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
@@ -28,6 +29,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   private getPaymentsByWinningsId(winningsId: string, paymentId?: string) {
@@ -265,9 +267,7 @@ export class AdminService {
         });
 
         if (winning?.winner_id) {
-          await this.reconcileWinningsStatusOnUserDetailsUpdate(
-            winning.winner_id,
-          );
+          await this.paymentsService.reconcileUserPayments(winning.winner_id);
         }
       }
 
@@ -446,49 +446,6 @@ export class AdminService {
         version: currentVersion + 1,
       },
     });
-  }
-
-  /**
-   * Update payment for user from one status to another
-   *
-   * @param userId user id
-   * @param fromStatus from status
-   * @param toStatus to status
-   * @param tx transaction
-   */
-  updateWinningsStatus(userId, fromStatus, toStatus) {
-    return this.prisma.$executeRaw`
-      UPDATE payment
-      SET payment_status = ${toStatus}::payment_status,
-        updated_at     = now(),
-        updated_by     = 'system',
-        version        = version + 1
-      FROM winnings
-      WHERE payment.winnings_id = winnings.winning_id
-        AND winnings.winner_id = ${userId}
-        AND payment.payment_status = ${fromStatus}::payment_status AND version = version
-    `;
-  }
-
-  /**
-   * Reconcile winning if user data updated
-   *
-   * @param userId user id
-   */
-  async reconcileWinningsStatusOnUserDetailsUpdate(userId) {
-    const hasTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
-    const hasPaymentMethod =
-      await this.paymentMethodRepo.hasVerifiedPaymentMethod(userId);
-    let fromStatus, toStatus;
-    if (hasTaxForm && hasPaymentMethod) {
-      fromStatus = PaymentStatus.ON_HOLD;
-      toStatus = PaymentStatus.OWED;
-    } else {
-      fromStatus = PaymentStatus.OWED;
-      toStatus = PaymentStatus.ON_HOLD;
-    }
-
-    await this.updateWinningsStatus(userId, fromStatus, toStatus);
   }
 
   /**
