@@ -98,7 +98,6 @@ export class TrolleyService {
         event_model: payload?.model ?? '',
         event_action: payload?.action ?? '',
         status,
-        created_by: 'system',
       } as trolley_webhook_log,
       update: {
         status,
