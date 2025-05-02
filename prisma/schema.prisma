@@ -204,15 +204,12 @@ model trolley_webhook_log {
   id            String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   event_id      String         @unique
   event_time    DateTime       @default(now()) @db.Timestamp(6)
-  event_payload String
+  event_payload Json
   event_model   String?
   event_action  String?
   status        webhook_status
   error_message String?
-  created_by    String?        @db.VarChar(80)
-  updated_by    String?        @db.VarChar(80)
   created_at    DateTime?      @default(now()) @db.Timestamp(6)
-  updated_at    DateTime?      @default(now()) @db.Timestamp(6)
 }
 
 model trolley_recipient_payment_method {
