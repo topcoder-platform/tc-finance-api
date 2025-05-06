@@ -120,7 +120,7 @@ export class PaymentsService {
 
       if (r.count === 0 || r.count !== winningsIds.length) {
         throw new Error(
-          'Failed to set payment processing state! Not all rows were updated! Please check the provided winnings IDs and status.',
+          'Not all rows were updated! Please check the provided winnings IDs and status.',
         );
       }
     } catch (error) {
@@ -148,7 +148,7 @@ export class PaymentsService {
 
       if (r.count === 0) {
         throw new Error(
-          'Failed to update payment release status! No rows were updated. Please check the provided externalTransaction ID and status.',
+          'No rows were updated. Please check the provided externalTransaction ID and status.',
         );
       }
     } catch (error) {

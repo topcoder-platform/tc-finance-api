@@ -18,4 +18,7 @@ export interface PaymentProcessedEventData {
   targetAmount: string; // net amount
   failureMessage: string | null;
   memo: string | null;
+  batch: {
+    id: string;
+  };
 }

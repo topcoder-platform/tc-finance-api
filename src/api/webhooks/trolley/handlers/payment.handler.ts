@@ -27,6 +27,7 @@ export class PaymentHandler {
   ): Promise<any> {
     // TODO: remove slice-1
     const winningIds = (payload.externalId ?? '').split(',').slice(0, -1);
+    const externalTransactionId = payload.batch.id;
 
     if (!winningIds.length) {
       this.logger.error(
@@ -37,9 +38,9 @@ export class PaymentHandler {
     if (payload.status !== 'processed') {
       await this.updatePaymentStates(
         winningIds,
-        payload.id,
-        payment_status.PROCESSING,
-        'FAILED',
+        externalTransactionId,
+        payload.status.toUpperCase() as payment_status,
+        payload.status.toUpperCase(),
       );
 
       return;
@@ -47,7 +48,7 @@ export class PaymentHandler {
 
     await this.updatePaymentStates(
       winningIds,
-      payload.id,
+      externalTransactionId,
       payment_status.PAID,
       'PROCESSED',
     );

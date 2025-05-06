@@ -155,6 +155,7 @@ export class WithdrawalService {
           status: payment_status.PROCESSING,
           payment_method_id: hasVerifiedPaymentMethod.payment_method_id,
           payee_id: recipient.trolley_id,
+          external_transaction_id: paymentBatch.id,
           payment_release_associations: {
             createMany: {
               data: winnings.map((w) => ({

@@ -75,15 +75,6 @@ export class TrolleyService {
     }
 
     try {
-      console.log(paymentBatch.id, {
-        recipient: {
-          id: recipientId,
-        },
-        sourceAmount: totalAmount.toString(),
-        memo: 'Topcoder payment',
-        externalId: `${winningsIds.join(',')}`,
-      });
-
       const payment = await this.client.payment.create(paymentBatch.id, {
         recipient: {
           id: recipientId,
