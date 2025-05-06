@@ -4,6 +4,12 @@ export enum PaymentWebhookEvent {
   returned = 'payment.returned',
 }
 
+export enum PaymentProcessedEventStatus {
+  PROCESSED = 'processed',
+  FAILED = 'failed',
+  RETURNED = 'returned',
+}
+
 export interface PaymentProcessedEventData {
   id: string;
   recipient: {
@@ -11,7 +17,7 @@ export interface PaymentProcessedEventData {
     referenceId: string;
     email: string;
   };
-  status: 'processed' | 'failed' | 'returned';
+  status: PaymentProcessedEventStatus;
   externalId?: string;
   sourceAmount: string; // gross amount
   fees: string;

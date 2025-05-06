@@ -143,37 +143,49 @@ export class WithdrawalService {
         );
       } catch (e) {
         this.logger.error(
-          `Failed to update payment processing state: ${e.message}`,
+          `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
         );
         throw new Error('Failed to update payment processing state!');
       }
 
-      const paymentRelease = await tx.payment_releases.create({
-        data: {
-          user_id: userId,
-          total_net_amount: totalAmount,
-          status: payment_status.PROCESSING,
-          payment_method_id: hasVerifiedPaymentMethod.payment_method_id,
-          payee_id: recipient.trolley_id,
-          external_transaction_id: paymentBatch.id,
-          payment_release_associations: {
-            createMany: {
-              data: winnings.map((w) => ({
-                payment_id: w.paymentId,
-              })),
+      try {
+        const paymentRelease = await tx.payment_releases.create({
+          data: {
+            user_id: userId,
+            total_net_amount: totalAmount,
+            status: payment_status.PROCESSING,
+            payment_method_id: hasVerifiedPaymentMethod.payment_method_id,
+            payee_id: recipient.trolley_id,
+            external_transaction_id: paymentBatch.id,
+            payment_release_associations: {
+              createMany: {
+                data: winnings.map((w) => ({
+                  payment_id: w.paymentId,
+                })),
+              },
             },
           },
-        },
-      });
-      this.logger.log(
-        `Payment release created successfully. ID: ${paymentRelease.payment_release_id}`,
-      );
+        });
+        this.logger.log(
+          `Payment release created successfully. ID: ${paymentRelease.payment_release_id}`,
+        );
+      } catch (error) {
+        this.logger.error(`Failed to create payment release: ${error.message}`);
+        throw new Error('Failed to create db entry for payment release!');
+      }
 
-      // generate quote
-      await this.trolleyService.client.batch.generateQuote(paymentBatch.id);
+      try {
+        // generate quote
+        await this.trolleyService.client.batch.generateQuote(paymentBatch.id);
 
-      // trigger trolley payment (batch) process
-      await this.trolleyService.client.batch.startProcessing(paymentBatch.id);
+        // trigger trolley payment (batch) process
+        await this.trolleyService.client.batch.startProcessing(paymentBatch.id);
+      } catch (error) {
+        this.logger.error(
+          `Failed to process trolley payment batch: ${error.message}`,
+        );
+        throw new Error('Failed to process trolley payment batch!');
+      }
     });
   }
 }

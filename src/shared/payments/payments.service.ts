@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { JsonObject } from '@prisma/client/runtime/library';
 import { PrismaService } from '../global/prisma.service';
 import { payment_status, Prisma } from '@prisma/client';
 import { uniq } from 'lodash';
@@ -134,6 +135,7 @@ export class PaymentsService {
     externalTransactionId: string,
     status: string,
     transaction?: Prisma.TransactionClient,
+    metadata?: JsonObject,
   ) {
     const prismaClient = transaction || this.prisma;
     try {
@@ -143,6 +145,7 @@ export class PaymentsService {
         },
         data: {
           status,
+          metadata,
         },
       });
 

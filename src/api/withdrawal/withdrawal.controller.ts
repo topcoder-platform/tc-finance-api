@@ -40,7 +40,7 @@ export class WithdrawalController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Get wallet detail successfully.',
+    description: 'Operation successful.',
     type: ResponseDto<string>,
   })
   @HttpCode(HttpStatus.OK)

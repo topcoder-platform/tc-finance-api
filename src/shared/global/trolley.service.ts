@@ -1,7 +1,7 @@
 import url from 'url';
 import crypto from 'crypto';
 import trolley, { Batch } from 'trolleyhq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 
 const TROLLEY_ACCESS_KEY = ENV_CONFIG.TROLLEY_ACCESS_KEY;
@@ -15,6 +15,8 @@ const client = trolley({
 
 @Injectable()
 export class TrolleyService {
+  private readonly logger = new Logger(`global/TrolleyService`);
+
   get client() {
     return client;
   }
@@ -68,9 +70,11 @@ export class TrolleyService {
         [],
       );
 
-      console.info(`Created payment batch with id ${paymentBatch.id}`);
+      this.logger.debug(`Created payment batch with id ${paymentBatch.id}`);
     } catch (e) {
-      console.error(`Failed to create batch payment, error '${e.message}'!`);
+      this.logger.error(
+        `Failed to create batch payment, error '${e.message}'!`,
+      );
       return;
     }
 
@@ -87,11 +91,11 @@ export class TrolleyService {
         externalId: `${winningsIds.join(',')},${Date.now()}`,
       });
 
-      console.info(`Created payment with id ${payment.id}`);
+      this.logger.debug(`Created payment with id ${payment.id}`);
 
       return paymentBatch;
     } catch (e) {
-      console.error(`Failed to create payment, error '${e.message}'!`);
+      this.logger.error(`Failed to create payment, error '${e.message}'!`);
     }
   }
 }

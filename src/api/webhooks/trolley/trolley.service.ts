@@ -20,7 +20,7 @@ if (!trolleyWhHmac) {
  */
 @Injectable()
 export class TrolleyService {
-  private readonly logger = new Logger('Webhooks/TolleyService');
+  private readonly logger = new Logger('Webhooks/TrolleyService');
 
   constructor(
     @Inject('trolleyHandlerFns')

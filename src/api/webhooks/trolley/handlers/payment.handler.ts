@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   PaymentProcessedEventData,
+  PaymentProcessedEventStatus,
   PaymentWebhookEvent,
 } from './payment.types';
 import { WebhookEvent } from '../../webhooks.decorators';
 import { PaymentsService } from 'src/shared/payments';
 import { payment_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
+import { JsonObject } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class PaymentHandler {
@@ -35,12 +37,13 @@ export class PaymentHandler {
       );
     }
 
-    if (payload.status !== 'processed') {
+    if (payload.status !== PaymentProcessedEventStatus.PROCESSED) {
       await this.updatePaymentStates(
         winningIds,
         externalTransactionId,
         payload.status.toUpperCase() as payment_status,
         payload.status.toUpperCase(),
+        { failureMessage: payload.failureMessage },
       );
 
       return;
@@ -59,9 +62,10 @@ export class PaymentHandler {
     paymentId: string,
     processingState: payment_status,
     releaseState: string,
+    metadata?: JsonObject,
   ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      try {
+    try {
+      await this.prisma.$transaction(async (tx) => {
         await this.paymentsService.updatePaymentProcessingState(
           winningIds,
           processingState,
@@ -71,13 +75,16 @@ export class PaymentHandler {
         await this.paymentsService.updatePaymentReleaseState(
           paymentId,
           releaseState,
+          tx,
+          metadata,
         );
-      } catch (error) {
-        this.logger.error(
-          `Failed to update payment statuses: ${error.message}`,
-        );
-        throw error;
-      }
-    });
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to update payment states for paymentId: ${paymentId}, winnings: ${winningIds.join(',')}, error: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
   }
 }
