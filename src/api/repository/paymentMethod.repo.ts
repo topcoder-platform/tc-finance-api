@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { payment_method_status } from '@prisma/client';
+import { payment_method_status, user_payment_methods } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 
 @Injectable()
@@ -12,7 +12,9 @@ export class PaymentMethodRepository {
    * @param userId user id
    * @param tx transaction
    */
-  async hasVerifiedPaymentMethod(userId: string): Promise<boolean> {
+  async hasVerifiedPaymentMethod(
+    userId: string,
+  ): Promise<user_payment_methods | null> {
     const connectedUserPaymentMethod =
       await this.prisma.user_payment_methods.findFirst({
         where: {
@@ -21,6 +23,6 @@ export class PaymentMethodRepository {
         },
       });
 
-    return !!connectedUserPaymentMethod;
+    return connectedUserPaymentMethod;
   }
 }

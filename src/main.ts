@@ -12,6 +12,7 @@ import { AdminModule } from './api/admin/admin.module';
 import { UserModule } from './api/user/user.module';
 import { WalletModule } from './api/wallet/wallet.module';
 import { WinningsModule } from './api/winnings/winnings.module';
+import { WithdrawalModule } from './api/withdrawal/withdrawal.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -61,6 +62,7 @@ async function bootstrap() {
       AdminModule,
       UserModule,
       WinningsModule,
+      WithdrawalModule,
       WalletModule,
       PaymentProvidersModule,
       WebhooksModule,

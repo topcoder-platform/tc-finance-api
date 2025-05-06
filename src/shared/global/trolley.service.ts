@@ -1,17 +1,16 @@
 import url from 'url';
 import crypto from 'crypto';
-import trolley from 'trolleyhq';
+import trolley, { Batch } from 'trolleyhq';
 import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
-
 
 const TROLLEY_ACCESS_KEY = ENV_CONFIG.TROLLEY_ACCESS_KEY;
 const TROLLEY_SECRET_KEY = ENV_CONFIG.TROLLEY_SECRET_KEY;
 const TROLLEY_WIDGET_BASE_URL = ENV_CONFIG.TROLLEY_WIDGET_BASE_URL;
 
 const client = trolley({
-  key: TROLLEY_ACCESS_KEY as string,
-  secret: TROLLEY_SECRET_KEY as string,
+  key: TROLLEY_ACCESS_KEY,
+  secret: TROLLEY_SECRET_KEY,
 });
 
 @Injectable()
@@ -30,7 +29,7 @@ export class TrolleyService {
    * and `TROLLEY_SECRET_KEY` are defined and valid. Ensure these constants are properly set.
    */
   getRecipientPortalUrl(recipient: { email: string; userId: string }) {
-    const widgetBaseUrl = new url.URL(TROLLEY_WIDGET_BASE_URL as string);
+    const widgetBaseUrl = new url.URL(TROLLEY_WIDGET_BASE_URL);
     const querystring = new url.URLSearchParams({
       ts: `${Math.floor(new Date().getTime() / 1000)}`,
       key: TROLLEY_ACCESS_KEY,
@@ -44,7 +43,7 @@ export class TrolleyService {
       .toString()
       .replace(/\+/g, '%20');
 
-    const hmac = crypto.createHmac('sha256', TROLLEY_SECRET_KEY as string);
+    const hmac = crypto.createHmac('sha256', TROLLEY_SECRET_KEY);
     hmac.update(querystring);
 
     // Signature is only valid for 30 seconds
@@ -53,5 +52,55 @@ export class TrolleyService {
 
     // you can send the link to your view engine
     return widgetBaseUrl.toString();
+  }
+
+  async startBatchPayment(
+    recipientId: string,
+    description: string,
+    totalAmount: number,
+    winningsIds: string[],
+  ) {
+    let paymentBatch: Batch;
+
+    try {
+      paymentBatch = await this.client.batch.create(
+        { description, sourceCurrency: 'USD' },
+        [],
+      );
+
+      console.info(`Created payment batch with id ${paymentBatch.id}`);
+    } catch (e) {
+      console.error(`Failed to create batch payment, error '${e.message}'!`);
+      return;
+    }
+
+    try {
+      console.log(paymentBatch.id, {
+        recipient: {
+          id: recipientId,
+        },
+        sourceAmount: totalAmount.toString(),
+        memo: 'Topcoder payment',
+        externalId: `${winningsIds.join(',')}`,
+      });
+
+      const payment = await this.client.payment.create(paymentBatch.id, {
+        recipient: {
+          id: recipientId,
+        },
+        sourceAmount: totalAmount.toString(),
+        sourceCurrency: 'USD',
+        memo: 'Topcoder payment',
+        // TODO: remove `,${Date.now()}`
+        // if externalId is present, it must be unique
+        externalId: `${winningsIds.join(',')},${Date.now()}`,
+      });
+
+      console.info(`Created payment with id ${payment.id}`);
+
+      return paymentBatch;
+    } catch (e) {
+      console.error(`Failed to create payment, error '${e.message}'!`);
+    }
   }
 }
