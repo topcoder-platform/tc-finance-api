@@ -1,5 +1,5 @@
 import { chunk } from 'lodash';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { MEMBER_FIELDS } from './member.types';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 import { ENV_CONFIG } from 'src/config';
@@ -8,6 +8,8 @@ const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
 
 @Injectable()
 export class TopcoderMembersService {
+  private readonly logger = new Logger(TopcoderMembersService.name);
+
   constructor(private readonly m2MService: TopcoderM2MService) {}
   /**
    * Retrieves a mapping of user IDs to their corresponding handles from the Topcoder API.
@@ -39,7 +41,11 @@ export class TopcoderMembersService {
         data.map(({ handle, userId }) => [userId, handle] as string[]),
       ) as { [userId: string]: string };
     } catch (e) {
-      console.error('Failed to fetch tc members handles!', e?.message ?? e, e);
+      this.logger.error(
+        'Failed to fetch tc members handles!',
+        e?.message ?? e,
+        e,
+      );
       return {};
     }
   }
@@ -65,7 +71,7 @@ export class TopcoderMembersService {
     try {
       m2mToken = await this.m2MService.getToken();
     } catch (e) {
-      console.error(
+      this.logger.error(
         'Failed to fetch m2m token for fetching member details!',
         e.message ?? e,
       );
@@ -78,7 +84,7 @@ export class TopcoderMembersService {
       }).then((r) => r.json());
       return response;
     } catch (e) {
-      console.error(
+      this.logger.error(
         `Failed to fetch tc member info for user '${handle}'! Error: `,
         e?.message ?? e,
         e,

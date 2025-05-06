@@ -1,10 +1,13 @@
 import {
   Injectable,
+  Logger,
   NestMiddleware,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { ENV_CONFIG } from 'src/config';
+
+const logger = new Logger(`Auth/TokenValidatorMiddleware`);
 
 @Injectable()
 export class TokenValidatorMiddleware implements NestMiddleware {
@@ -19,7 +22,7 @@ export class TokenValidatorMiddleware implements NestMiddleware {
     try {
       decoded = jwt.verify(idToken, ENV_CONFIG.AUTH0_CERT);
     } catch (error) {
-      console.error('Error verifying JWT', error);
+      logger.error('Error verifying JWT', error);
       throw new UnauthorizedException('Invalid or expired JWT!');
     }
 
