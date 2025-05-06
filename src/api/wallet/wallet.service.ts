@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
@@ -13,6 +13,8 @@ import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
  */
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
   /**
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
@@ -60,16 +62,16 @@ export class WalletService {
           ],
         },
         withdrawalMethod: {
-          isSetupComplete: hasVerifiedPaymentMethod,
+          isSetupComplete: Boolean(hasVerifiedPaymentMethod),
         },
         taxForm: {
-          isSetupComplete: hasActiveTaxForm,
+          isSetupComplete: Boolean(hasActiveTaxForm),
         },
       };
 
       result.data = winningTotals;
     } catch (error) {
-      console.error('Getting winnings audit failed', error);
+      this.logger.error('Getting winnings audit failed', error);
       const message = 'Searching winnings failed. ' + error;
       result.error = {
         code: HttpStatus.INTERNAL_SERVER_ERROR,

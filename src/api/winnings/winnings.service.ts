@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { Prisma, payment, payment_status } from '@prisma/client';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
@@ -15,6 +15,8 @@ import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
  */
 @Injectable()
 export class WinningsService {
+  private readonly logger = new Logger(WinningsService.name);
+
   /**
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
@@ -42,6 +44,8 @@ export class WinningsService {
       const originId = await this.originRepo.getOriginIdByName(body.origin, tx);
 
       if (!originId) {
+        this.logger.warn('Invalid origin provided', { originId });
+
         result.error = {
           code: HttpStatus.BAD_REQUEST,
           message: 'Origin name does not exist',

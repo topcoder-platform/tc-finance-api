@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 
 @Injectable()
 export class TopcoderM2MService {
+  private readonly logger = new Logger(TopcoderM2MService.name);
+
   /**
    * Retrieves a Machine-to-Machine (M2M) token from the Auth0 service.
    *
@@ -38,8 +40,7 @@ export class TopcoderM2MService {
 
       return m2mToken;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed fetching TC M2M Token!', error);
+      this.logger.error('Failed fetching TC M2M Token!', error);
       return undefined;
     }
   }

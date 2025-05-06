@@ -1,7 +1,7 @@
 import cors from 'cors';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ApiModule } from './api/api.module';
 import { AppModule } from './app.module';
@@ -18,6 +18,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
+
+  const logger = new Logger('bootstrap()');
 
   // Global prefix for all routes
   app.setGlobalPrefix(ENV_CONFIG.API_BASE);
@@ -72,12 +74,12 @@ async function bootstrap() {
 
   // Add an event handler to log uncaught promise rejections and prevent the server from crashing
   process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
   });
 
   // Add an event handler to log uncaught errors and prevent the server from crashing
   process.on('uncaughtException', (error: Error) => {
-    console.error(
+    logger.error(
       `Unhandled Error at: ${error}\n` + `Exception origin: ${error.stack}`,
     );
   });

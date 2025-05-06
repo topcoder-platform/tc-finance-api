@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import {
   payment_status,
   Prisma,
@@ -20,6 +20,8 @@ const ONE_DAY = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class WinningsRepository {
+  private readonly logger = new Logger(WinningsRepository.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   private generateFilterDate(date: DateFilterType) {
@@ -243,7 +245,7 @@ export class WinningsRepository {
       };
       // response.data = winnings as any
     } catch (error) {
-      console.error('Searching winnings failed', error);
+      this.logger.error('Searching winnings failed', error);
       const message = 'Searching winnings failed. ' + error;
       result.error = {
         code: HttpStatus.INTERNAL_SERVER_ERROR,

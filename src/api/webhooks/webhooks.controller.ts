@@ -4,6 +4,7 @@ import {
   Req,
   RawBodyRequest,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TrolleyHeaders, TrolleyService } from './trolley/trolley.service';
@@ -13,6 +14,8 @@ import { Public } from 'src/core/auth/decorators';
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
+  private readonly logger = new Logger(WebhooksController.name);
+
   constructor(private readonly trolleyService: TrolleyService) {}
 
   /**
@@ -34,12 +37,16 @@ export class WebhooksController {
         request.rawBody?.toString('utf-8') ?? '',
       )
     ) {
+      this.logger.warn(
+        'Received request with missing or invalid signature!',
+        request.headers,
+      );
       throw new ForbiddenException('Missing or invalid signature!');
     }
 
     // do not proceed any further if event has already been processed
     if (!(await this.trolleyService.validateUnique(request.headers))) {
-      console.info(
+      this.logger.warn(
         `Webhook event '${request.headers[TrolleyHeaders.id]}' has already been processed!`,
       );
       return;
