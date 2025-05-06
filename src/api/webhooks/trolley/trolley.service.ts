@@ -93,15 +93,16 @@ export class TrolleyService {
       },
       create: {
         event_id: requestId,
-        event_payload: JSON.stringify(payload ?? {}),
+        event_payload: payload ?? {},
         event_time: meta?.event_time,
         event_model: payload?.model ?? '',
         event_action: payload?.action ?? '',
         status,
-      } as trolley_webhook_log,
+      },
       update: {
         status,
         ...meta,
+        event_payload: undefined,
       },
     });
   }
