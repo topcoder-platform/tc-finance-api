@@ -119,10 +119,14 @@ export class PaymentsService {
       });
 
       if (r.count === 0 || r.count !== winningsIds.length) {
-        return 'Failed to set payment processing state! Not all rows were updated! Please check the provided winnings IDs and status.';
+        throw new Error(
+          'Failed to set payment processing state! Not all rows were updated! Please check the provided winnings IDs and status.',
+        );
       }
     } catch (error) {
-      return `Error updating payment processing state: '${error.message}'`;
+      throw new Error(
+        `Error updating payment processing state: '${error.message}'`,
+      );
     }
   }
 
@@ -143,10 +147,14 @@ export class PaymentsService {
       });
 
       if (r.count === 0) {
-        return 'Failed to update payment release status! No rows were updated. Please check the provided externalTransaction ID and status.';
+        throw new Error(
+          'Failed to update payment release status! No rows were updated. Please check the provided externalTransaction ID and status.',
+        );
       }
     } catch (error) {
-      return `Error updating payment release processing state: '${error.message}'`;
+      throw new Error(
+        `Error updating payment release processing state: '${error.message}'`,
+      );
     }
   }
 }

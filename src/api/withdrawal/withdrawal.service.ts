@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
@@ -23,6 +23,8 @@ interface ReleasableWinningRow {
 
 @Injectable()
 export class WithdrawalService {
+  private readonly logger = new Logger(WithdrawalService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly taxFormRepo: TaxFormRepository,
@@ -89,7 +91,7 @@ export class WithdrawalService {
   }
 
   async withdraw(userId: string, userHandle: string, winningsIds: string[]) {
-    console.info('Processing withdrawal request');
+    this.logger.log('Processing withdrawal request');
     const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
 
     if (!hasActiveTaxForm) {
@@ -114,7 +116,7 @@ export class WithdrawalService {
 
     const totalAmount = this.checkTotalAmount(winnings);
 
-    console.info('Begin processing payments', winnings);
+    this.logger.log('Begin processing payments', winnings);
     await this.prisma.$transaction(async (tx) => {
       const recipient = await this.getTrolleyRecipientByUserId(userId);
 
@@ -133,15 +135,17 @@ export class WithdrawalService {
         return;
       }
 
-      const updatedPaymentToProcessingError =
+      try {
         await this.paymentsService.updatePaymentProcessingState(
           winningsIds,
           payment_status.PROCESSING,
           tx,
         );
-
-      if (updatedPaymentToProcessingError) {
-        throw new Error('Failed to update payment processing state');
+      } catch (e) {
+        this.logger.error(
+          `Failed to update payment processing state: ${e.message}`,
+        );
+        throw new Error('Failed to update payment processing state!');
       }
 
       const paymentRelease = await tx.payment_releases.create({
@@ -160,7 +164,7 @@ export class WithdrawalService {
           },
         },
       });
-      console.info(
+      this.logger.log(
         `Payment release created successfully. ID: ${paymentRelease.payment_release_id}`,
       );
 

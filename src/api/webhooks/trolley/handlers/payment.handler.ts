@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   PaymentProcessedEventData,
   PaymentWebhookEvent,
@@ -10,6 +10,8 @@ import { PrismaService } from 'src/shared/global/prisma.service';
 
 @Injectable()
 export class PaymentHandler {
+  private readonly logger = new Logger(PaymentHandler.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
@@ -27,37 +29,54 @@ export class PaymentHandler {
     const winningIds = (payload.externalId ?? '').split(',').slice(0, -1);
 
     if (!winningIds.length) {
-      console.error(
-        `No matching payments in our db to process for incoming payment.processed with memo '${payload.memo}'.`,
+      this.logger.error(
+        `No valid winning IDs found in the externalId: ${payload.externalId}`,
       );
     }
 
     if (payload.status !== 'processed') {
-      await this.prisma.$transaction(async (tx) => {
+      await this.updatePaymentStates(
+        winningIds,
+        payload.id,
+        payment_status.PROCESSING,
+        'FAILED',
+      );
+
+      return;
+    }
+
+    await this.updatePaymentStates(
+      winningIds,
+      payload.id,
+      payment_status.PAID,
+      'PROCESSED',
+    );
+  }
+
+  private async updatePaymentStates(
+    winningIds: string[],
+    paymentId: string,
+    processingState: payment_status,
+    releaseState: string,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      try {
         await this.paymentsService.updatePaymentProcessingState(
           winningIds,
-          payment_status.PROCESSING,
+          processingState,
           tx,
         );
 
         await this.paymentsService.updatePaymentReleaseState(
-          payload.id,
-          'FAILED',
+          paymentId,
+          releaseState,
         );
-      });
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await this.paymentsService.updatePaymentProcessingState(
-        winningIds,
-        payment_status.PAID,
-        tx,
-      );
-
-      await this.paymentsService.updatePaymentReleaseState(
-        payload.id,
-        'PROCESSED',
-      );
+      } catch (error) {
+        this.logger.error(
+          `Failed to update payment statuses: ${error.message}`,
+        );
+        throw error;
+      }
     });
   }
 }
