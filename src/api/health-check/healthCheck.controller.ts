@@ -1,4 +1,10 @@
-import { Controller, Get, Version, VERSION_NEUTRAL } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Logger,
+  Version,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Public } from 'src/core/auth/decorators';
 import { PrismaService } from 'src/shared/global/prisma.service';
@@ -26,6 +32,8 @@ export class GetHealthCheckResponseDto {
 @ApiTags('Healthcheck')
 @Controller()
 export class HealthCheckController {
+  private readonly logger = new Logger(HealthCheckController.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   @Public()
@@ -45,7 +53,7 @@ export class HealthCheckController {
       response.status = HealthCheckStatus.healthy;
       response.database = 'connected';
     } catch (error) {
-      console.error('Health check failed', error);
+      this.logger.error('Health check failed', error);
       response.status = HealthCheckStatus.unhealthy;
     }
 

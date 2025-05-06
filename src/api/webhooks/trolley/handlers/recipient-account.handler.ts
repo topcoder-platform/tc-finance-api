@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import {
@@ -11,6 +11,8 @@ import { PaymentsService } from 'src/shared/payments';
 
 @Injectable()
 export class RecipientAccountHandler {
+  private readonly logger = new Logger(RecipientAccountHandler.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
@@ -32,7 +34,7 @@ export class RecipientAccountHandler {
     });
 
     if (!recipient) {
-      console.error(
+      this.logger.error(
         `Recipient not found for recipientId '${recipientId}' while updating user payment method!`,
       );
       return;
@@ -84,7 +86,7 @@ export class RecipientAccountHandler {
     });
 
     if (!recipient) {
-      console.error(
+      this.logger.error(
         `Recipient not found for recipientId '${recipientId}' while updating user payment method!`,
       );
       return;
@@ -155,7 +157,7 @@ export class RecipientAccountHandler {
       });
 
     if (!recipientPaymentMethod) {
-      console.info(
+      this.logger.log(
         `Recipient payment method not found for recipient account id '${payload.id}' while deleting trolley payment method!`,
       );
       return;

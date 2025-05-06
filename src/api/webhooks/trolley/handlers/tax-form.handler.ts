@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { tax_form_status, trolley_recipient } from '@prisma/client';
@@ -12,6 +12,8 @@ import {
 
 @Injectable()
 export class TaxFormHandler {
+  private readonly logger = new Logger(TaxFormHandler.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
@@ -95,7 +97,7 @@ export class TaxFormHandler {
     const recipient = await this.getDbRecipientById(taxFormData.recipientId);
 
     if (!recipient) {
-      console.error(
+      this.logger.error(
         `Recipient not found for recipientId '${taxFormData.recipientId}' in taxForm with id '${taxFormData.taxFormId}'`,
       );
       return;

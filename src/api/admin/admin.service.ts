@@ -3,6 +3,7 @@ import {
   HttpStatus,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 
 import { PrismaPromise } from '@prisma/client';
@@ -21,6 +22,8 @@ import { WinningUpdateRequestDto } from './dto/winnings.dto';
  */
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   /**
    * Constructs the admin winning service with the given dependencies.
    * @param prisma the prisma service.
@@ -279,7 +282,7 @@ export class AdminService {
       ) {
         throw error;
       }
-      console.error('Updating winnings failed', error);
+      this.logger.error('Updating winnings failed', error);
       const message = 'Updating winnings failed. ' + error;
       result.error = {
         code: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -477,7 +480,7 @@ export class AdminService {
         createdAt: item.created_at,
       }));
     } catch (error) {
-      console.error('Getting winnings audit failed', error);
+      this.logger.error('Getting winnings audit failed', error);
       const message = 'Searching winnings failed. ' + error;
       result.error = {
         code: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -536,7 +539,7 @@ export class AdminService {
         externalTransactionDetails: {},
       }));
     } catch (error) {
-      console.error('Getting winnings audit failed', error);
+      this.logger.error('Getting winnings audit failed', error);
       const message = 'Searching winnings failed. ' + error;
       result.error = {
         code: HttpStatus.INTERNAL_SERVER_ERROR,
