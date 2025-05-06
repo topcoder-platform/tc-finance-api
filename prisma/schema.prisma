@@ -241,6 +241,8 @@ enum payment_status {
   OWED
   PROCESSING
   CANCELLED
+  FAILED
+  RETURNED
 }
 
 enum reference_type {
