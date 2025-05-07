@@ -74,7 +74,7 @@ export class WinningsService {
         body.winnerId,
       );
       const hasPaymentMethod =
-        await this.paymentMethodRepo.hasVerifiedPaymentMethod(body.winnerId);
+        await this.paymentMethodRepo.getConnectedPaymentMethod(body.winnerId);
 
       for (const detail of body.details || []) {
         const paymentModel = {

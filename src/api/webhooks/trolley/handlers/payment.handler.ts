@@ -35,6 +35,7 @@ export class PaymentHandler {
       this.logger.error(
         `No valid winning IDs found in the externalId: ${payload.externalId}`,
       );
+      throw new Error('No valid winning IDs found in the externalId!');
     }
 
     if (payload.status !== PaymentProcessedEventStatus.PROCESSED) {

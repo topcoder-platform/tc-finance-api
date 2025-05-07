@@ -39,8 +39,9 @@ export class WalletService {
       const winnings = await this.getWinningsTotalsByWinnerID(userId);
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
-      const hasVerifiedPaymentMethod =
-        await this.paymentMethodRepo.hasVerifiedPaymentMethod(userId);
+      const hasVerifiedPaymentMethod = Boolean(
+        await this.paymentMethodRepo.getConnectedPaymentMethod(userId),
+      );
 
       const winningTotals: WalletDetailDto = {
         account: {
@@ -62,10 +63,10 @@ export class WalletService {
           ],
         },
         withdrawalMethod: {
-          isSetupComplete: Boolean(hasVerifiedPaymentMethod),
+          isSetupComplete: hasVerifiedPaymentMethod,
         },
         taxForm: {
-          isSetupComplete: Boolean(hasActiveTaxForm),
+          isSetupComplete: hasActiveTaxForm,
         },
       };
 

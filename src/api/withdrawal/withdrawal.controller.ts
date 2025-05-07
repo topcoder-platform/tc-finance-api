@@ -54,7 +54,7 @@ export class WithdrawalController {
       await this.withdrawalService.withdraw(
         user.id,
         user.handle,
-        body.paymentIds,
+        body.winningsIds,
       );
       result.status = ResponseStatusType.SUCCESS;
       return result;

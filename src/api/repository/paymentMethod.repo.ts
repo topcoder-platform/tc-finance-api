@@ -7,12 +7,12 @@ export class PaymentMethodRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Check user has verified payment method
+   * Get the user's connected payment method (if there is one)
    *
    * @param userId user id
    * @param tx transaction
    */
-  async hasVerifiedPaymentMethod(
+  async getConnectedPaymentMethod(
     userId: string,
   ): Promise<user_payment_methods | null> {
     const connectedUserPaymentMethod =

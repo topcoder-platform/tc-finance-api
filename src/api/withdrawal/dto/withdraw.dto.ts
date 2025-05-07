@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayNotEmpty, IsArray, IsNotEmpty, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsNotEmpty, IsUUID } from 'class-validator';
 
 export class WithdrawRequestDto {
   @ApiProperty({
@@ -8,7 +8,7 @@ export class WithdrawRequestDto {
   })
   @IsArray()
   @ArrayNotEmpty()
-  @IsString({ each: true })
+  @IsUUID('4',{ each: true })
   @IsNotEmpty({ each: true })
-  paymentIds: string[];
+  winningsIds: string[];
 }

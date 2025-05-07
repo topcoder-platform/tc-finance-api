@@ -100,10 +100,10 @@ export class WithdrawalService {
       );
     }
 
-    const hasVerifiedPaymentMethod =
-      await this.paymentMethodRepo.hasVerifiedPaymentMethod(userId);
+    const connectedPaymentMethod =
+      await this.paymentMethodRepo.getConnectedPaymentMethod(userId);
 
-    if (!hasVerifiedPaymentMethod) {
+    if (!connectedPaymentMethod) {
       throw new Error(
         'Please add a payment method before making a withdrawal.',
       );
@@ -154,7 +154,7 @@ export class WithdrawalService {
             user_id: userId,
             total_net_amount: totalAmount,
             status: payment_status.PROCESSING,
-            payment_method_id: hasVerifiedPaymentMethod.payment_method_id,
+            payment_method_id: connectedPaymentMethod.payment_method_id,
             payee_id: recipient.trolley_id,
             external_transaction_id: paymentBatch.id,
             payment_release_associations: {
@@ -166,25 +166,28 @@ export class WithdrawalService {
             },
           },
         });
+
+        try {
+          // generate quote
+          await this.trolleyService.client.batch.generateQuote(paymentBatch.id);
+
+          // trigger trolley payment (batch) process
+          await this.trolleyService.client.batch.startProcessing(
+            paymentBatch.id,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to process trolley payment batch: ${error.message}`,
+          );
+          throw new Error('Failed to process trolley payment batch!');
+        }
+
         this.logger.log(
           `Payment release created successfully. ID: ${paymentRelease.payment_release_id}`,
         );
       } catch (error) {
         this.logger.error(`Failed to create payment release: ${error.message}`);
         throw new Error('Failed to create db entry for payment release!');
-      }
-
-      try {
-        // generate quote
-        await this.trolleyService.client.batch.generateQuote(paymentBatch.id);
-
-        // trigger trolley payment (batch) process
-        await this.trolleyService.client.batch.startProcessing(paymentBatch.id);
-      } catch (error) {
-        this.logger.error(
-          `Failed to process trolley payment batch: ${error.message}`,
-        );
-        throw new Error('Failed to process trolley payment batch!');
       }
     });
   }
