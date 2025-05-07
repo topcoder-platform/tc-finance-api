@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { trolley_webhook_log, webhook_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { ENV_CONFIG } from 'src/config';
@@ -20,6 +20,8 @@ if (!trolleyWhHmac) {
  */
 @Injectable()
 export class TrolleyService {
+  private readonly logger = new Logger('Webhooks/TrolleyService');
+
   constructor(
     @Inject('trolleyHandlerFns')
     private readonly handlers: Map<
@@ -118,6 +120,7 @@ export class TrolleyService {
    */
   async handleEvent(headers: Request['headers'], payload: any) {
     const requestId = headers[TrolleyHeaders.id];
+    this.logger.debug(`Received webhook event with ID: ${requestId}`);
 
     try {
       await this.setEventState(requestId, webhook_status.logged, payload, {
@@ -125,15 +128,28 @@ export class TrolleyService {
       });
 
       const { model, action, body } = payload;
+      this.logger.debug(`Processing event - ${requestId} - ${model}.${action}`);
+
       const handler = this.handlers.get(`${model}.${action}`);
-      // do nothing if there's no handler for the event (event was logged in db)
       if (!handler) {
+        this.logger.debug(
+          `No handler found for event - ${requestId} - ${model}.${action}. Event logged but not processed.`,
+        );
         return;
       }
 
+      this.logger.debug(
+        `Invoking handler for event - ${requestId} - ${model}.${action}`,
+      );
       await handler(body[model]);
+
+      this.logger.debug(`Successfully processed event with ID: ${requestId}`);
       await this.setEventState(requestId, webhook_status.processed);
     } catch (e) {
+      this.logger.error(
+        `Error processing event with ID: ${requestId} - ${e.message ?? e}`,
+        e.stack,
+      );
       await this.setEventState(requestId, webhook_status.error, void 0, {
         error_message: e.message ?? e,
       });

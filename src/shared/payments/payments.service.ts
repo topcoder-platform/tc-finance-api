@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { JsonObject } from '@prisma/client/runtime/library';
 import { PrismaService } from '../global/prisma.service';
 import { payment_status, Prisma } from '@prisma/client';
 import { uniq } from 'lodash';
@@ -63,7 +64,7 @@ export class PaymentsService {
    * - Changes the status to "ON_HOLD" if `setOnHold` is true, or to "OWED" if `setOnHold` is false.
    * - Ensures that only payments associated with the specified users' winnings are updated.
    */
-  private updateUserPaymentsStatus(userIds: string[], setOnHold: boolean) {
+  private toggleUserPaymentsStatus(userIds: string[], setOnHold: boolean) {
     return this.prisma.$queryRaw`
       UPDATE payment
       SET payment_status = ${setOnHold ? payment_status.ON_HOLD : payment_status.OWED}::payment_status
@@ -90,11 +91,73 @@ export class PaymentsService {
     const usersPayoutStatus = await this.getUsersPayoutStatus(userIds);
 
     if (usersPayoutStatus.complete.length) {
-      await this.updateUserPaymentsStatus(usersPayoutStatus.complete, false);
+      await this.toggleUserPaymentsStatus(usersPayoutStatus.complete, false);
     }
 
     if (usersPayoutStatus.inProgress.length) {
-      await this.updateUserPaymentsStatus(usersPayoutStatus.inProgress, true);
+      await this.toggleUserPaymentsStatus(usersPayoutStatus.inProgress, true);
+    }
+  }
+
+  async updatePaymentProcessingState(
+    winningsIds: string[],
+    status: payment_status,
+    transaction?: Prisma.TransactionClient,
+  ) {
+    try {
+      const prismaClient = transaction || this.prisma;
+
+      const r = await prismaClient.payment.updateMany({
+        where: {
+          winnings_id: { in: winningsIds },
+        },
+        data: {
+          version: { increment: 1 },
+          payment_status: status,
+          updated_at: new Date(),
+          date_paid: status === 'PAID' ? new Date() : undefined,
+        },
+      });
+
+      if (r.count === 0 || r.count !== winningsIds.length) {
+        throw new Error(
+          'Not all rows were updated! Please check the provided winnings IDs and status.',
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Error updating payment processing state: '${error.message}'`,
+      );
+    }
+  }
+
+  async updatePaymentReleaseState(
+    externalTransactionId: string,
+    status: string,
+    transaction?: Prisma.TransactionClient,
+    metadata?: JsonObject,
+  ) {
+    const prismaClient = transaction || this.prisma;
+    try {
+      const r = await prismaClient.payment_releases.updateMany({
+        where: {
+          external_transaction_id: externalTransactionId,
+        },
+        data: {
+          status,
+          metadata,
+        },
+      });
+
+      if (r.count === 0) {
+        throw new Error(
+          'No rows were updated. Please check the provided externalTransaction ID and status.',
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Error updating payment release processing state: '${error.message}'`,
+      );
     }
   }
 }

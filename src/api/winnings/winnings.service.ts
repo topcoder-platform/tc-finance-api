@@ -73,8 +73,9 @@ export class WinningsService {
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
         body.winnerId,
       );
-      const hasPaymentMethod =
-        await this.paymentMethodRepo.hasVerifiedPaymentMethod(body.winnerId);
+      const hasConnectedPaymentMethod = Boolean(
+        await this.paymentMethodRepo.getConnectedPaymentMethod(body.winnerId),
+      );
 
       for (const detail of body.details || []) {
         const paymentModel = {
@@ -90,7 +91,7 @@ export class WinningsService {
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
         paymentModel.payment_status =
-          hasPaymentMethod && hasActiveTaxForm
+          hasConnectedPaymentMethod && hasActiveTaxForm
             ? PaymentStatus.OWED
             : PaymentStatus.ON_HOLD;
 

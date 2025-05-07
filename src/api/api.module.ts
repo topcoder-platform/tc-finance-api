@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { WinningsModule } from './winnings/winnings.module';
 import { UserModule } from './user/user.module';
 import { WalletModule } from './wallet/wallet.module';
+import { WithdrawalModule } from './withdrawal/withdrawal.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { WalletModule } from './wallet/wallet.module';
     WinningsModule,
     UserModule,
     WalletModule,
+    WithdrawalModule,
   ],
   controllers: [HealthCheckController],
   providers: [

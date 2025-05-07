@@ -50,4 +50,8 @@ export class ConfigEnv {
 
   @IsString()
   TROLLEY_SECRET_KEY!: string;
+
+  @IsInt()
+  @IsOptional()
+  TROLLEY_MINIMUM_PAYMENT_AMOUNT: number = 0;
 }
