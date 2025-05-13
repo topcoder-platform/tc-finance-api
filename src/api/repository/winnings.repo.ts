@@ -202,8 +202,9 @@ export class WinningsRepository {
         this.prisma.winnings.count({ where: queryWhere }),
       ]);
 
-      const usersPayoutStatusMap =
-        await this.getUsersPayoutStatusForWinnings(winnings);
+      const usersPayoutStatusMap = winnings?.length
+        ? await this.getUsersPayoutStatusForWinnings(winnings)
+        : ({} as { [key: string]: payment_status });
 
       result.data = {
         winnings: winnings.map((item) => ({
