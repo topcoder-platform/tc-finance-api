@@ -187,7 +187,7 @@ export class WithdrawalService {
         );
       } catch (error) {
         this.logger.error(`Failed to create payment release: ${error.message}`);
-        throw new Error('Failed to create db entry for payment release!');
+        throw new Error('Failed to release payment!');
       }
     });
   }

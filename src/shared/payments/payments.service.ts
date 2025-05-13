@@ -119,7 +119,7 @@ export class PaymentsService {
         },
       });
 
-      if (r.count === 0 || r.count !== winningsIds.length) {
+      if (r.count < winningsIds.length) {
         throw new Error(
           'Not all rows were updated! Please check the provided winnings IDs and status.',
         );
