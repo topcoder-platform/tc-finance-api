@@ -111,7 +111,6 @@ export class TrolleyService {
 
       return paymentBatch;
     } catch (e) {
-      console.log(e);
       this.logger.error(
         `Failed to create payment, error '${e.message}'!`,
         paymentPayload,
