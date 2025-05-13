@@ -167,20 +167,7 @@ export class WithdrawalService {
           },
         });
 
-        try {
-          // generate quote
-          await this.trolleyService.client.batch.generateQuote(paymentBatch.id);
-
-          // trigger trolley payment (batch) process
-          await this.trolleyService.client.batch.startProcessing(
-            paymentBatch.id,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Failed to process trolley payment batch: ${error.message}`,
-          );
-          throw new Error('Failed to process trolley payment batch!');
-        }
+        await this.trolleyService.startProcessingPayment(paymentBatch.id);
 
         this.logger.log(
           `Payment release created successfully. ID: ${paymentRelease.payment_release_id}`,
