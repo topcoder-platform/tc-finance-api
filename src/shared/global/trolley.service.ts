@@ -13,6 +13,17 @@ const client = trolley({
   secret: TROLLEY_SECRET_KEY,
 });
 
+/**
+ * Determines if the provided validation errors indicate an "insufficient funds" error.
+ */
+const isInsufficientFundsError = ({
+  validationErrors,
+}: {
+  validationErrors: { code: string }[];
+}) =>
+  validationErrors.length === 1 &&
+  validationErrors[0].code === 'non_sufficient_funds';
+
 @Injectable()
 export class TrolleyService {
   private readonly logger = new Logger(`global/TrolleyService`);
@@ -78,24 +89,64 @@ export class TrolleyService {
       return;
     }
 
+    const paymentPayload = {
+      recipient: {
+        id: recipientId,
+      },
+      sourceAmount: totalAmount.toString(),
+      sourceCurrency: 'USD',
+      memo: 'Topcoder payment',
+      // TODO: remove `,${Date.now()}`
+      // if externalId is present, it must be unique
+      externalId: `${winningsIds.join(',')},${Date.now()}`,
+    };
+
     try {
-      const payment = await this.client.payment.create(paymentBatch.id, {
-        recipient: {
-          id: recipientId,
-        },
-        sourceAmount: totalAmount.toString(),
-        sourceCurrency: 'USD',
-        memo: 'Topcoder payment',
-        // TODO: remove `,${Date.now()}`
-        // if externalId is present, it must be unique
-        externalId: `${winningsIds.join(',')},${Date.now()}`,
-      });
+      const payment = await this.client.payment.create(
+        paymentBatch.id,
+        paymentPayload,
+      );
 
       this.logger.debug(`Created payment with id ${payment.id}`);
 
       return paymentBatch;
     } catch (e) {
-      this.logger.error(`Failed to create payment, error '${e.message}'!`);
+      console.log(e);
+      this.logger.error(
+        `Failed to create payment, error '${e.message}'!`,
+        paymentPayload,
+        e.validationErrors
+          ? { validationErrors: e.validationErrors }
+          : undefined,
+      );
+    }
+  }
+
+  async startProcessingPayment(paymentBatchId: string) {
+    try {
+      // generate quote
+      await this.client.batch.generateQuote(paymentBatchId);
+
+      // trigger trolley payment (batch) process
+      await this.client.batch.startProcessing(paymentBatchId);
+    } catch (error) {
+      // payments with insufficient funds error are still created in trolley,
+      // and they are storred as "pending".
+      // no need to do anything. just log a warning, and move on
+      if (isInsufficientFundsError(error)) {
+        this.logger.warn(
+          `Insufficient funds while processing payment: ${error.validationErrors}`,
+        );
+        return;
+      }
+
+      this.logger.error(
+        `Failed to process trolley payment batch: ${error.message}`,
+        error.validationErrors
+          ? { validationErrors: error.validationErrors }
+          : undefined,
+      );
+      throw new Error('Failed to process trolley payment batch!');
     }
   }
 }
