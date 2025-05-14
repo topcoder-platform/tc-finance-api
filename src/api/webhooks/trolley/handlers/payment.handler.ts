@@ -27,21 +27,11 @@ export class PaymentHandler {
   async handlePaymentProcessed(
     payload: PaymentProcessedEventData,
   ): Promise<any> {
-    // TODO: remove slice-1
-    const winningIds = (payload.externalId ?? '').split(',').slice(0, -1);
-    const externalTransactionId = payload.batch.id;
-
-    if (!winningIds.length) {
-      this.logger.error(
-        `No valid winning IDs found in the externalId: ${payload.externalId}`,
-      );
-      throw new Error('No valid winning IDs found in the externalId!');
-    }
+    const paymentId = payload.externalId as string;
 
     if (payload.status !== PaymentProcessedEventStatus.PROCESSED) {
       await this.updatePaymentStates(
-        winningIds,
-        externalTransactionId,
+        paymentId,
         payload.status.toUpperCase() as payment_status,
         payload.status.toUpperCase(),
         { failureMessage: payload.failureMessage },
@@ -50,21 +40,25 @@ export class PaymentHandler {
       return;
     }
 
-    await this.updatePaymentStates(
-      winningIds,
-      externalTransactionId,
-      payment_status.PAID,
-      'PROCESSED',
-    );
+    await this.updatePaymentStates(paymentId, payment_status.PAID, 'PROCESSED');
   }
 
   private async updatePaymentStates(
-    winningIds: string[],
     paymentId: string,
     processingState: payment_status,
     releaseState: string,
     metadata?: JsonObject,
   ): Promise<void> {
+    const winningIds = (
+      await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT winnings_id as id
+      FROM public.payment p
+      INNER JOIN public.payment_release_associations pra
+      ON pra.payment_id = p.payment_id
+      WHERE pra.payment_release_id::text = ${paymentId}
+    `
+    ).map((w) => w.id);
+
     try {
       await this.prisma.$transaction(async (tx) => {
         await this.paymentsService.updatePaymentProcessingState(
@@ -83,7 +77,7 @@ export class PaymentHandler {
     } catch (error) {
       this.logger.error(
         `Failed to update payment states for paymentId: ${paymentId}, winnings: ${winningIds.join(',')}, error: ${error.message}`,
-        error.stack,
+        error,
       );
       throw error;
     }
