@@ -49,7 +49,7 @@ export class WithdrawalService {
       FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
       AND p.installment_number = 1
       WHERE p.winnings_id = ANY(${winningsIds}::uuid[]) AND w.winner_id = ${userId}
-      FOR UPDATE
+      FOR UPDATE NOWAIT
     `;
 
     if (winnings.length < winningsIds.length) {
@@ -170,65 +170,82 @@ export class WithdrawalService {
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const winnings = await this.getReleasableWinningsForUserId(
-        userId,
-        winningsIds,
-        tx,
-      );
-
-      const totalAmount = this.checkTotalAmount(winnings);
-
-      this.logger.log('Begin processing payments', winnings);
-
-      const recipient = await this.getTrolleyRecipientByUserId(userId);
-
-      if (!recipient) {
-        throw new Error(`Trolley recipient not found for user '${userId}'!`);
-      }
-
-      const paymentRelease = await this.createDbPaymentRelease(
-        tx,
-        userId,
-        totalAmount,
-        connectedPaymentMethod.payment_method_id,
-        recipient.trolley_id,
-        winnings,
-      );
-
-      const paymentBatch = await this.trolleyService.startBatchPayment(
-        `${userId}_${userHandle}`,
-      );
-
-      const trolleyPayment = await this.trolleyService.createPayment(
-        recipient.trolley_id,
-        paymentBatch.id,
-        totalAmount,
-        paymentRelease.payment_release_id,
-      );
-
-      await this.updateDbReleaseRecord(tx, paymentRelease, trolleyPayment.id);
-
-      try {
-        await this.paymentsService.updatePaymentProcessingState(
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const winnings = await this.getReleasableWinningsForUserId(
+          userId,
           winningsIds,
-          payment_status.PROCESSING,
           tx,
         );
-      } catch (e) {
-        this.logger.error(
-          `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
-        );
-        throw new Error('Failed to update payment processing state!');
-      }
 
-      try {
-        await this.trolleyService.startProcessingPayment(paymentBatch.id);
-      } catch (error) {
-        const errorMsg = `Failed to release payment: ${error.message}`;
-        this.logger.error(errorMsg, error);
-        throw new Error(errorMsg);
+        const totalAmount = this.checkTotalAmount(winnings);
+
+        this.logger.log('Begin processing payments', winnings);
+
+        const recipient = await this.getTrolleyRecipientByUserId(userId);
+
+        if (!recipient) {
+          throw new Error(`Trolley recipient not found for user '${userId}'!`);
+        }
+
+        const paymentRelease = await this.createDbPaymentRelease(
+          tx,
+          userId,
+          totalAmount,
+          connectedPaymentMethod.payment_method_id,
+          recipient.trolley_id,
+          winnings,
+        );
+
+        const paymentBatch = await this.trolleyService.startBatchPayment(
+          `${userId}_${userHandle}`,
+        );
+
+        const trolleyPayment = await this.trolleyService.createPayment(
+          recipient.trolley_id,
+          paymentBatch.id,
+          totalAmount,
+          paymentRelease.payment_release_id,
+        );
+
+        await this.updateDbReleaseRecord(tx, paymentRelease, trolleyPayment.id);
+
+        try {
+          await this.paymentsService.updatePaymentProcessingState(
+            winningsIds,
+            payment_status.PROCESSING,
+            tx,
+          );
+        } catch (e) {
+          this.logger.error(
+            `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
+          );
+          throw new Error('Failed to update payment processing state!');
+        }
+
+        try {
+          await this.trolleyService.startProcessingPayment(paymentBatch.id);
+        } catch (error) {
+          const errorMsg = `Failed to release payment: ${error.message}`;
+          this.logger.error(errorMsg, error);
+          throw new Error(errorMsg);
+        }
+      });
+    } catch (error) {
+      console.error(error.code, error.Code, error);
+      console.log(JSON.stringify(error, null, 2));
+      if (error.code === 'P2010' && error.meta?.code === '55P03') {
+        this.logger.error(
+          'Payment request denied because payment row was locked previously!',
+          error,
+        );
+
+        throw new Error(
+          'Some or all of the winnings you requested to process are either processing, on hold or already paid.',
+        );
+      } else {
+        throw error;
       }
-    });
+    }
   }
 }
