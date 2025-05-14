@@ -3,7 +3,7 @@ import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { payment_releases, payment_status, PrismaClient } from '@prisma/client';
+import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
 
@@ -42,12 +42,14 @@ export class WithdrawalService {
   private async getReleasableWinningsForUserId(
     userId: string,
     winningsIds: string[],
+    tx: Prisma.TransactionClient,
   ) {
-    const winnings = await this.prisma.$queryRaw<ReleasableWinningRow[]>`
+    const winnings = await tx.$queryRaw<ReleasableWinningRow[]>`
       SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid"
       FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
       AND p.installment_number = 1
       WHERE p.winnings_id = ANY(${winningsIds}::uuid[]) AND w.winner_id = ${userId}
+      FOR UPDATE NOWAIT
     `;
 
     if (winnings.length < winningsIds.length) {
@@ -91,7 +93,7 @@ export class WithdrawalService {
   }
 
   private async createDbPaymentRelease(
-    tx: PrismaClient,
+    tx: Prisma.TransactionClient,
     userId: string,
     totalAmount: number,
     paymentMethodId: number,
@@ -129,7 +131,7 @@ export class WithdrawalService {
   }
 
   private async updateDbReleaseRecord(
-    tx: PrismaClient,
+    tx: Prisma.TransactionClient,
     paymentRelease: payment_releases,
     externalTxId: string,
   ) {
@@ -168,67 +170,80 @@ export class WithdrawalService {
       );
     }
 
-    const winnings = await this.getReleasableWinningsForUserId(
-      userId,
-      winningsIds,
-    );
-
-    const totalAmount = this.checkTotalAmount(winnings);
-
-    this.logger.log('Begin processing payments', winnings);
-    await this.prisma.$transaction(async (tx) => {
-      const recipient = await this.getTrolleyRecipientByUserId(userId);
-
-      if (!recipient) {
-        throw new Error(`Trolley recipient not found for user '${userId}'!`);
-      }
-
-      const paymentRelease = await this.createDbPaymentRelease(
-        tx as PrismaClient,
-        userId,
-        totalAmount,
-        connectedPaymentMethod.payment_method_id,
-        recipient.trolley_id,
-        winnings,
-      );
-
-      const paymentBatch = await this.trolleyService.startBatchPayment(
-        `${userId}_${userHandle}`,
-      );
-
-      const trolleyPayment = await this.trolleyService.createPayment(
-        recipient.trolley_id,
-        paymentBatch.id,
-        totalAmount,
-        paymentRelease.payment_release_id,
-      );
-
-      await this.updateDbReleaseRecord(
-        tx as PrismaClient,
-        paymentRelease,
-        trolleyPayment.id,
-      );
-
-      try {
-        await this.paymentsService.updatePaymentProcessingState(
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const winnings = await this.getReleasableWinningsForUserId(
+          userId,
           winningsIds,
-          payment_status.PROCESSING,
           tx,
         );
-      } catch (e) {
-        this.logger.error(
-          `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
-        );
-        throw new Error('Failed to update payment processing state!');
-      }
 
-      try {
-        await this.trolleyService.startProcessingPayment(paymentBatch.id);
-      } catch (error) {
-        const errorMsg = `Failed to release payment: ${error.message}`;
-        this.logger.error(errorMsg, error);
-        throw new Error(errorMsg);
+        const totalAmount = this.checkTotalAmount(winnings);
+
+        this.logger.log('Begin processing payments', winnings);
+
+        const recipient = await this.getTrolleyRecipientByUserId(userId);
+
+        if (!recipient) {
+          throw new Error(`Trolley recipient not found for user '${userId}'!`);
+        }
+
+        const paymentRelease = await this.createDbPaymentRelease(
+          tx,
+          userId,
+          totalAmount,
+          connectedPaymentMethod.payment_method_id,
+          recipient.trolley_id,
+          winnings,
+        );
+
+        const paymentBatch = await this.trolleyService.startBatchPayment(
+          `${userId}_${userHandle}`,
+        );
+
+        const trolleyPayment = await this.trolleyService.createPayment(
+          recipient.trolley_id,
+          paymentBatch.id,
+          totalAmount,
+          paymentRelease.payment_release_id,
+        );
+
+        await this.updateDbReleaseRecord(tx, paymentRelease, trolleyPayment.id);
+
+        try {
+          await this.paymentsService.updatePaymentProcessingState(
+            winningsIds,
+            payment_status.PROCESSING,
+            tx,
+          );
+        } catch (e) {
+          this.logger.error(
+            `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
+          );
+          throw new Error('Failed to update payment processing state!');
+        }
+
+        try {
+          await this.trolleyService.startProcessingPayment(paymentBatch.id);
+        } catch (error) {
+          const errorMsg = `Failed to release payment: ${error.message}`;
+          this.logger.error(errorMsg, error);
+          throw new Error(errorMsg);
+        }
+      });
+    } catch (error) {
+      if (error.code === 'P2010' && error.meta?.code === '55P03') {
+        this.logger.error(
+          'Payment request denied because payment row was locked previously!',
+          error,
+        );
+
+        throw new Error(
+          'Some or all of the winnings you requested to process are either processing, on hold or already paid.',
+        );
+      } else {
+        throw error;
       }
-    });
+    }
   }
 }
