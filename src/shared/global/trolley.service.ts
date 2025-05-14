@@ -1,6 +1,6 @@
 import url from 'url';
 import crypto from 'crypto';
-import trolley, { Batch } from 'trolleyhq';
+import trolley from 'trolleyhq';
 import { Injectable, Logger } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 
@@ -23,6 +23,18 @@ const isInsufficientFundsError = ({
 }) =>
   validationErrors.length === 1 &&
   validationErrors[0].code === 'non_sufficient_funds';
+
+/**
+ * Determines if the provided validation errors indicate a duplicate payment error.
+ */
+const isDuplicatePaymentError = ({
+  validationErrors,
+}: {
+  validationErrors: { code: string; field: string }[];
+}) =>
+  validationErrors.length === 1 &&
+  validationErrors[0].code === 'duplicate' &&
+  validationErrors[0].field === 'externalId';
 
 @Injectable()
 export class TrolleyService {
@@ -67,28 +79,31 @@ export class TrolleyService {
     return widgetBaseUrl.toString();
   }
 
-  async startBatchPayment(
-    recipientId: string,
-    description: string,
-    totalAmount: number,
-    winningsIds: string[],
-  ) {
-    let paymentBatch: Batch;
-
+  async startBatchPayment(batchDescription: string) {
     try {
-      paymentBatch = await this.client.batch.create(
-        { description, sourceCurrency: 'USD' },
+      const paymentBatch = await this.client.batch.create(
+        { description: batchDescription, sourceCurrency: 'USD' },
         [],
       );
 
-      this.logger.debug(`Created payment batch with id ${paymentBatch.id}`);
-    } catch (e) {
-      this.logger.error(
-        `Failed to create batch payment, error '${e.message}'!`,
+      this.logger.debug(
+        `Created trolley payment batch with id ${paymentBatch.id}`,
       );
-      return;
-    }
 
+      return paymentBatch;
+    } catch (error) {
+      const errorMsg = `Failed to create trolley batch payment: '${error.message}'!`;
+      this.logger.error(errorMsg, error);
+      throw new Error(errorMsg);
+    }
+  }
+
+  async createPayment(
+    recipientId: string,
+    paymentBatchId: string,
+    totalAmount: number,
+    transactionId: string,
+  ) {
     const paymentPayload = {
       recipient: {
         id: recipientId,
@@ -96,28 +111,32 @@ export class TrolleyService {
       sourceAmount: totalAmount.toString(),
       sourceCurrency: 'USD',
       memo: 'Topcoder payment',
-      // TODO: remove `,${Date.now()}`
-      // if externalId is present, it must be unique
-      externalId: `${winningsIds.join(',')},${Date.now()}`,
+      externalId: transactionId,
     };
 
     try {
       const payment = await this.client.payment.create(
-        paymentBatch.id,
+        paymentBatchId,
         paymentPayload,
       );
 
-      this.logger.debug(`Created payment with id ${payment.id}`);
+      this.logger.debug(`Created trolley payment with id ${payment.id}`);
 
-      return paymentBatch;
-    } catch (e) {
+      return payment;
+    } catch (error) {
       this.logger.error(
-        `Failed to create payment, error '${e.message}'!`,
+        `Failed to create trolley payment: '${error.message}'!`,
         paymentPayload,
-        e.validationErrors
-          ? { validationErrors: e.validationErrors }
+        error.validationErrors
+          ? { validationErrors: error.validationErrors }
           : undefined,
       );
+
+      if (isDuplicatePaymentError(error)) {
+        throw new Error('Duplicate payment detected!');
+      } else {
+        throw new Error(`Failed to create trolley payment: ${error.message}!`);
+      }
     }
   }
 

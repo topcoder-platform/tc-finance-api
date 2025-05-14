@@ -132,7 +132,7 @@ export class PaymentsService {
   }
 
   async updatePaymentReleaseState(
-    externalTransactionId: string,
+    paymentId: string,
     status: string,
     transaction?: Prisma.TransactionClient,
     metadata?: JsonObject,
@@ -141,7 +141,7 @@ export class PaymentsService {
     try {
       const r = await prismaClient.payment_releases.updateMany({
         where: {
-          external_transaction_id: externalTransactionId,
+          payment_release_id: paymentId,
         },
         data: {
           status,
