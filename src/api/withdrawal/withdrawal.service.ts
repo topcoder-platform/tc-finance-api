@@ -3,7 +3,7 @@ import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { payment_releases, payment_status, PrismaClient } from '@prisma/client';
+import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
 
@@ -42,8 +42,9 @@ export class WithdrawalService {
   private async getReleasableWinningsForUserId(
     userId: string,
     winningsIds: string[],
+    tx: Prisma.TransactionClient,
   ) {
-    const winnings = await this.prisma.$queryRaw<ReleasableWinningRow[]>`
+    const winnings = await tx.$queryRaw<ReleasableWinningRow[]>`
       SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid"
       FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
       AND p.installment_number = 1
@@ -92,7 +93,7 @@ export class WithdrawalService {
   }
 
   private async createDbPaymentRelease(
-    tx: PrismaClient,
+    tx: Prisma.TransactionClient,
     userId: string,
     totalAmount: number,
     paymentMethodId: number,
@@ -130,7 +131,7 @@ export class WithdrawalService {
   }
 
   private async updateDbReleaseRecord(
-    tx: PrismaClient,
+    tx: Prisma.TransactionClient,
     paymentRelease: payment_releases,
     externalTxId: string,
   ) {
@@ -169,15 +170,17 @@ export class WithdrawalService {
       );
     }
 
-    const winnings = await this.getReleasableWinningsForUserId(
-      userId,
-      winningsIds,
-    );
-
-    const totalAmount = this.checkTotalAmount(winnings);
-
-    this.logger.log('Begin processing payments', winnings);
     await this.prisma.$transaction(async (tx) => {
+      const winnings = await this.getReleasableWinningsForUserId(
+        userId,
+        winningsIds,
+        tx,
+      );
+
+      const totalAmount = this.checkTotalAmount(winnings);
+
+      this.logger.log('Begin processing payments', winnings);
+
       const recipient = await this.getTrolleyRecipientByUserId(userId);
 
       if (!recipient) {
@@ -185,7 +188,7 @@ export class WithdrawalService {
       }
 
       const paymentRelease = await this.createDbPaymentRelease(
-        tx as PrismaClient,
+        tx,
         userId,
         totalAmount,
         connectedPaymentMethod.payment_method_id,
@@ -204,11 +207,7 @@ export class WithdrawalService {
         paymentRelease.payment_release_id,
       );
 
-      await this.updateDbReleaseRecord(
-        tx as PrismaClient,
-        paymentRelease,
-        trolleyPayment.id,
-      );
+      await this.updateDbReleaseRecord(tx, paymentRelease, trolleyPayment.id);
 
       try {
         await this.paymentsService.updatePaymentProcessingState(
