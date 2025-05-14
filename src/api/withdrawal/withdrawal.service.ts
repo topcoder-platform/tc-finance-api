@@ -48,6 +48,7 @@ export class WithdrawalService {
       FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
       AND p.installment_number = 1
       WHERE p.winnings_id = ANY(${winningsIds}::uuid[]) AND w.winner_id = ${userId}
+      FOR UPDATE
     `;
 
     if (winnings.length < winningsIds.length) {
