@@ -232,8 +232,6 @@ export class WithdrawalService {
         }
       });
     } catch (error) {
-      console.error(error.code, error.Code, error);
-      console.log(JSON.stringify(error, null, 2));
       if (error.code === 'P2010' && error.meta?.code === '55P03') {
         this.logger.error(
           'Payment request denied because payment row was locked previously!',
