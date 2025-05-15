@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
 import { PrismaService } from 'src/shared/global/prisma.service';
-import { tax_form_status, trolley_recipient } from '@prisma/client';
+import {
+  tax_form_status,
+  trolley_recipient,
+  user_tax_form_associations,
+} from '@prisma/client';
 import { PaymentsService } from 'src/shared/payments';
 import {
   TrolleyTaxFormStatus,
@@ -25,16 +29,39 @@ export class TaxFormHandler {
     });
   }
 
+  /**
+   * Determines the tax form status based on the provided existing form association
+   * and the tax form data from the event.
+   *
+   * @param existingFormAssociation - The existing user tax form association, or `null` if none exists.
+   * @param taxFormData - The data from the tax form status updated event.
+   * @returns The determined tax form status, which can be either `ACTIVE` or `INACTIVE`.
+   */
+  getTaxFormStatus(
+    existingFormAssociation: user_tax_form_associations | null,
+    taxFormData: TaxFormStatusUpdatedEventData,
+  ) {
+    const eventTaxFormStatus =
+      taxFormData.status === TrolleyTaxFormStatus.Reviewed
+        ? tax_form_status.ACTIVE
+        : tax_form_status.INACTIVE;
+
+    if (!existingFormAssociation) {
+      return eventTaxFormStatus;
+    }
+
+    // Prevent downgrading an active tax form association to inactive when the event status is "submitted"
+    return existingFormAssociation.tax_form_status === tax_form_status.ACTIVE &&
+      taxFormData.status === TrolleyTaxFormStatus.Submitted
+      ? tax_form_status.ACTIVE
+      : eventTaxFormStatus;
+  }
+
   async createOrUpdateTaxFormAssociation(
     taxFormId: string,
     recipient: trolley_recipient,
     taxFormData: TaxFormStatusUpdatedEventData,
   ) {
-    const taxFormStatus =
-      taxFormData.status === TrolleyTaxFormStatus.Reviewed
-        ? tax_form_status.ACTIVE
-        : tax_form_status.INACTIVE;
-
     const existingFormAssociation =
       await this.prisma.user_tax_form_associations.findFirst({
         where: {
@@ -42,6 +69,11 @@ export class TaxFormHandler {
           tax_form_id: taxFormId,
         },
       });
+
+    const taxFormStatus = this.getTaxFormStatus(
+      existingFormAssociation,
+      taxFormData,
+    );
 
     // voided forms associations are removed from DB
     if (
