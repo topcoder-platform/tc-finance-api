@@ -7,6 +7,7 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { WinningsType } from 'src/dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
+import { TrolleyService } from 'src/shared/global/trolley.service';
 
 /**
  * The winning service.
@@ -23,7 +24,22 @@ export class WalletService {
     private readonly prisma: PrismaService,
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly trolleyService: TrolleyService,
   ) {}
+
+  async getPaymentTaxDetails(userId: string) {
+    const recipient = await this.prisma.trolley_recipient.findFirst({
+      where: { user_id: userId },
+    });
+
+    if (!recipient) {
+      return;
+    }
+
+    return await this.trolleyService.getRecipientTaxDetails(
+      recipient.trolley_id,
+    );
+  }
 
   /**
    * Get wallet detail.
@@ -43,7 +59,9 @@ export class WalletService {
         await this.paymentMethodRepo.getConnectedPaymentMethod(userId),
       );
 
-      const winningTotals: WalletDetailDto = {
+      const taxWithholdingDetails = await this.getPaymentTaxDetails(userId);
+
+      result.data = {
         account: {
           balances: [
             {
@@ -68,9 +86,8 @@ export class WalletService {
         taxForm: {
           isSetupComplete: hasActiveTaxForm,
         },
+        ...(taxWithholdingDetails ?? {}),
       };
-
-      result.data = winningTotals;
     } catch (error) {
       this.logger.error('Getting winnings audit failed', error);
       const message = 'Searching winnings failed. ' + error;
