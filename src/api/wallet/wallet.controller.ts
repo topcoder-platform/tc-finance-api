@@ -10,7 +10,7 @@ import { Role } from 'src/core/auth/auth.constants';
 import { Roles, User } from 'src/core/auth/decorators';
 import { UserInfo } from 'src/dto/user.type';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
-import { WalletDetailDto } from 'src/dto/wallet.dto';
+import { WalletDetailDto, walletDetailResponseExample } from 'src/dto/wallet.dto';
 
 import { WalletService } from './wallet.service';
 
@@ -30,6 +30,10 @@ export class WalletController {
     status: 200,
     description: 'Get wallet detail successfully.',
     type: ResponseDto<WalletDetailDto>,
+    example: {
+      data: walletDetailResponseExample,
+      status: 'success',
+    },
   })
   @HttpCode(HttpStatus.OK)
   async getWallet(

@@ -1,3 +1,24 @@
+export const walletDetailResponseExample = {
+  account: {
+    balances: [
+      {
+        type: 'PAYMENT',
+        amount: 1000,
+        unit: 'currency',
+      },
+    ],
+  },
+  withdrawalMethod: {
+    isSetupComplete: true,
+  },
+  taxForm: {
+    isSetupComplete: true,
+  },
+  estimatedFees: '0',
+  primaryCurrency: 'USD',
+  taxWithholdingPercentage: '0',
+};
+
 export class WalletDetailDto {
   account: {
     balances: {
@@ -12,4 +33,7 @@ export class WalletDetailDto {
   taxForm: {
     isSetupComplete: boolean;
   };
+  primaryCurrency: string | null;
+  estimatedFees: string | null;
+  taxWithholdingPercentage: string | null;
 }

@@ -1,12 +1,19 @@
 import url from 'url';
 import crypto from 'crypto';
 import trolley from 'trolleyhq';
+import { pick } from 'lodash';
 import { Injectable, Logger } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 
 const TROLLEY_ACCESS_KEY = ENV_CONFIG.TROLLEY_ACCESS_KEY;
 const TROLLEY_SECRET_KEY = ENV_CONFIG.TROLLEY_SECRET_KEY;
 const TROLLEY_WIDGET_BASE_URL = ENV_CONFIG.TROLLEY_WIDGET_BASE_URL;
+
+export interface RecipientTaxDetails {
+  primaryCurrency: string | null;
+  estimatedFees: string | null;
+  taxWithholdingPercentage: string | null;
+}
 
 const client = trolley({
   key: TROLLEY_ACCESS_KEY,
@@ -165,6 +172,25 @@ export class TrolleyService {
           : undefined,
       );
       throw new Error('Failed to process trolley payment batch!');
+    }
+  }
+
+  async getRecipientTaxDetails(
+    recipientId: string,
+  ): Promise<RecipientTaxDetails> {
+    try {
+      const recipient = await this.client.recipient.find(recipientId);
+      return pick(recipient, [
+        'estimatedFees',
+        'primaryCurrency',
+        'taxWithholdingPercentage',
+      ]) as RecipientTaxDetails;
+    } catch (error) {
+      this.logger.error(
+        'Failed to load recipient tax details from trolley!',
+        error,
+      );
+      return {} as RecipientTaxDetails;
     }
   }
 }
