@@ -177,7 +177,7 @@ export class TrolleyService {
 
   async getRecipientTaxDetails(
     recipientId: string,
-  ): Promise<RecipientTaxDetails> {
+  ): Promise<RecipientTaxDetails | void> {
     try {
       const recipient = await this.client.recipient.find(recipientId);
       return pick(recipient, [
@@ -190,7 +190,6 @@ export class TrolleyService {
         'Failed to load recipient tax details from trolley!',
         error,
       );
-      return {} as RecipientTaxDetails;
     }
   }
 }

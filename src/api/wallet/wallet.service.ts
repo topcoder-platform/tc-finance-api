@@ -7,10 +7,7 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { WinningsType } from 'src/dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import {
-  RecipientTaxDetails,
-  TrolleyService,
-} from 'src/shared/global/trolley.service';
+import { TrolleyService } from 'src/shared/global/trolley.service';
 
 /**
  * The winning service.
@@ -36,10 +33,12 @@ export class WalletService {
     });
 
     if (!recipient) {
-      return {} as RecipientTaxDetails;
+      return;
     }
 
-    return this.trolleyService.getRecipientTaxDetails(recipient.trolley_id);
+    return await this.trolleyService.getRecipientTaxDetails(
+      recipient.trolley_id,
+    );
   }
 
   /**
@@ -87,7 +86,7 @@ export class WalletService {
         taxForm: {
           isSetupComplete: hasActiveTaxForm,
         },
-        ...taxWithholdingDetails,
+        ...(taxWithholdingDetails ?? {}),
       };
     } catch (error) {
       this.logger.error('Getting winnings audit failed', error);
