@@ -6,12 +6,13 @@ import {
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { ENV_CONFIG } from 'src/config';
+import { getSigningKey } from '../jwt';
 
 const logger = new Logger(`Auth/TokenValidatorMiddleware`);
 
 @Injectable()
 export class TokenValidatorMiddleware implements NestMiddleware {
-  use(req: any, res: Response, next: (error?: any) => void) {
+  async use(req: any, res: Response, next: (error?: any) => void) {
     const [type, idToken] = req.headers.authorization?.split(' ') ?? [];
 
     if (type !== 'Bearer' || !idToken) {
@@ -20,7 +21,8 @@ export class TokenValidatorMiddleware implements NestMiddleware {
 
     let decoded: any;
     try {
-      decoded = jwt.verify(idToken, ENV_CONFIG.AUTH0_CERT);
+      const signingKey = await getSigningKey(idToken);
+      decoded = jwt.verify(idToken, signingKey);
     } catch (error) {
       logger.error('Error verifying JWT', error);
       throw new UnauthorizedException('Invalid or expired JWT!');

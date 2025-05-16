@@ -110,6 +110,7 @@ export class TrolleyService {
     paymentBatchId: string,
     totalAmount: number,
     transactionId: string,
+    paymentMemo?: string,
   ) {
     const paymentPayload = {
       recipient: {
@@ -117,7 +118,7 @@ export class TrolleyService {
       },
       sourceAmount: totalAmount.toString(),
       sourceCurrency: 'USD',
-      memo: 'Topcoder payment',
+      memo: paymentMemo ?? 'Topcoder payment',
       externalId: transactionId,
     };
 
