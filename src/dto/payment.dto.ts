@@ -8,6 +8,8 @@ export enum PaymentStatus {
   OWED = 'OWED',
   PROCESSING = 'PROCESSING',
   CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+  RETURNED = 'RETURNED',
 }
 
 export class PaymentDetailDto {
