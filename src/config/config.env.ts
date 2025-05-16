@@ -1,4 +1,5 @@
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class ConfigEnv {
   @IsString()
@@ -54,4 +55,17 @@ export class ConfigEnv {
   @IsInt()
   @IsOptional()
   TROLLEY_MINIMUM_PAYMENT_AMOUNT: number = 0;
+
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+
+    return false;
+  })
+  ACCEPT_CUSTOM_PAYMENTS_MEMO;
 }

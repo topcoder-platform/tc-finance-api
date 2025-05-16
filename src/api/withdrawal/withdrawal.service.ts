@@ -151,7 +151,12 @@ export class WithdrawalService {
     }
   }
 
-  async withdraw(userId: string, userHandle: string, winningsIds: string[]) {
+  async withdraw(
+    userId: string,
+    userHandle: string,
+    winningsIds: string[],
+    paymentMemo?: string,
+  ) {
     this.logger.log('Processing withdrawal request');
     const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
 
@@ -206,6 +211,7 @@ export class WithdrawalService {
           paymentBatch.id,
           totalAmount,
           paymentRelease.payment_release_id,
+          paymentMemo,
         );
 
         await this.updateDbReleaseRecord(tx, paymentRelease, trolleyPayment.id);

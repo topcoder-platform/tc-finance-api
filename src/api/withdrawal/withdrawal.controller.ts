@@ -46,6 +46,7 @@ export class WithdrawalController {
   @HttpCode(HttpStatus.OK)
   async doWithdraw(
     @User() user: UserInfo,
+    // @ts-expect-error: Suppress error for 'WithdrawRequestDto' being used as a type
     @Body() body: WithdrawRequestDto,
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
@@ -55,6 +56,7 @@ export class WithdrawalController {
         user.id,
         user.handle,
         body.winningsIds,
+        body.memo,
       );
       result.status = ResponseStatusType.SUCCESS;
       return result;
