@@ -32,9 +32,6 @@ export class ConfigEnv {
   AUTH0_M2M_GRANT_TYPE!: string;
 
   @IsString()
-  AUTH0_CERT!: string;
-
-  @IsString()
   AUTH0_CLIENT_ID!: string;
 
   @IsString()
