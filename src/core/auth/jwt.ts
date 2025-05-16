@@ -42,7 +42,7 @@ export const getSigningKey = (token: string) => {
       const signingKey = key.getPublicKey();
 
       if (!signingKey) {
-        logger.error('Error getting public key:', err);
+        logger.error('Error getting public key!');
         return reject(new Error('Invalid token: Unable to get public key'));
       }
 
