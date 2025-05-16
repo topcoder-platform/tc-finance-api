@@ -10,12 +10,6 @@ import {
 } from 'class-validator';
 import { ENV_CONFIG } from 'src/config';
 
-export function ConditionalApiProperty(
-  condition: boolean,
-  options: Parameters<typeof ApiProperty>[0],
-) {
-  return condition ? ApiProperty(options) : () => undefined;
-}
 export class WithdrawRequestDtoBase {
   @ApiProperty({
     description: 'The ID of the winnings to withdraw',
