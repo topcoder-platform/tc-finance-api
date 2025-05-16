@@ -61,7 +61,11 @@ export class ConfigEnv {
   @Transform(({ value }) => {
     if (typeof value === 'boolean') return value;
 
-    return value.toLowerCase() === 'true';
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+
+    return false;
   })
   ACCEPT_CUSTOM_PAYMENTS_MEMO;
 }
