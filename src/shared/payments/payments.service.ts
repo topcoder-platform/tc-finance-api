@@ -138,6 +138,20 @@ export class PaymentsService {
     metadata?: JsonObject,
   ) {
     const prismaClient = transaction || this.prisma;
+
+    const failedOrReturnedRelease = await prismaClient.payment_releases.findFirst({
+      where: {
+        payment_release_id: paymentId,
+        status: { in: [payment_status.RETURNED, payment_status.FAILED] },
+      }
+    });
+
+    if (failedOrReturnedRelease) {
+      throw new Error(
+        `Not processing payment release ${paymentId} because it was already marked as '${failedOrReturnedRelease.status}'.`,
+      );
+    }
+
     try {
       const r = await prismaClient.payment_releases.updateMany({
         where: {

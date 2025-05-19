@@ -23,6 +23,8 @@ export interface PaymentProcessedEventData {
   fees: string;
   targetAmount: string; // net amount
   failureMessage: string | null;
+  errors?: string[];
+  returnedNote?: string;
   memo: string | null;
   batch: {
     id: string;
