@@ -34,7 +34,11 @@ export class PaymentHandler {
         paymentId,
         payload.status.toUpperCase() as payment_status,
         payload.status.toUpperCase(),
-        { failureMessage: payload.failureMessage },
+        {
+          failureMessage: payload.failureMessage,
+          returnedNote: payload.returnedNote,
+          errors: payload.errors?.join(', '),
+        },
       );
 
       return;
@@ -56,6 +60,7 @@ export class PaymentHandler {
       INNER JOIN public.payment_release_associations pra
       ON pra.payment_id = p.payment_id
       WHERE pra.payment_release_id::text = ${paymentId}
+      FOR UPDATE
     `
     ).map((w) => w.id);
 

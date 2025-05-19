@@ -348,9 +348,12 @@ export class AdminService {
     currentVersion: number,
   ) {
     let setDatePaidNull = false;
-    if (
-      (oldPaymentStatus === PaymentStatus.PAID ||
-        oldPaymentStatus === PaymentStatus.PROCESSING) &&
+    if ([
+      PaymentStatus.PAID,
+      PaymentStatus.PROCESSING,
+      PaymentStatus.RETURNED,
+      PaymentStatus.FAILED,
+    ].includes(oldPaymentStatus as PaymentStatus) &&
       newPaymentStatus === PaymentStatus.OWED
     ) {
       setDatePaidNull = true;
