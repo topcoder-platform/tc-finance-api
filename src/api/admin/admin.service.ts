@@ -16,7 +16,7 @@ import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import {
   AdminPaymentUpdateData,
-  TopcoderCallengesService,
+  TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
 
 /**
@@ -33,7 +33,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
-    private readonly tcChallengesService: TopcoderCallengesService,
+    private readonly tcChallengesService: TopcoderChallengesService,
   ) {}
 
   private getWinningById(winningId: string) {

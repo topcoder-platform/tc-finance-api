@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { TopcoderMembersService } from './members.service';
 import { TopcoderM2MService } from './topcoder-m2m.service';
-import { TopcoderCallengesService } from './challenges.service';
+import { TopcoderChallengesService } from './challenges.service';
 
 @Module({
   providers: [
-    TopcoderCallengesService,
+    TopcoderChallengesService,
     TopcoderMembersService,
     TopcoderM2MService,
   ],
-  exports: [TopcoderCallengesService, TopcoderMembersService],
+  exports: [TopcoderChallengesService, TopcoderMembersService],
 })
 export class TopcoderModule {}

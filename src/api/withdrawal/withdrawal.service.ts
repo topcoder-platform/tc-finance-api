@@ -7,7 +7,7 @@ import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
 import {
-  TopcoderCallengesService,
+  TopcoderChallengesService,
   WithdrawUpdateData,
 } from 'src/shared/topcoder/challenges.service';
 
@@ -45,7 +45,7 @@ export class WithdrawalService {
     private readonly paymentsService: PaymentsService,
     private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly trolleyService: TrolleyService,
-    private readonly tcChallengesService: TopcoderCallengesService,
+    private readonly tcChallengesService: TopcoderChallengesService,
   ) {}
 
   getTrolleyRecipientByUserId(userId: string) {
@@ -267,7 +267,7 @@ export class WithdrawalService {
           }
         } catch (error) {
           this.logger.error(
-            `Failed to udpate legacy payment while withdrawing for challenge ${error?.message ?? error}`,
+            `Failed to update legacy payment while withdrawing for challenge ${error?.message ?? error}`,
             error,
           );
         }

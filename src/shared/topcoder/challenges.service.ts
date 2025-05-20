@@ -35,8 +35,8 @@ const mapStatus = (payoutData: WithdrawUpdateData | AdminPaymentUpdateData) => {
 };
 
 @Injectable()
-export class TopcoderCallengesService {
-  private readonly logger = new Logger(TopcoderCallengesService.name);
+export class TopcoderChallengesService {
+  private readonly logger = new Logger(TopcoderChallengesService.name);
 
   constructor(private readonly m2MService: TopcoderM2MService) {}
 
