@@ -171,11 +171,11 @@ export class AdminController {
     }
 
     const result = await this.adminService.updateWinnings(body, user.id);
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }
@@ -200,11 +200,11 @@ export class AdminController {
     @Param('winningID') winningId: string,
   ): Promise<ResponseDto<WinningAuditDto[]>> {
     const result = await this.adminService.getWinningAudit(winningId);
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }
@@ -230,11 +230,11 @@ export class AdminController {
     @Param('winningID') winningId: string,
   ): Promise<ResponseDto<AuditPayoutDto[]>> {
     const result = await this.adminService.getWinningAuditPayout(winningId);
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }

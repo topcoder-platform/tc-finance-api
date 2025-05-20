@@ -62,11 +62,11 @@ export class UserController {
     const result = await this.winningsRepo.searchWinnings(
       body as WinningRequestDto,
     );
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }

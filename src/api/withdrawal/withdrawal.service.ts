@@ -6,6 +6,10 @@ import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
+import {
+  TopcoderCallengesService,
+  WithdrawUpdateData,
+} from 'src/shared/topcoder/challenges.service';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -21,6 +25,16 @@ interface ReleasableWinningRow {
   datePaid: Date;
 }
 
+function formatDate(date = new Date()) {
+  const pad = (n, z = 2) => String(n).padStart(z, '0');
+
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
+    `${pad(date.getMilliseconds(), 3)}`
+  );
+}
+
 @Injectable()
 export class WithdrawalService {
   private readonly logger = new Logger(WithdrawalService.name);
@@ -31,6 +45,7 @@ export class WithdrawalService {
     private readonly paymentsService: PaymentsService,
     private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly trolleyService: TrolleyService,
+    private readonly tcChallengesService: TopcoderCallengesService,
   ) {}
 
   getTrolleyRecipientByUserId(userId: string) {
@@ -235,6 +250,26 @@ export class WithdrawalService {
           const errorMsg = `Failed to release payment: ${error.message}`;
           this.logger.error(errorMsg, error);
           throw new Error(errorMsg);
+        }
+
+        try {
+          for (const winning of winnings) {
+            const payoutData: WithdrawUpdateData = {
+              userId: +userId,
+              status: 'Paid',
+              datePaid: formatDate(new Date()),
+            };
+
+            await this.tcChallengesService.updateLegacyPayments(
+              winning.externalId as string,
+              payoutData,
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to udpate legacy payment while withdrawing for challenge ${error?.message ?? error}`,
+            error,
+          );
         }
       });
     } catch (error) {
