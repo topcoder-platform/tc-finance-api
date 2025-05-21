@@ -10,6 +10,8 @@ import {
   TopcoderChallengesService,
   WithdrawUpdateData,
 } from 'src/shared/topcoder/challenges.service';
+import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { MEMBER_FIELDS } from 'src/shared/topcoder';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -46,6 +48,7 @@ export class WithdrawalService {
     private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly trolleyService: TrolleyService,
     private readonly tcChallengesService: TopcoderChallengesService,
+    private readonly tcMembersService: TopcoderMembersService,
   ) {}
 
   getTrolleyRecipientByUserId(userId: string) {
@@ -187,6 +190,23 @@ export class WithdrawalService {
     if (!connectedPaymentMethod) {
       throw new Error(
         'Please add a payment method before making a withdrawal.',
+      );
+    }
+
+    let userInfo: { email: string };
+    this.logger.debug(`Getting user details for user ${userHandle}(${userId})`);
+    try {
+      userInfo = (await this.tcMembersService.getMemberInfoByUserHandle(
+        userHandle,
+        { fields: [MEMBER_FIELDS.email] },
+      )) as { email: string };
+    } catch {
+      throw new Error('Failed to fetch UserInfo for withdrawal!');
+    }
+
+    if (userInfo.email.toLocaleLowerCase().indexOf('wipro.com') > -1) {
+      throw new Error(
+        'Please contact Topgear support to process your withdrawal.',
       );
     }
 
