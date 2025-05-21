@@ -79,17 +79,23 @@ export class TopcoderMembersService {
     const requestUrl = `${TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
 
     try {
-      const response: { [key: string]: string } = await fetch(requestUrl, {
+      const response = await fetch(requestUrl, {
         headers: { Authorization: `Bearer ${m2mToken}` },
-      }).then((r) => r.json());
-      return response;
+      });
+
+      const jsonResponse: { [key: string]: string } = await response.json();
+
+      if (response.status > 299) {
+        throw new Error(jsonResponse.message ?? JSON.stringify(jsonResponse));
+      }
+
+      return jsonResponse;
     } catch (e) {
       this.logger.error(
-        `Failed to fetch tc member info for user '${handle}'! Error: `,
-        e?.message ?? e,
+        `Failed to fetch tc member info for user '${handle}'! Error: ${e?.message ?? e}`,
         e,
       );
-      return {};
+      throw e;
     }
   }
 }

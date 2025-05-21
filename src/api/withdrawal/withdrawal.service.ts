@@ -6,6 +6,12 @@ import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
+import {
+  TopcoderChallengesService,
+  WithdrawUpdateData,
+} from 'src/shared/topcoder/challenges.service';
+import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { MEMBER_FIELDS } from 'src/shared/topcoder';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -21,6 +27,16 @@ interface ReleasableWinningRow {
   datePaid: Date;
 }
 
+function formatDate(date = new Date()) {
+  const pad = (n, z = 2) => String(n).padStart(z, '0');
+
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
+    `${pad(date.getMilliseconds(), 3)}`
+  );
+}
+
 @Injectable()
 export class WithdrawalService {
   private readonly logger = new Logger(WithdrawalService.name);
@@ -31,6 +47,8 @@ export class WithdrawalService {
     private readonly paymentsService: PaymentsService,
     private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly trolleyService: TrolleyService,
+    private readonly tcChallengesService: TopcoderChallengesService,
+    private readonly tcMembersService: TopcoderMembersService,
   ) {}
 
   getTrolleyRecipientByUserId(userId: string) {
@@ -175,6 +193,23 @@ export class WithdrawalService {
       );
     }
 
+    let userInfo: { email: string };
+    this.logger.debug(`Getting user details for user ${userHandle}(${userId})`);
+    try {
+      userInfo = (await this.tcMembersService.getMemberInfoByUserHandle(
+        userHandle,
+        { fields: [MEMBER_FIELDS.email] },
+      )) as { email: string };
+    } catch {
+      throw new Error('Failed to fetch UserInfo for withdrawal!');
+    }
+
+    if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
+      throw new Error(
+        'Please contact Topgear support to process your withdrawal.',
+      );
+    }
+
     try {
       await this.prisma.$transaction(async (tx) => {
         const winnings = await this.getReleasableWinningsForUserId(
@@ -235,6 +270,26 @@ export class WithdrawalService {
           const errorMsg = `Failed to release payment: ${error.message}`;
           this.logger.error(errorMsg, error);
           throw new Error(errorMsg);
+        }
+
+        try {
+          for (const winning of winnings) {
+            const payoutData: WithdrawUpdateData = {
+              userId: +userId,
+              status: 'Paid',
+              datePaid: formatDate(new Date()),
+            };
+
+            await this.tcChallengesService.updateLegacyPayments(
+              winning.externalId as string,
+              payoutData,
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to update legacy payment while withdrawing for challenge ${error?.message ?? error}`,
+            error,
+          );
         }
       });
     } catch (error) {
