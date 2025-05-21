@@ -280,7 +280,7 @@ export class AdminService {
         }
 
         const payoutData: AdminPaymentUpdateData = {
-          userId: +userId,
+          userId: +winning.winner_id,
           status: body.paymentStatus,
           amount: body.paymentAmount,
           releaseDate: body.releaseDate,
