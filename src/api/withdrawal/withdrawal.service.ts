@@ -204,7 +204,7 @@ export class WithdrawalService {
       throw new Error('Failed to fetch UserInfo for withdrawal!');
     }
 
-    if (userInfo.email.toLocaleLowerCase().indexOf('wipro.com') > -1) {
+    if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
       throw new Error(
         'Please contact Topgear support to process your withdrawal.',
       );
