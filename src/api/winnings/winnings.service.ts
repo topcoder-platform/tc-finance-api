@@ -1,5 +1,10 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
-import { Prisma, payment, payment_status } from '@prisma/client';
+import {
+  Prisma,
+  payment,
+  payment_method_status,
+  payment_status,
+} from '@prisma/client';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
@@ -27,6 +32,47 @@ export class WinningsService {
     private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly originRepo: OriginRepository,
   ) {}
+
+  private async setPayrollPaymentMethod(userId: string) {
+    const payrollPaymentMethod = await this.prisma.payment_method.findFirst({
+      where: {
+        payment_method_type: 'Wipro Payroll',
+      },
+    });
+
+    if (!payrollPaymentMethod) {
+      this.logger.error(`Failed to retrieve Wipro Payroll payment method!`);
+      return;
+    }
+
+    if (
+      await this.prisma.user_payment_methods.findFirst({
+        where: {
+          user_id: userId,
+          payment_method_id: payrollPaymentMethod.payment_method_id,
+        },
+      })
+    ) {
+      return;
+    }
+
+    this.logger.debug(`Enrolling wipro user ${userId} with Wipro Payroll.`);
+
+    try {
+      await this.prisma.user_payment_methods.create({
+        data: {
+          user_id: userId,
+          status: payment_method_status.CONNECTED,
+          payment_method_id: payrollPaymentMethod.payment_method_id,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to enroll wipro user ${userId} with Wipro Payrol! ${error.message}`,
+        error,
+      );
+    }
+  }
 
   /**
    * Create winnings with parameters
@@ -97,6 +143,7 @@ export class WinningsService {
 
         if (payrollPayment) {
           paymentModel.payment_status = PaymentStatus.PAID;
+          await this.setPayrollPaymentMethod(body.winnerId);
         }
 
         winningModel.payment.create.push(paymentModel);
