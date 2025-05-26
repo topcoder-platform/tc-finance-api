@@ -35,15 +35,15 @@ export class TopcoderEmailService {
 
     try {
       await this.tcBusService.createEvent(
-        ENV_CONFIG.TC_EMAIl_NOTIFICATIONS_TOPIC,
+        ENV_CONFIG.TC_EMAIL_NOTIFICATIONS_TOPIC,
         {
           ...data,
           recipients,
           sendgrid_template_id: sendgridTemplateId,
           version: 'v3',
           from: {
-            name: data.from?.name ?? ENV_CONFIG.TC_EMAIl_FROM_NAME,
-            email: data.from?.email ?? ENV_CONFIG.TC_EMAIl_FROM_EMAIL,
+            name: data.from?.name ?? ENV_CONFIG.TC_EMAIL_FROM_NAME,
+            email: data.from?.email ?? ENV_CONFIG.TC_EMAIL_FROM_EMAIL,
           },
         },
       );

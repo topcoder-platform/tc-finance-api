@@ -74,17 +74,17 @@ export class ConfigEnv {
 
   @IsString()
   @IsOptional()
-  TC_EMAIl_NOTIFICATIONS_TOPIC = 'external.action.email';
+  TC_EMAIL_NOTIFICATIONS_TOPIC = 'external.action.email';
 
   @IsString()
   @IsOptional()
-  TC_EMAIl_FROM_NAME = 'Topcoder';
+  TC_EMAIL_FROM_NAME = 'Topcoder';
 
   @IsString()
   @IsNotEmpty()
-  TC_EMAIl_FROM_EMAIL: string;
+  TC_EMAIL_FROM_EMAIL: string;
 
   @IsString()
-  SENDGRIPD_TEMPLATE_ID_SETUP_NOTIFICATION =
+  SENDGRID_TEMPLATE_ID_SETUP_NOTIFICATION =
     'd-919e01f1314e44439bc90971b55f7db7';
 }
