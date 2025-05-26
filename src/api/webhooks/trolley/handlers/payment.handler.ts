@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   PaymentProcessedEventData,
   PaymentProcessedEventStatus,
@@ -9,6 +9,7 @@ import { PaymentsService } from 'src/shared/payments';
 import { payment_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { JsonObject } from '@prisma/client/runtime/library';
+import { Logger } from 'src/shared/global';
 
 @Injectable()
 export class PaymentHandler {

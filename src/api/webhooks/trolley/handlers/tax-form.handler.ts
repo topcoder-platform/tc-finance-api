@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import {
@@ -13,6 +13,7 @@ import {
   TaxFormStatusUpdatedEventData,
   TaxFormWebhookEvent,
 } from './tax-form.types';
+import { Logger } from 'src/shared/global';
 
 @Injectable()
 export class TaxFormHandler {
