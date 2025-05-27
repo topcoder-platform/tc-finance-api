@@ -65,7 +65,7 @@ export class WinningsService {
     try {
       await this.tcEmailService.sendEmail(
         member.email,
-        ENV_CONFIG.SENDGRID_TEMPLATE_ID_SETUP_NOTIFICATION,
+        ENV_CONFIG.SENDGRID_TEMPLATE_ID_PAYMENT_SETUP_NOTIFICATION,
         {
           data: {
             user_name: member.firstName || member.handle || member.lastName,
