@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
@@ -8,6 +8,7 @@ import { WinningsType } from 'src/dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { TrolleyService } from 'src/shared/global/trolley.service';
+import { Logger } from 'src/shared/global';
 
 /**
  * The winning service.

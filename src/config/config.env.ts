@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class ConfigEnv {
   @IsString()
@@ -65,4 +71,20 @@ export class ConfigEnv {
     return false;
   })
   ACCEPT_CUSTOM_PAYMENTS_MEMO;
+
+  @IsString()
+  @IsOptional()
+  TC_EMAIL_NOTIFICATIONS_TOPIC = 'external.action.email';
+
+  @IsString()
+  @IsOptional()
+  TC_EMAIL_FROM_NAME = 'Topcoder';
+
+  @IsString()
+  @IsNotEmpty()
+  TC_EMAIL_FROM_EMAIL: string;
+
+  @IsString()
+  SENDGRID_TEMPLATE_ID_PAYMENT_SETUP_NOTIFICATION =
+    'd-919e01f1314e44439bc90971b55f7db7';
 }

@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   payment_status,
   Prisma,
@@ -15,6 +15,7 @@ import {
   WinningsCategory,
 } from 'src/dto/winning.dto';
 import { PrismaService } from 'src/shared/global/prisma.service';
+import { Logger } from 'src/shared/global';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 

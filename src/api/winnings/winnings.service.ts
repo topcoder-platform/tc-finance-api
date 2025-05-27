@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import {
   Prisma,
   payment,
@@ -14,6 +14,11 @@ import { PaymentStatus } from 'src/dto/payment.dto';
 import { OriginRepository } from '../repository/origin.repo';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
+import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
+import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
+import { TopcoderEmailService } from 'src/shared/topcoder/tc-email.service';
 
 /**
  * The winning service.
@@ -31,7 +36,54 @@ export class WinningsService {
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly originRepo: OriginRepository,
+    private readonly tcMembersService: TopcoderMembersService,
+    private readonly tcEmailService: TopcoderEmailService,
   ) {}
+
+  private async sendSetupEmailNotification(userId: string, amount: number) {
+    this.logger.debug(`Fetching member info for user handle: ${userId}`);
+    const member = await this.tcMembersService.getMemberInfoByUserId(userId, {
+      fields: BASIC_MEMBER_FIELDS,
+    });
+
+    if (!member) {
+      this.logger.warn(
+        `No member information found for user handle: ${userId}`,
+      );
+      return;
+    }
+
+    this.logger.debug(
+      `Member info retrieved successfully for user handle: ${userId}`,
+      { member },
+    );
+
+    this.logger.debug(
+      `Preparing to send payment setup reminder email to: ${member.email}`,
+    );
+
+    try {
+      await this.tcEmailService.sendEmail(
+        member.email,
+        ENV_CONFIG.SENDGRID_TEMPLATE_ID_PAYMENT_SETUP_NOTIFICATION,
+        {
+          data: {
+            user_name: member.firstName || member.handle || member.lastName,
+            amount_won: amount,
+          },
+        },
+      );
+
+      this.logger.debug(
+        `Payment setup reminder email sent successfully to: ${member.email}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send payment setup reminder email to: ${member.email}. Error: ${error.message}`,
+        error,
+      );
+    }
+  }
 
   private async setPayrollPaymentMethod(userId: string) {
     const payrollPaymentMethod = await this.prisma.payment_method.findFirst({
@@ -86,6 +138,11 @@ export class WinningsService {
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
 
+    this.logger.debug(
+      `Creating winning with payments for user ${userId}`,
+      body,
+    );
+
     return this.prisma.$transaction(async (tx) => {
       const originId = await this.originRepo.getOriginIdByName(body.origin, tx);
 
@@ -113,6 +170,8 @@ export class WinningsService {
           create: [] as Partial<payment>[],
         },
       };
+
+      this.logger.debug('Constructed winning model', { winningModel });
 
       const payrollPayment = (body.attributes || {})['payroll'] === true;
 
@@ -142,23 +201,51 @@ export class WinningsService {
             : PaymentStatus.ON_HOLD;
 
         if (payrollPayment) {
+          this.logger.debug(
+            `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
+          );
           paymentModel.payment_status = PaymentStatus.PAID;
           await this.setPayrollPaymentMethod(body.winnerId);
         }
 
         winningModel.payment.create.push(paymentModel);
+        this.logger.debug('Added payment model to winning model', {
+          paymentModel,
+        });
       }
-      // use prisma nested writes to avoid foreign key checks
+
+      this.logger.debug('Attempting to create winning with nested payments.');
       const createdWinning = await this.prisma.winnings.create({
         data: winningModel as any,
       });
+
       if (!createdWinning) {
+        this.logger.error('Failed to create winning!');
         result.error = {
           code: HttpStatus.INTERNAL_SERVER_ERROR,
           message: 'Failed to create winning!',
         };
+      } else {
+        this.logger.debug('Successfully created winning', { createdWinning });
       }
 
+      if (
+        !payrollPayment &&
+        (!hasConnectedPaymentMethod || !hasActiveTaxForm)
+      ) {
+        const amount = body.details.find(
+          (d) => d.installmentNumber === 1,
+        )?.totalAmount;
+
+        if (amount) {
+          this.logger.debug(
+            `Sending setup email notification for user ${body.winnerId} with amount ${amount}`,
+          );
+          void this.sendSetupEmailNotification(body.winnerId, amount);
+        }
+      }
+
+      this.logger.debug('Transaction completed successfully.');
       return result;
     });
   }

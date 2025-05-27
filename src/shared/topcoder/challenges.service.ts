@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 import { ENV_CONFIG } from 'src/config';
 import { payment_status } from '@prisma/client';
+import { Logger } from 'src/shared/global';
 
 const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
 

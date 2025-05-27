@@ -5,9 +5,10 @@ import { OriginRepository } from '../repository/origin.repo';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
+import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
 
 @Module({
-  imports: [],
+  imports: [TopcoderModule],
   controllers: [WinningsController],
   providers: [
     WinningsService,

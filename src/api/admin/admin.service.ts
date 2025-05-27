@@ -3,7 +3,6 @@ import {
   HttpStatus,
   NotFoundException,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 
 import { Prisma } from '@prisma/client';
@@ -18,6 +17,7 @@ import {
   AdminPaymentUpdateData,
   TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
+import { Logger } from 'src/shared/global';
 
 /**
  * The admin winning service.

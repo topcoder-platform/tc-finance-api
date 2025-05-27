@@ -1,8 +1,9 @@
 import crypto from 'crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { trolley_webhook_log, webhook_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
 
 export enum TrolleyHeaders {
   id = 'x-paymentrails-delivery',

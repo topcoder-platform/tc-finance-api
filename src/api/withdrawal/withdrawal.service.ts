@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
@@ -12,6 +12,7 @@ import {
 } from 'src/shared/topcoder/challenges.service';
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { MEMBER_FIELDS } from 'src/shared/topcoder';
+import { Logger } from 'src/shared/global';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;

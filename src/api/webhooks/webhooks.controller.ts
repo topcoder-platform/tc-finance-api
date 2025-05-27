@@ -4,11 +4,11 @@ import {
   Req,
   RawBodyRequest,
   ForbiddenException,
-  Logger,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TrolleyHeaders, TrolleyService } from './trolley/trolley.service';
 import { Public } from 'src/core/auth/decorators';
+import { Logger } from 'src/shared/global';
 
 @Public()
 @ApiTags('Webhooks')

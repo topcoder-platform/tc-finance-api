@@ -1,8 +1,10 @@
 import * as dotenv from 'dotenv';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
-import { Logger } from '@nestjs/common';
 import { ConfigEnv } from './config.env';
+import { Logger } from 'src/shared/global';
+
+const logger = new Logger('ENV_CONFIG');
 
 /**
  * Loads and validates environment variables into a `ConfigEnv` instance.
@@ -31,12 +33,16 @@ function loadAndValidateEnv(): ConfigEnv {
   });
 
   if (errors.length > 0) {
-    const logger = new Logger('Config');
     for (const err of errors) {
-      logger.error(JSON.stringify(err.constraints));
+      logger.error(
+        'Invalid or missing environment variables!',
+        err.constraints,
+      );
     }
     throw new Error('Invalid environment variables');
   }
+
+  logger.debug(`Environment config vars successfully loaded and validated!`);
 
   return env;
 }
