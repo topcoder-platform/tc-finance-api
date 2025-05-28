@@ -87,4 +87,7 @@ export class ConfigEnv {
   @IsString()
   SENDGRID_TEMPLATE_ID_PAYMENT_SETUP_NOTIFICATION =
     'd-919e01f1314e44439bc90971b55f7db7';
+
+  @IsString()
+  TOPCODER_WALLET_URL = 'https://wallet.topcoder.com';
 }

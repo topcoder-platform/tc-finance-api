@@ -70,6 +70,7 @@ export class WinningsService {
           data: {
             user_name: member.firstName || member.handle || member.lastName,
             amount_won: amount,
+            wallet_link: `${ENV_CONFIG.TOPCODER_WALLET_URL}#payout`,
           },
         },
       );
