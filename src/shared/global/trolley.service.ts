@@ -14,6 +14,7 @@ export interface RecipientTaxDetails {
   primaryCurrency: string | null;
   estimatedFees: string | null;
   taxWithholdingPercentage: string | null;
+  payoutMethod: 'paypal' | 'bank-transfer';
 }
 
 const client = trolley({
@@ -177,7 +178,7 @@ export class TrolleyService {
     }
   }
 
-  async getRecipientTaxDetails(
+  async getRecipientPayoutDetails(
     recipientId: string,
   ): Promise<RecipientTaxDetails | void> {
     try {
@@ -186,12 +187,14 @@ export class TrolleyService {
         'estimatedFees',
         'primaryCurrency',
         'taxWithholdingPercentage',
+        'payoutMethod',
       ]) as RecipientTaxDetails;
     } catch (error) {
       this.logger.error(
         'Failed to load recipient tax details from trolley!',
         error,
       );
+      return {} as RecipientTaxDetails;
     }
   }
 }

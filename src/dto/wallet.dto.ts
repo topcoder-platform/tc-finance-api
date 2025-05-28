@@ -29,6 +29,7 @@ export class WalletDetailDto {
   };
   withdrawalMethod: {
     isSetupComplete: boolean;
+    type: 'paypal' | 'bank';
   };
   taxForm: {
     isSetupComplete: boolean;
