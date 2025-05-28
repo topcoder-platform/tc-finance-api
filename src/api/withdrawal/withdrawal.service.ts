@@ -258,19 +258,21 @@ export class WithdrawalService {
           trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
           ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
         ) {
-          const feePercent = Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
-          feeAmount = Math.max(
+          const feePercent =
+            Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
+
+          feeAmount = +Math.min(
             ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
             feePercent * paymentAmount,
-          );
+          ).toFixed(2);
 
           paymentAmount -= feeAmount;
         }
 
         this.logger.log(
           `
-            Total amount won: $${totalAmount} USD, to be paid: $${totalAmount.toFixed(2)} USD.
-            Fee applied: $${feeAmount.toFixed(2)} USD (${Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) * 100}%, max ${ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT}).
+            Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
+            Fee applied: $${feeAmount.toFixed(2)} USD (${Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT)}%, max ${ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT}).
             Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
           `,
         );
@@ -287,6 +289,10 @@ export class WithdrawalService {
             feeAmount,
             totalAmount: totalAmount,
             payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
+            env_trolley_paypal_fee_percent:
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
+            env_trolley_paypal_fee_max_amount:
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
           },
         );
 

@@ -98,9 +98,9 @@ export class ConfigEnv {
   @Min(0)
   @Max(99)
   @IsOptional()
-  TROLLEY_PAYPAL_FEE_PERCENT: number;
+  TROLLEY_PAYPAL_FEE_PERCENT: number = 0;
 
   @IsNumber()
   @IsOptional()
-  TROLLEY_PAYPAL_FEE_MAX_AMOUNT: number;
+  TROLLEY_PAYPAL_FEE_MAX_AMOUNT: number = 0;
 }

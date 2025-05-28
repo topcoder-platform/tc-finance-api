@@ -118,8 +118,8 @@ export class TrolleyService {
       recipient: {
         id: recipientId,
       },
-      sourceAmount: totalAmount.toString(),
-      sourceCurrency: 'USD',
+      amount: totalAmount.toFixed(2),
+      currency: 'USD',
       memo: paymentMemo ?? 'Topcoder payment',
       externalId: transactionId,
     };
