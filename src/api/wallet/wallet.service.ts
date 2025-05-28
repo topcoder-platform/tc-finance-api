@@ -86,8 +86,7 @@ export class WalletService {
         },
         withdrawalMethod: {
           isSetupComplete: hasVerifiedPaymentMethod,
-          payoutMethod:
-            { 'bank-transfer': 'bank' }[payoutMethod] ?? payoutMethod,
+          type: { 'bank-transfer': 'bank' }[payoutMethod] ?? payoutMethod,
         },
         taxForm: {
           isSetupComplete: hasActiveTaxForm,
