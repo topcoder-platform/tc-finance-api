@@ -3,8 +3,11 @@ import {
   IsBoolean,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class ConfigEnv {
@@ -90,4 +93,14 @@ export class ConfigEnv {
 
   @IsString()
   TOPCODER_WALLET_URL = 'https://wallet.topcoder.com';
+
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  @IsOptional()
+  TROLLEY_PAYPAL_FEE_PERCENT: number;
+
+  @IsNumber()
+  @IsOptional()
+  TROLLEY_PAYPAL_FEE_MAX_AMOUNT: number;
 }

@@ -57,8 +57,8 @@ export class PaymentHandler {
     const winningIds = (
       await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT winnings_id as id
-      FROM public.payment p
-      INNER JOIN public.payment_release_associations pra
+      FROM payment p
+      INNER JOIN payment_release_associations pra
       ON pra.payment_id = p.payment_id
       WHERE pra.payment_release_id::text = ${paymentId}
       FOR UPDATE

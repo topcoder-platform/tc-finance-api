@@ -191,7 +191,7 @@ export class TrolleyService {
       ]) as RecipientTaxDetails;
     } catch (error) {
       this.logger.error(
-        'Failed to load recipient tax details from trolley!',
+        'Failed to load recipient tax & payout details from trolley!',
         error,
       );
       return {} as RecipientTaxDetails;
