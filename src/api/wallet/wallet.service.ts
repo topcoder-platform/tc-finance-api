@@ -7,7 +7,10 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { WinningsType } from 'src/dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { TrolleyService } from 'src/shared/global/trolley.service';
+import {
+  RecipientTaxDetails,
+  TrolleyService,
+} from 'src/shared/global/trolley.service';
 import { Logger } from 'src/shared/global';
 
 /**
@@ -28,7 +31,7 @@ export class WalletService {
     private readonly trolleyService: TrolleyService,
   ) {}
 
-  async getPaymentTaxDetails(userId: string) {
+  async getPayoutDetails(userId: string) {
     const recipient = await this.prisma.trolley_recipient.findFirst({
       where: { user_id: userId },
     });
@@ -37,9 +40,7 @@ export class WalletService {
       return;
     }
 
-    return await this.trolleyService.getRecipientTaxDetails(
-      recipient.trolley_id,
-    );
+    return this.trolleyService.getRecipientPayoutDetails(recipient.trolley_id);
   }
 
   /**
@@ -60,7 +61,9 @@ export class WalletService {
         await this.paymentMethodRepo.getConnectedPaymentMethod(userId),
       );
 
-      const taxWithholdingDetails = await this.getPaymentTaxDetails(userId);
+      const payoutDetails = ((await this.getPayoutDetails(userId)) ??
+        {}) as RecipientTaxDetails;
+      const { payoutMethod, ...taxWithholdingDetails } = payoutDetails;
 
       result.data = {
         account: {
@@ -83,6 +86,8 @@ export class WalletService {
         },
         withdrawalMethod: {
           isSetupComplete: hasVerifiedPaymentMethod,
+          payoutMethod:
+            { 'bank-transfer': 'bank' }[payoutMethod] ?? payoutMethod,
         },
         taxForm: {
           isSetupComplete: hasActiveTaxForm,
