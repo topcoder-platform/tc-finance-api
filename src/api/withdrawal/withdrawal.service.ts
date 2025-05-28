@@ -258,8 +258,7 @@ export class WithdrawalService {
           trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
           ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
         ) {
-          const feePercent =
-            1 - 1 / (1 + Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100);
+          const feePercent = Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
           feeAmount = Math.max(
             ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
             feePercent * paymentAmount,
