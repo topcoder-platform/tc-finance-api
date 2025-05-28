@@ -118,8 +118,8 @@ export class TrolleyService {
       recipient: {
         id: recipientId,
       },
-      sourceAmount: totalAmount.toString(),
-      sourceCurrency: 'USD',
+      amount: totalAmount.toFixed(2),
+      currency: 'USD',
       memo: paymentMemo ?? 'Topcoder payment',
       externalId: transactionId,
     };
@@ -191,7 +191,7 @@ export class TrolleyService {
       ]) as RecipientTaxDetails;
     } catch (error) {
       this.logger.error(
-        'Failed to load recipient tax details from trolley!',
+        'Failed to load recipient tax & payout details from trolley!',
         error,
       );
       return {} as RecipientTaxDetails;

@@ -52,7 +52,7 @@ export class WithdrawalService {
     private readonly tcMembersService: TopcoderMembersService,
   ) {}
 
-  getTrolleyRecipientByUserId(userId: string) {
+  getDbTrolleyRecipientByUserId(userId: string) {
     return this.prisma.trolley_recipient.findUnique({
       where: { user_id: userId },
     });
@@ -118,6 +118,7 @@ export class WithdrawalService {
     paymentMethodId: number,
     recipientId: string,
     winnings: ReleasableWinningRow[],
+    metadata: any,
   ) {
     try {
       const paymentRelease = await tx.payment_releases.create({
@@ -127,6 +128,7 @@ export class WithdrawalService {
           status: payment_status.PROCESSING,
           payment_method_id: paymentMethodId,
           payee_id: recipientId,
+          metadata,
           payment_release_associations: {
             createMany: {
               data: winnings.map((w) => ({
@@ -176,7 +178,9 @@ export class WithdrawalService {
     winningsIds: string[],
     paymentMemo?: string,
   ) {
-    this.logger.log('Processing withdrawal request');
+    this.logger.log(
+      `Processing withdrawal request for user ${userHandle}(${userId}), winnings: ${winningsIds.join(', ')}`,
+    );
     const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
 
     if (!hasActiveTaxForm) {
@@ -206,6 +210,9 @@ export class WithdrawalService {
     }
 
     if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
+      this.logger.error(
+        `User ${userHandle}(${userId}) attempted withdrawal but is restricted due to email domain '${userInfo.email}'.`,
+      );
       throw new Error(
         'Please contact Topgear support to process your withdrawal.',
       );
@@ -219,23 +226,74 @@ export class WithdrawalService {
           tx,
         );
 
-        const totalAmount = this.checkTotalAmount(winnings);
+        this.logger.log(
+          `Begin processing payments for user ${userHandle}(${userId})`,
+          winnings,
+        );
 
-        this.logger.log('Begin processing payments', winnings);
+        const dbTrolleyRecipient =
+          await this.getDbTrolleyRecipientByUserId(userId);
 
-        const recipient = await this.getTrolleyRecipientByUserId(userId);
-
-        if (!recipient) {
-          throw new Error(`Trolley recipient not found for user '${userId}'!`);
+        if (!dbTrolleyRecipient) {
+          throw new Error(
+            `Trolley recipient not found for user ${userHandle}(${userId})!`,
+          );
         }
+
+        const totalAmount = this.checkTotalAmount(winnings);
+        let paymentAmount = totalAmount;
+        let feeAmount = 0;
+        const trolleyRecipientPayoutDetails =
+          await this.trolleyService.getRecipientPayoutDetails(
+            dbTrolleyRecipient.trolley_id,
+          );
+
+        if (!trolleyRecipientPayoutDetails) {
+          throw new Error(
+            `Recipient payout details not found for Trolley Recipient ID '${dbTrolleyRecipient.trolley_id}', for user ${userHandle}(${userId}).`,
+          );
+        }
+
+        if (
+          trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
+          ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
+        ) {
+          const feePercent =
+            Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
+
+          feeAmount = +Math.min(
+            ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+            feePercent * paymentAmount,
+          ).toFixed(2);
+
+          paymentAmount -= feeAmount;
+        }
+
+        this.logger.log(
+          `
+            Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
+            Fee applied: $${feeAmount.toFixed(2)} USD (${Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT)}%, max ${ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT}).
+            Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
+          `,
+        );
 
         const paymentRelease = await this.createDbPaymentRelease(
           tx,
           userId,
-          totalAmount,
+          paymentAmount,
           connectedPaymentMethod.payment_method_id,
-          recipient.trolley_id,
+          dbTrolleyRecipient.trolley_id,
           winnings,
+          {
+            netAmount: paymentAmount,
+            feeAmount,
+            totalAmount: totalAmount,
+            payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
+            env_trolley_paypal_fee_percent:
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
+            env_trolley_paypal_fee_max_amount:
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+          },
         );
 
         const paymentBatch = await this.trolleyService.startBatchPayment(
@@ -243,9 +301,9 @@ export class WithdrawalService {
         );
 
         const trolleyPayment = await this.trolleyService.createPayment(
-          recipient.trolley_id,
+          dbTrolleyRecipient.trolley_id,
           paymentBatch.id,
-          totalAmount,
+          paymentAmount,
           paymentRelease.payment_release_id,
           paymentMemo,
         );
