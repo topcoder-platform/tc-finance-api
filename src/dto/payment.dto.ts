@@ -66,4 +66,12 @@ export class PaymentCreateRequestDto {
   @IsString()
   @IsNotEmpty()
   billingAccount: string;
+
+  @ApiProperty({
+    description: 'Challenge markup for the payment',
+    example: '0.5',
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  challengeMarkup: number;
 }
