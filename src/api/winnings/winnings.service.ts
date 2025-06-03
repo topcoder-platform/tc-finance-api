@@ -193,6 +193,7 @@ export class WinningsService {
           payment_status: '' as payment_status,
           created_by: userId,
           billing_account: detail.billingAccount,
+          challenge_fee: Prisma.Decimal(detail.challengeFee),
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
