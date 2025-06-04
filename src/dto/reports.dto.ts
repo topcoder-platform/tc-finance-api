@@ -24,8 +24,8 @@ export class PaymentsReportQueryDto {
   billingAccountIds?: string[];
 
   @ApiProperty({
-    description: 'List of challenge IDs',
-    example: ['e74c3e37-73c9-474e-a838-a38dd4738906'],
+    description: 'Challenge name to search for',
+    example: ['Task Payment for member'],
   })
   @IsOptional()
   @IsString()
@@ -74,7 +74,7 @@ export class PaymentsReportQueryDto {
   })
   @IsOptional()
   @IsNumber()
-  @Transform(({ value }) => +value)
+  @Transform(({ value }) => parseFloat(value))
   minPaymentAmount?: number;
 
   @ApiProperty({
@@ -83,7 +83,7 @@ export class PaymentsReportQueryDto {
   })
   @IsOptional()
   @IsNumber()
-  @Transform(({ value }) => +value)
+  @Transform(({ value }) => parseFloat(value))
   maxPaymentAmount?: number;
 }
 

@@ -31,7 +31,7 @@ export class TopcoderMembersService {
     const uniqFilterValues = [...new Set(filterValue.filter(Boolean)).values()];
 
     this.logger.debug(
-      `Fething members info with filters ${filter}=${JSON.stringify(uniqFilterValues)}, and fields ${fields.join(',')}`,
+      `Fetching members info with filters ${filter}=${JSON.stringify(uniqFilterValues)}, and fields ${fields.join(',')}`,
     );
 
     let m2mToken: string | undefined;

@@ -70,8 +70,8 @@ export class ReportsService {
     if (filters.minPaymentAmount || filters.maxPaymentAmount) {
       Object.assign(queryFilters, {
         total_amount: {
-          ...(filters.startDate && { gte: filters.minPaymentAmount }),
-          ...(filters.endDate && { lte: filters.maxPaymentAmount }),
+          ...(filters.minPaymentAmount && { gte: filters.minPaymentAmount }),
+          ...(filters.maxPaymentAmount && { lte: filters.maxPaymentAmount }),
         },
       });
     }
@@ -103,7 +103,6 @@ export class ReportsService {
           },
         },
       },
-      take: 10,
     });
 
     this.logger.debug(`Fetched ${payments.length} payments from the database`);
