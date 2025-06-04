@@ -3,6 +3,7 @@ import { HealthCheckController } from './health-check/healthCheck.controller';
 import { GlobalProvidersModule } from 'src/shared/global/globalProviders.module';
 import { APP_GUARD } from '@nestjs/core';
 import { TokenValidatorMiddleware } from 'src/core/auth/middleware/tokenValidator.middleware';
+import { CreateRequestStoreMiddleware } from 'src/core/request/createRequestStore.middleware';
 import { AuthGuard, RolesGuard } from 'src/core/auth/guards';
 import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
 import { OriginRepository } from './repository/origin.repo';
@@ -50,5 +51,6 @@ import { ReportsModule } from './reports/reports.module';
 export class ApiModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(TokenValidatorMiddleware).forRoutes('*');
+    consumer.apply(CreateRequestStoreMiddleware).forRoutes('*');
   }
 }
