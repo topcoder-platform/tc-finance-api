@@ -97,7 +97,7 @@ export class AdminController {
       limit: 999,
     });
 
-    const handles = await this.tcMembersService.getHandlesByUserIds(
+    const handlesMap = await this.tcMembersService.getMembersInfoByUserId(
       result.data.winnings.map((d) => d.winnerId),
     );
 
@@ -108,7 +108,7 @@ export class AdminController {
       return {
         id: item.id,
         winnerId: item.winnerId,
-        handle: handles[`${item.winnerId}`] ?? item.winnerId,
+        handle: handlesMap[`${item.winnerId}`]?.handle ?? item.winnerId,
         origin: item.origin,
         category: item.category,
         title: item.title,

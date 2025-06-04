@@ -201,9 +201,9 @@ export class WithdrawalService {
     let userInfo: { email: string };
     this.logger.debug(`Getting user details for user ${userHandle}(${userId})`);
     try {
-      userInfo = (await this.tcMembersService.getMemberInfoByUserHandle(
+      userInfo = (await this.tcMembersService.getMemberInfoByHandle(
         userHandle,
-        { fields: [MEMBER_FIELDS.email] },
+        [MEMBER_FIELDS.email],
       )) as { email: string };
     } catch {
       throw new Error('Failed to fetch UserInfo for withdrawal!');

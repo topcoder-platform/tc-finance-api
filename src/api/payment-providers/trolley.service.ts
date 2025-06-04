@@ -56,10 +56,15 @@ export class TrolleyService {
       return foundRecipient[0];
     }
 
-    const userInfo = await this.tcMembersService.getMemberInfoByUserHandle(
+    const userInfo = await this.tcMembersService.getMemberInfoByHandle(
       user.handle,
-      { fields: BASIC_MEMBER_FIELDS },
+      BASIC_MEMBER_FIELDS,
     );
+
+    if (!userInfo) {
+      throw new Error(`Member info for handle '${user.handle}' not found!`);
+    }
+
     const address = (userInfo.addresses?.[0] ?? {}) as unknown as {
       [key: string]: string;
     };

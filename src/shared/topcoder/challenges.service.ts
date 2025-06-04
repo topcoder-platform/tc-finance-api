@@ -3,6 +3,7 @@ import { TopcoderM2MService } from './topcoder-m2m.service';
 import { ENV_CONFIG } from 'src/config';
 import { payment_status } from '@prisma/client';
 import { Logger } from 'src/shared/global';
+import axios from 'axios';
 
 const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
 
@@ -47,15 +48,7 @@ export class TopcoderChallengesService {
   ) {
     const requestData = mapStatus(payoutData);
 
-    let m2mToken: string | undefined;
-    try {
-      m2mToken = await this.m2MService.getToken();
-    } catch (e) {
-      this.logger.error(
-        'Failed to fetch m2m token for fetching member details!',
-        e.message ?? e,
-      );
-    }
+    const m2mToken = await this.m2MService.getToken();
     const requestUrl = `${TOPCODER_API_BASE_URL}/challenges/${challengeId}/legacy-payment`;
 
     this.logger.debug(
@@ -89,6 +82,98 @@ export class TopcoderChallengesService {
         e,
       );
       throw e;
+    }
+  }
+
+  async searchByName(challengeName: string) {
+    const m2mToken = await this.m2MService.getToken();
+    const requestUrl = `${TOPCODER_API_BASE_URL}/challenges?name=${encodeURIComponent(challengeName)}`;
+
+    this.logger.debug(
+      `Fetching challenges ids by challenge name ${JSON.stringify(challengeName)}.`,
+    );
+
+    try {
+      const response = await fetch(requestUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${m2mToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch challenges by name. Status: ${response.status}, Data: ${await response.text()}`,
+        );
+      }
+
+      const jsonResponse: Record<string, any>[] = await response.json();
+
+      this.logger.debug(
+        `Successfully fetched ${jsonResponse.length} challenges from challenges api.`,
+      );
+
+      return jsonResponse;
+    } catch (e) {
+      const errorMessage = e.response?.data?.message ?? e.message;
+
+      this.logger.error(
+        `Failed to fetch challenges details for challenge name ${challengeName}! Error: ${errorMessage}`,
+      );
+      throw new Error(errorMessage ?? 'Axios Error');
+    }
+  }
+
+  async getChallengesNameByChallengeIds(challengeIds: string[]) {
+    if (!challengeIds.length) {
+      return {};
+    }
+
+    const m2mToken = await this.m2MService.getToken();
+
+    const requestUrl = `${TOPCODER_API_BASE_URL}/challenges`;
+
+    this.logger.debug(
+      `Fetching challenges names by challenges ids ${JSON.stringify(challengeIds)}.`,
+    );
+
+    try {
+      /** Using axios because we can't send "BODY" for a GET request with fetch */
+      const response = await axios.get(requestUrl, {
+        method: 'GET',
+        data: { ids: challengeIds },
+        headers: {
+          Authorization: `Bearer ${m2mToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status > 299) {
+        throw new Error(
+          `Failed to fetch challenges details. Status: ${response.status}, Data: ${JSON.stringify(response.data)}`,
+        );
+      }
+
+      const challengeNamesMap = Object.fromEntries(
+        response.data.map((challenge) => [
+          challenge.id as string,
+          challenge.name as string,
+        ]),
+      );
+
+      this.logger.debug(
+        `Successfully fetched challenges names from challenges api: ${JSON.stringify(challengeNamesMap, null, 2)}`,
+      );
+
+      return challengeNamesMap;
+    } catch (e) {
+      const errorMessage = e.response?.data?.message ?? e.message;
+
+      this.logger.error(
+        `Failed to fetch challenges details for challenges ${challengeIds.join(',')}! Error: ${errorMessage}`,
+      );
+      throw new Error(errorMessage ?? 'Axios Error');
     }
   }
 }

@@ -33,6 +33,7 @@ export class TopcoderM2MService {
           client_secret: ENV_CONFIG.AUTH0_M2M_SECRET,
           audience: ENV_CONFIG.AUTH0_M2M_AUDIENCE,
           grant_type: ENV_CONFIG.AUTH0_M2M_GRANT_TYPE,
+          // fresh_token: true,
         }),
       });
 
@@ -42,7 +43,7 @@ export class TopcoderM2MService {
       return m2mToken;
     } catch (error) {
       this.logger.error('Failed fetching TC M2M Token!', error);
-      return undefined;
+      throw error;
     }
   }
 }

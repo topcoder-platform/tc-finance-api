@@ -42,9 +42,10 @@ export class WinningsService {
 
   private async sendSetupEmailNotification(userId: string, amount: number) {
     this.logger.debug(`Fetching member info for user handle: ${userId}`);
-    const member = await this.tcMembersService.getMemberInfoByUserId(userId, {
-      fields: BASIC_MEMBER_FIELDS,
-    });
+    const member = await this.tcMembersService.getMemberInfoByUserId(
+      userId,
+      BASIC_MEMBER_FIELDS,
+    );
 
     if (!member) {
       this.logger.warn(

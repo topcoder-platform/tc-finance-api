@@ -21,52 +21,18 @@ export class TopcoderMembersService {
    *
    * @throws Will log an error to the console if the API request fails.
    */
-  async getHandlesByUserIds(userIds: string[]) {
+  async getMembersInfo<T extends Record<string, any>>(
+    filter: 'userIds' | 'handles',
+    filterValue: string[],
+    options = {} as { fields?: MEMBER_FIELDS[] },
+  ): Promise<T[]> {
     // Remove duplicate user IDs to avoid redundant API calls
-    const uniqUserIds = [...new Set(userIds.filter(Boolean)).values()];
+    const { fields = ['handle', 'userId'] } = options;
+    const uniqFilterValues = [...new Set(filterValue.filter(Boolean)).values()];
 
-    // Split the unique user IDs into chunks of 100 to comply with API request limits
-    const requests = chunk(uniqUserIds, 30).map((chunk) => {
-      const requestUrl = `${TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
-      return fetch(requestUrl).then(
-        async (response) =>
-          (await response.json()) as { handle: string; userId: string },
-      );
-    });
-
-    try {
-      // Execute all API requests in parallel and flatten the resulting data
-      const data = await Promise.all(requests).then((d) => d.flat());
-      // Transform the API response into a mapping of user IDs to handles
-      return Object.fromEntries(
-        data.map(({ handle, userId }) => [userId, handle] as string[]),
-      ) as { [userId: string]: string };
-    } catch (e) {
-      this.logger.error(
-        'Failed to fetch tc members handles!',
-        e?.message ?? e,
-        e,
-      );
-      return {};
-    }
-  }
-
-  /**
-   * Retrieves member information from the Topcoder API based on the user's handle.
-   *
-   * @param handle - The handle of the user whose information is to be retrieved.
-   * @param options - Optional parameters for the request.
-   * @param options.fields - An array of specific member fields to include in the response.
-   *
-   * @returns A promise that resolves to the member information object or an empty object if the request fails.
-   *
-   * @throws Will log an error message to the console if the API request fails.
-   */
-  async getMemberInfoByUserHandle(
-    handle: string,
-    options = {} as { fields: MEMBER_FIELDS[] },
-  ) {
-    const { fields } = options;
+    this.logger.debug(
+      `Fething members info with filters ${filter}=${JSON.stringify(uniqFilterValues)}, and fields ${fields.join(',')}`,
+    );
 
     let m2mToken: string | undefined;
     try {
@@ -77,61 +43,83 @@ export class TopcoderMembersService {
         e.message ?? e,
       );
     }
-    const requestUrl = `${TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
+
+    // Split the unique user IDs into chunks of 30 to comply with API request limits
+    const requests = chunk(uniqFilterValues, 30).map((chunk) => {
+      const requestUrl = `${TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `${filter}[]=${id}`).join('&')}&fields=${fields.join(',')}`;
+      return fetch(requestUrl, {
+        headers: { Authorization: `Bearer ${m2mToken}` },
+      }).then(async (response) => {
+        const jsonResponse = await response.json();
+        return jsonResponse as T[];
+      });
+    });
 
     try {
-      const response = await fetch(requestUrl, {
-        headers: { Authorization: `Bearer ${m2mToken}` },
-      });
+      // Execute all API requests in parallel and flatten the resulting data
+      const data = await Promise.all(requests).then((d) => d.flat());
 
-      const jsonResponse: { [key: string]: string } = await response.json();
-
-      if (response.status > 299) {
-        throw new Error(jsonResponse.message ?? JSON.stringify(jsonResponse));
-      }
-
-      return jsonResponse;
+      this.logger.debug(
+        `Successfully fetched members info for filters ${filter}=${JSON.stringify(uniqFilterValues)}. ${data?.length ?? 0} users found!`,
+      );
+      return data;
     } catch (e) {
       this.logger.error(
-        `Failed to fetch tc member info for user '${handle}'! Error: ${e?.message ?? e}`,
+        'Failed to fetch tc members handles!',
+        e?.message ?? e,
         e,
       );
-      throw e;
+      return [];
     }
   }
 
-  /**
-   * Retrieves member information from the Topcoder API based on the user's ID.
-   *
-   * @param userId - The ID of the user whose information is to be retrieved.
-   * @param options - Optional parameters for the request.
-   * @param options.fields - An array of specific member fields to include in the response.
-   *
-   * @returns A promise that resolves to the member information object or an empty object if the request fails.
-   *
-   * @throws Will log an error message to the console if the API request fails.
-   */
-  async getMemberInfoByUserId(
+  async getMemberInfoByUserId<T extends Record<string, any>>(
     userId: string,
-    options = {} as { fields: MEMBER_FIELDS[] },
-  ) {
-    try {
-      // Fetch the handle for the given userId
-      const handlesMap = await this.getHandlesByUserIds([userId]);
-      const handle = handlesMap[userId];
+    fields?: MEMBER_FIELDS[],
+  ): Promise<T | undefined> {
+    const response = await this.getMembersInfo('userIds', [userId], { fields });
 
-      if (!handle) {
-        throw new Error(`Handle not found for userId: ${userId}`);
-      }
+    return response?.[0] as T;
+  }
 
-      // Fetch member info using the handle
-      return await this.getMemberInfoByUserHandle(handle, options);
-    } catch (e) {
-      this.logger.error(
-        `Failed to fetch tc member info for userId '${userId}'! Error: ${e?.message ?? e}`,
-        e,
-      );
-      throw e;
-    }
+  async getMembersInfoByUserId<T extends Record<string, any>>(
+    userIds: string[],
+    fields?: MEMBER_FIELDS[],
+  ): Promise<{ [handle: string]: T }> {
+    const response = await this.getMembersInfo('userIds', userIds, { fields });
+
+    // Transform the API response into a mapping of user IDs to the requested fields
+    const result = Object.fromEntries(
+      response.map((user) => [user.userId, user]),
+    ) as {
+      [userId: string]: T;
+    };
+
+    return result;
+  }
+
+  async getMemberInfoByHandle<T extends Record<string, any>>(
+    handle: string,
+    fields?: MEMBER_FIELDS[],
+  ): Promise<T | undefined> {
+    const response = await this.getMembersInfo('handles', [handle], { fields });
+
+    return response?.[0] as T;
+  }
+
+  async getMembersInfoByHandle<T extends Record<string, any>>(
+    handles: string[],
+    fields?: MEMBER_FIELDS[],
+  ): Promise<{ [handle: string]: T }> {
+    const response = await this.getMembersInfo('handles', handles, { fields });
+
+    // Transform the API response into a mapping of user IDs to the requested fields
+    const result = Object.fromEntries(
+      response.map((user) => [user.handle, user]),
+    ) as {
+      [handle: string]: T;
+    };
+
+    return result;
   }
 }
