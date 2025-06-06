@@ -183,12 +183,19 @@ export class TrolleyService {
   ): Promise<RecipientTaxDetails | void> {
     try {
       const recipient = await this.client.recipient.find(recipientId);
-      return pick(recipient, [
+      const payoutDetails = pick(recipient, [
         'estimatedFees',
         'primaryCurrency',
         'taxWithholdingPercentage',
         'payoutMethod',
-      ]) as RecipientTaxDetails;
+      ]);
+
+      if ((recipient as any).payoutMethod === 'paypal') {
+        payoutDetails.estimatedFees =
+          (recipient as any).gatewayFees?.paypal?.value ?? 0;
+      }
+
+      return payoutDetails as RecipientTaxDetails;
     } catch (error) {
       this.logger.error(
         'Failed to load recipient tax & payout details from trolley!',
