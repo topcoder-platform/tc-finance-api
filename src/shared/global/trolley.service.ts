@@ -72,7 +72,7 @@ export class TrolleyService {
       hideEmail: 'false',
       roEmail: 'true',
       locale: 'en',
-      products: 'pay,tax',
+      products: 'pay,tax,trust',
     } as Record<string, string>)
       .toString()
       .replace(/\+/g, '%20');
