@@ -142,7 +142,7 @@ export class TrolleyService {
       this.logger.debug(
         `Invoking handler for event - ${requestId} - ${model}.${action}`,
       );
-      await handler(body[model]);
+      await handler(body[model] ?? Object.values(body)?.[0]);
 
       this.logger.debug(`Successfully processed event with ID: ${requestId}`);
       await this.setEventState(requestId, webhook_status.processed);
