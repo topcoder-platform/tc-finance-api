@@ -34,6 +34,9 @@ export class WalletDetailDto {
   taxForm: {
     isSetupComplete: boolean;
   };
+  identityVerification: {
+    isSetupComplete: boolean;
+  };
   primaryCurrency?: string | null;
   estimatedFees?: string | null;
   taxWithholdingPercentage?: string | null;

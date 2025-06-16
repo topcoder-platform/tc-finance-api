@@ -12,6 +12,7 @@ import {
   TrolleyService,
 } from 'src/shared/global/trolley.service';
 import { Logger } from 'src/shared/global';
+import { IdentityVerificationRepository } from '../repository/identiti-verification.repo';
 
 /**
  * The winning service.
@@ -28,6 +29,7 @@ export class WalletService {
     private readonly prisma: PrismaService,
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly identityVerificationRepo: IdentityVerificationRepository,
     private readonly trolleyService: TrolleyService,
   ) {}
 
@@ -57,6 +59,10 @@ export class WalletService {
       const winnings = await this.getWinningsTotalsByWinnerID(userId);
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
+      const completedIdentityVerification =
+        await this.identityVerificationRepo.completedIdentityVerification(
+          userId,
+        );
       const hasVerifiedPaymentMethod = Boolean(
         await this.paymentMethodRepo.getConnectedPaymentMethod(userId),
       );
@@ -90,6 +96,9 @@ export class WalletService {
         },
         taxForm: {
           isSetupComplete: hasActiveTaxForm,
+        },
+        identityVerification: {
+          isSetupComplete: completedIdentityVerification,
         },
         ...(taxWithholdingDetails ?? {}),
       };
