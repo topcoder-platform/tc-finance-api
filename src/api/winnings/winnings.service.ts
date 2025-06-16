@@ -19,7 +19,7 @@ import { BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 import { TopcoderEmailService } from 'src/shared/topcoder/tc-email.service';
-import { IdentityVerificationRepository } from '../repository/identiti-verification.repo';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
 
 /**
  * The winning service.
@@ -184,7 +184,7 @@ export class WinningsService {
       const hasConnectedPaymentMethod = Boolean(
         await this.paymentMethodRepo.getConnectedPaymentMethod(body.winnerId),
       );
-      const completedIdentityVerification =
+      const isIdentityVerified =
         await this.identityVerificationRepo.completedIdentityVerification(
           userId,
         );
@@ -204,9 +204,7 @@ export class WinningsService {
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
         paymentModel.payment_status =
-          hasConnectedPaymentMethod &&
-          hasActiveTaxForm &&
-          completedIdentityVerification
+          hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
             ? PaymentStatus.OWED
             : PaymentStatus.ON_HOLD;
 

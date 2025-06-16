@@ -3,7 +3,7 @@ import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { IdentityVerificationRepository } from '../repository/identiti-verification.repo';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
 import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
@@ -200,12 +200,12 @@ export class WithdrawalService {
       );
     }
 
-    const completedIdentityVerification =
+    const isIdentityVerified =
       await this.identityVerificationRepo.completedIdentityVerification(userId);
 
-    if (!completedIdentityVerification) {
+    if (!isIdentityVerified) {
       throw new Error(
-        'Please compelte identity verification before making a withdrawal.',
+        'Please complete identity verification before making a withdrawal.',
       );
     }
 

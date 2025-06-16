@@ -5,7 +5,7 @@ import { WithdrawalService } from './withdrawal.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
-import { IdentityVerificationRepository } from '../repository/identiti-verification.repo';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
 
 @Module({
   imports: [PaymentsModule, TopcoderModule],

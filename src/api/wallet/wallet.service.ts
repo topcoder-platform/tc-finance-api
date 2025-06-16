@@ -12,7 +12,7 @@ import {
   TrolleyService,
 } from 'src/shared/global/trolley.service';
 import { Logger } from 'src/shared/global';
-import { IdentityVerificationRepository } from '../repository/identiti-verification.repo';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
 
 /**
  * The winning service.
@@ -59,7 +59,7 @@ export class WalletService {
       const winnings = await this.getWinningsTotalsByWinnerID(userId);
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
-      const completedIdentityVerification =
+      const isIdentityVerified =
         await this.identityVerificationRepo.completedIdentityVerification(
           userId,
         );
@@ -98,7 +98,7 @@ export class WalletService {
           isSetupComplete: hasActiveTaxForm,
         },
         identityVerification: {
-          isSetupComplete: completedIdentityVerification,
+          isSetupComplete: isIdentityVerified,
         },
         ...(taxWithholdingDetails ?? {}),
       };

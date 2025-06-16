@@ -40,7 +40,7 @@ export class PaymentsService {
         END as "setupComplete"
       FROM user_payment_methods upm
       LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id AND utx.tax_form_status = 'ACTIVE'
-      LEFT JOIN user_identity_verification_associations uiv ON upm.user_id = uiv.user_id
+      LEFT JOIN user_identity_verification_associations uiv ON upm.user_id = uiv.user_id AND uiv.verification_status::text = 'ACTIVE'
       WHERE upm.user_id IN (${Prisma.join(uniq(userIds))})
       `;
 
