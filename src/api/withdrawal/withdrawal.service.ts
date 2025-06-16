@@ -3,6 +3,7 @@ import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
+import { IdentityVerificationRepository } from '../repository/identiti-verification.repo';
 import { payment_releases, payment_status, Prisma } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
@@ -47,6 +48,7 @@ export class WithdrawalService {
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentsService: PaymentsService,
     private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly identityVerificationRepo: IdentityVerificationRepository,
     private readonly trolleyService: TrolleyService,
     private readonly tcChallengesService: TopcoderChallengesService,
     private readonly tcMembersService: TopcoderMembersService,
@@ -195,6 +197,15 @@ export class WithdrawalService {
     if (!connectedPaymentMethod) {
       throw new Error(
         'Please add a payment method before making a withdrawal.',
+      );
+    }
+
+    const completedIdentityVerification =
+      await this.identityVerificationRepo.completedIdentityVerification(userId);
+
+    if (!completedIdentityVerification) {
+      throw new Error(
+        'Please compelte identity verification before making a withdrawal.',
       );
     }
 
