@@ -164,9 +164,14 @@ export class AdminController {
     @Body() body: WinningUpdateRequestDto,
     @User() user: UserInfo,
   ): Promise<ResponseDto<string>> {
-    if (!body.paymentAmount && !body.releaseDate && !body.paymentStatus) {
+    if (
+      !body.paymentAmount &&
+      !body.releaseDate &&
+      !body.paymentStatus &&
+      !body.description
+    ) {
       throw new BadRequestException(
-        'paymentStatus, releaseDate and paymentAmount cannot be null at the same time.',
+        'description, paymentStatus, releaseDate and paymentAmount cannot be null at the same time.',
       );
     }
 

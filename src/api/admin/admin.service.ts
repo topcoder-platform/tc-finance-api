@@ -97,6 +97,30 @@ export class AdminService {
         }
 
         let version = payment.version ?? 1;
+
+        if (body.description) {
+          transactions.push((tx) =>
+            tx.payment.update({
+              where: {
+                payment_id: payment.payment_id,
+                version: version,
+              },
+              data: {
+                winnings: {
+                  update: {
+                    data: {
+                      description: body.description,
+                    },
+                  },
+                },
+                updated_at: new Date(),
+                updated_by: userId,
+                version: version++,
+              },
+            }),
+          );
+        }
+
         let paymentStatus = payment.payment_status as PaymentStatus;
         // Update Payment Status if requested
         if (body.paymentStatus) {
