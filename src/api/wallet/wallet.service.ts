@@ -13,6 +13,7 @@ import {
 } from 'src/shared/global/trolley.service';
 import { Logger } from 'src/shared/global';
 import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
+import { ENV_CONFIG } from 'src/config';
 
 /**
  * The winning service.
@@ -101,6 +102,7 @@ export class WalletService {
           isSetupComplete: isIdentityVerified,
         },
         ...(taxWithholdingDetails ?? {}),
+        minWithdrawAmount: ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT ?? 0,
       };
     } catch (error) {
       this.logger.error('Getting winnings audit failed', error);
