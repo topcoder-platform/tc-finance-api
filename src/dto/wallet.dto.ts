@@ -40,4 +40,5 @@ export class WalletDetailDto {
   primaryCurrency?: string | null;
   estimatedFees?: string | null;
   taxWithholdingPercentage?: string | null;
+  minWithdrawAmount: number;
 }
