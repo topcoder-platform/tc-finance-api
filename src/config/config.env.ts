@@ -103,4 +103,11 @@ export class ConfigEnv {
   @IsNumber()
   @IsOptional()
   TROLLEY_PAYPAL_FEE_MAX_AMOUNT: number = 0;
+
+  @IsNumber()
+  @IsOptional()
+  OTP_CODE_VALIDITY_MINUTES: number = 5;
+
+  @IsString()
+  SENDGRID_TEMPLATE_ID_OTP_CODE: string = 'd-2d0ab9f6c9cc4efba50080668a9c35c1';
 }

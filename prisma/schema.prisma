@@ -30,7 +30,6 @@ model otp {
   email           String         @db.VarChar(255)
   otp_hash        String         @db.VarChar(255)
   expiration_time DateTime       @default(dbgenerated("(CURRENT_TIMESTAMP + '00:05:00'::interval)")) @db.Timestamp(6)
-  transaction_id  String         @db.VarChar(255)
   action_type     reference_type
   created_at      DateTime?      @default(now()) @db.Timestamp(6)
   updated_at      DateTime?      @default(now()) @db.Timestamp(6)
@@ -127,16 +126,6 @@ model reward {
   created_at  DateTime? @default(now()) @db.Timestamp(6)
   updated_at  DateTime? @default(now()) @db.Timestamp(6)
   winnings    winnings  @relation(fields: [winnings_id], references: [winning_id], onDelete: NoAction, onUpdate: NoAction)
-}
-
-model transaction {
-  id             String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id        String             @db.VarChar(255)
-  reference_id   String             @db.Uuid
-  reference_type reference_type
-  status         transaction_status @default(INITIATED)
-  created_at     DateTime?          @default(now()) @db.Timestamp(6)
-  updated_at     DateTime?          @default(now()) @db.Timestamp(6)
 }
 
 model user_payment_methods {

@@ -21,6 +21,7 @@ import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 
 import { WithdrawalService } from './withdrawal.service';
 import { WithdrawRequestDto } from './dto/withdraw.dto';
+import { response } from 'express';
 
 @ApiTags('Withdrawal')
 @Controller('/withdraw')
@@ -52,13 +53,17 @@ export class WithdrawalController {
     const result = new ResponseDto<string>();
 
     try {
-      await this.withdrawalService.withdraw(
+      const response = (await this.withdrawalService.withdraw(
         user.id,
         user.handle,
         body.winningsIds,
         body.memo,
-      );
-      result.status = ResponseStatusType.SUCCESS;
+        body.otpCode,
+      )) as any;
+      result.status = response?.error
+        ? ResponseStatusType.ERROR
+        : ResponseStatusType.SUCCESS;
+      result.error = response?.error;
       return result;
     } catch (e) {
       throw new BadRequestException(e.message);

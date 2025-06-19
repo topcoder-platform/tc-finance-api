@@ -3,6 +3,7 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsNotEmpty,
+  IsNumberString,
   IsOptional,
   IsString,
   IsUUID,
@@ -20,6 +21,15 @@ export class WithdrawRequestDtoBase {
   @IsUUID('4', { each: true })
   @IsNotEmpty({ each: true })
   winningsIds: string[];
+
+  @ApiProperty({
+    description: 'The one-time password (OTP) code for withdrawal verification',
+    example: '123456',
+  })
+  @IsNumberString()
+  @IsOptional()
+  @IsNotEmpty()
+  otpCode?: string;
 }
 
 export class WithdrawRequestDtoWithMemo extends WithdrawRequestDtoBase {
