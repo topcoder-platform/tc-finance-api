@@ -17,7 +17,7 @@ import {
   WithdrawUpdateData,
 } from 'src/shared/topcoder/challenges.service';
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
-import { BasicMemberInfo, BASIC_MEMBER_FIELDS, MEMBER_FIELDS } from 'src/shared/topcoder';
+import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
 import { OtpService } from 'src/shared/global/otp.service';
 
@@ -58,7 +58,7 @@ export class WithdrawalService {
     private readonly trolleyService: TrolleyService,
     private readonly tcChallengesService: TopcoderChallengesService,
     private readonly tcMembersService: TopcoderMembersService,
-    private readonly otp: OtpService,
+    private readonly otpService: OtpService,
   ) {}
 
   getDbTrolleyRecipientByUserId(userId: string) {
@@ -229,14 +229,22 @@ export class WithdrawalService {
       throw new Error('Failed to fetch UserInfo for withdrawal!');
     }
 
-    const otpError = await this.otp.otpCodeGuard(
-      userInfo,
-      reference_type.WITHDRAW_PAYMENT,
-      otpCode,
-    );
-
-    if (otpError) {
+    if (!otpCode) {
+      const otpError = await this.otpService.generateOtpCode(
+        userInfo,
+        reference_type.WITHDRAW_PAYMENT,
+      );
       return { error: otpError };
+    } else {
+      const otpResponse = await this.otpService.verifyOtpCode(
+        otpCode,
+        userInfo,
+        reference_type.WITHDRAW_PAYMENT,
+      );
+
+      if (!otpResponse || otpResponse.code !== 'success') {
+        return { error: otpResponse };
+      }
     }
 
     if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
@@ -302,7 +310,6 @@ export class WithdrawalService {
         this.logger.log(
           `
             Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
-            Fee applied: $${feeAmount.toFixed(2)} USD (${Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT)}%, max ${ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT}).
             Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
           `,
         );

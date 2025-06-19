@@ -21,7 +21,6 @@ import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 
 import { WithdrawalService } from './withdrawal.service';
 import { WithdrawRequestDto } from './dto/withdraw.dto';
-import { response } from 'express';
 
 @ApiTags('Withdrawal')
 @Controller('/withdraw')

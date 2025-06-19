@@ -3,10 +3,10 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsNotEmpty,
-  IsNumberString,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
 } from 'class-validator';
 import { ENV_CONFIG } from 'src/config';
@@ -26,7 +26,7 @@ export class WithdrawRequestDtoBase {
     description: 'The one-time password (OTP) code for withdrawal verification',
     example: '123456',
   })
-  @IsNumberString()
+  @Matches(/^[0-9]{6}$/)
   @IsOptional()
   @IsNotEmpty()
   otpCode?: string;

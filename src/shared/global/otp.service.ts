@@ -30,8 +30,7 @@ export class OtpService {
     private readonly tcEmailService: TopcoderEmailService,
   ) {}
 
-  async generateOtpCode(userInfo: BasicMemberInfo, action_type: string) {
-    const actionType = reference_type[action_type as keyof reference_type];
+  async generateOtpCode(userInfo: BasicMemberInfo, actionType: reference_type) {
     const email = userInfo.email;
 
     const existingOtp = await this.prisma.otp.findFirst({
@@ -50,7 +49,7 @@ export class OtpService {
 
     if (existingOtp) {
       this.logger.warn(
-        `An OTP has already been sent for email ${email} and action ${action_type}.`,
+        `An OTP has already been sent for email ${email} and action ${actionType}.`,
       );
       return {
         code: 'otp_exists',
@@ -92,7 +91,7 @@ export class OtpService {
       },
     );
     this.logger.debug(
-      `Generated and sent OTP code ${otpCode.replace(/./g, '*')} for email ${email} and action ${action_type}.`,
+      `Generated and sent OTP code ${otpCode.replace(/./g, '*')} for email ${email} and action ${actionType}.`,
     );
 
     return {
@@ -103,7 +102,7 @@ export class OtpService {
   async verifyOtpCode(
     otpCode: string,
     userInfo: BasicMemberInfo,
-    action_type: string,
+    actionType: reference_type,
   ) {
     const record = await this.prisma.otp.findFirst({
       where: {
@@ -127,7 +126,7 @@ export class OtpService {
       };
     }
 
-    if (record.action_type !== action_type) {
+    if (record.action_type !== actionType) {
       this.logger.warn(`Action type mismatch for OTP verification.`);
       return {
         code: 'otp_action_type_mismatch',
@@ -149,7 +148,7 @@ export class OtpService {
     }
 
     this.logger.log(
-      `OTP code ${otpCode} verified successfully for action ${action_type}`,
+      `OTP code ${otpCode} verified successfully for action ${actionType}`,
     );
 
     await this.prisma.otp.update({
@@ -160,17 +159,7 @@ export class OtpService {
         verified_at: new Date(),
       },
     });
-  }
 
-  otpCodeGuard(
-    userInfo: BasicMemberInfo,
-    action_type: string,
-    otpCode?: string,
-  ): Promise<{ message?: string; code?: string } | void> {
-    if (!otpCode) {
-      return this.generateOtpCode(userInfo, action_type);
-    }
-
-    return this.verifyOtpCode(otpCode, userInfo, action_type);
+    return { code: 'success' };
   }
 }
