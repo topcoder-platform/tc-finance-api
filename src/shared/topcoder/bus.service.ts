@@ -36,7 +36,10 @@ export class TopcoderBusService {
    * @return {Promise<void>}
    */
   async createEvent(topic: string, payload: any): Promise<void> {
-    this.logger.debug(`Sending message to bus topic ${topic}`, payload);
+    this.logger.debug(`Sending message to bus topic ${topic}`, {
+      ...payload,
+      data: {},
+    });
 
     try {
       const headers = await this.getHeaders();

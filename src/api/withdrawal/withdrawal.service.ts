@@ -4,7 +4,12 @@ import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
-import { payment_releases, payment_status, Prisma } from '@prisma/client';
+import {
+  payment_releases,
+  payment_status,
+  Prisma,
+  reference_type,
+} from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
 import {
@@ -12,8 +17,9 @@ import {
   WithdrawUpdateData,
 } from 'src/shared/topcoder/challenges.service';
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
-import { MEMBER_FIELDS } from 'src/shared/topcoder';
+import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
+import { OtpService } from 'src/shared/global/otp.service';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -52,6 +58,7 @@ export class WithdrawalService {
     private readonly trolleyService: TrolleyService,
     private readonly tcChallengesService: TopcoderChallengesService,
     private readonly tcMembersService: TopcoderMembersService,
+    private readonly otpService: OtpService,
   ) {}
 
   getDbTrolleyRecipientByUserId(userId: string) {
@@ -179,10 +186,12 @@ export class WithdrawalService {
     userHandle: string,
     winningsIds: string[],
     paymentMemo?: string,
+    otpCode?: string,
   ) {
     this.logger.log(
       `Processing withdrawal request for user ${userHandle}(${userId}), winnings: ${winningsIds.join(', ')}`,
     );
+
     const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
 
     if (!hasActiveTaxForm) {
@@ -209,15 +218,33 @@ export class WithdrawalService {
       );
     }
 
-    let userInfo: { email: string };
+    let userInfo: BasicMemberInfo;
     this.logger.debug(`Getting user details for user ${userHandle}(${userId})`);
     try {
       userInfo = (await this.tcMembersService.getMemberInfoByUserHandle(
         userHandle,
-        { fields: [MEMBER_FIELDS.email] },
-      )) as { email: string };
+        { fields: BASIC_MEMBER_FIELDS },
+      )) as unknown as BasicMemberInfo;
     } catch {
       throw new Error('Failed to fetch UserInfo for withdrawal!');
+    }
+
+    if (!otpCode) {
+      const otpError = await this.otpService.generateOtpCode(
+        userInfo,
+        reference_type.WITHDRAW_PAYMENT,
+      );
+      return { error: otpError };
+    } else {
+      const otpResponse = await this.otpService.verifyOtpCode(
+        otpCode,
+        userInfo,
+        reference_type.WITHDRAW_PAYMENT,
+      );
+
+      if (!otpResponse || otpResponse.code !== 'success') {
+        return { error: otpResponse };
+      }
     }
 
     if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
@@ -283,7 +310,6 @@ export class WithdrawalService {
         this.logger.log(
           `
             Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
-            Fee applied: $${feeAmount.toFixed(2)} USD (${Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT)}%, max ${ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT}).
             Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
           `,
         );

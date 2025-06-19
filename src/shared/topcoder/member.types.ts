@@ -30,3 +30,13 @@ export const BASIC_MEMBER_FIELDS = [
   MEMBER_FIELDS.addresses,
   MEMBER_FIELDS.homeCountryCode,
 ];
+
+export interface BasicMemberInfo {
+  userId: string;
+  handle: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  addresses: any[];
+  homeCountryCode: string;
+}

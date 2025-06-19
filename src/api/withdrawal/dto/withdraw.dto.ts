@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
 } from 'class-validator';
 import { ENV_CONFIG } from 'src/config';
@@ -20,6 +21,15 @@ export class WithdrawRequestDtoBase {
   @IsUUID('4', { each: true })
   @IsNotEmpty({ each: true })
   winningsIds: string[];
+
+  @ApiProperty({
+    description: 'The one-time password (OTP) code for withdrawal verification',
+    example: '123456',
+  })
+  @Matches(/^[0-9]{6}$/)
+  @IsOptional()
+  @IsNotEmpty()
+  otpCode?: string;
 }
 
 export class WithdrawRequestDtoWithMemo extends WithdrawRequestDtoBase {
