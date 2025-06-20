@@ -115,7 +115,7 @@ export class AdminService {
                 },
                 updated_at: new Date(),
                 updated_by: userId,
-                version: version++,
+                version,
               },
             }),
           );
