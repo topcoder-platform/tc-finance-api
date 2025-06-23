@@ -5,6 +5,7 @@ import { PaymentsService } from 'src/shared/payments';
 import { Logger } from 'src/shared/global';
 import {
   RecipientVerificationStatusUpdateEventData,
+  RecipientVerificationType,
   RecipientVerificationWebhookEvent,
 } from './recipient-verification.types';
 import { Prisma, verification_status } from '@prisma/client';
@@ -25,6 +26,13 @@ export class RecipientVerificationHandler {
     const recipient = await this.prisma.trolley_recipient.findFirst({
       where: { trolley_id: payload.recipientId },
     });
+
+    if (payload.type !== RecipientVerificationType.individual) {
+      this.logger.log(
+        `Handling only individual status updates, ignoring phone verification for recipient ${payload.recipientId}. Verification type: ${payload.type}.`,
+      );
+      return;
+    }
 
     if (!recipient) {
       this.logger.error(
