@@ -52,6 +52,9 @@ export class AdminService {
             }
           : undefined,
       },
+      include: {
+        winnings: true,
+      },
     });
   }
 
@@ -119,6 +122,18 @@ export class AdminService {
               },
             }),
           );
+
+          if (payment.installment_number === 1) {
+            transactions.push((tx) =>
+              this.addAudit(
+                userId,
+                winningsId,
+                `Modified payment description from "${payment.winnings.description}" to "${body.description}"`,
+                body.auditNote,
+                tx,
+              ),
+            );
+          }
         }
 
         let paymentStatus = payment.payment_status as PaymentStatus;
@@ -546,6 +561,7 @@ export class AdminService {
           },
         },
         take: 1000,
+        orderBy: { created_at: 'desc' },
       });
 
       result.data = audits.map((item) => ({
