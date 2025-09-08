@@ -78,7 +78,6 @@ export class TopcoderM2MService {
     const response = await fetch(url, finalOptions);
 
     if (!response.ok) {
-      this.logger.log(await response.text());
       // Optional: You could throw a custom error here
       throw new Error(`HTTP error! Status: ${response.status}`);
     }

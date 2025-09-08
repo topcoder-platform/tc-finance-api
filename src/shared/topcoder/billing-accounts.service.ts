@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { isNumber, includes } from 'lodash';
 import { ENV_CONFIG } from 'src/config';
+import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 
 const {
@@ -29,24 +30,6 @@ export interface BAValidation {
   totalPrizesInCents: number;
 }
 
-export const ChallengeStatuses = {
-  New: "New",
-  Active: "Active",
-  Draft: "Draft",
-  Approved: "Approved",
-  Canceled: "Canceled",
-  Completed: "Completed",
-  Deleted: "Deleted",
-  CancelledFailedReview: "Cancelled - Failed Review",
-  CancelledFailedScreening: "Cancelled - Failed Screening",
-  CancelledZeroSubmissions: "Cancelled - Zero Submissions",
-  CancelledWinnerUnresponsive: "Cancelled - Winner Unresponsive",
-  CancelledClientRequest: "Cancelled - Client Request",
-  CancelledRequirementsInfeasible: "Cancelled - Requirements Infeasible",
-  CancelledZeroRegistrations: "Cancelled - Zero Registrations",
-  CancelledPaymentFailed: "Cancelled - Payment Failed",
-};
-
 @Injectable()
 export class BillingAccountsService {
   private readonly logger = new Logger(BillingAccountsService.name);
@@ -57,13 +40,6 @@ export class BillingAccountsService {
     this.logger.log("BA validation lock amount:", billingAccountId, dto);
 
     try {
-      console.log('Calling ',
-        `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/lock-amount`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ param: dto }),
-        }
-      )
       return await this.m2MService.m2mFetch(
         `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/lock-amount`,
         {
@@ -84,13 +60,6 @@ export class BillingAccountsService {
     this.logger.log("BA validation consume amount:", billingAccountId, dto);
 
     try {
-      console.log('Calling ',
-        `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/consume-amount`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ param: dto }),
-        }
-      )
       return await this.m2MService.m2mFetch(
         `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/consume-amount`,
         {

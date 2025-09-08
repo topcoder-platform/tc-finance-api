@@ -1,14 +1,12 @@
-import { Param } from '@nestjs/common';
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiParam } from '@nestjs/swagger';
+import { Controller, Post, Param, HttpCode, HttpStatus } from '@nestjs/common';
 import {
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiResponse,
-  ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { UserInfo } from 'os';
+import { UserInfo } from 'src/dto/user.type';
 import { M2mScope } from 'src/core/auth/auth.constants';
 import { AllowedM2mScope, M2M, User } from 'src/core/auth/decorators';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
@@ -44,13 +42,16 @@ export class ChallengesController {
     @Param('challengeId') challengeId: string,
     @User() user: UserInfo,
   ): Promise<ResponseDto<string>> {
-    const result = await this.challengesService.generateChallengePayments(
-      challengeId,
-      user.id,
-    );
+    const result = new ResponseDto<string>();
 
-    result.status = ResponseStatusType.SUCCESS;
-    if (result.error) {
+    try {
+      await this.challengesService.generateChallengePayments(
+        challengeId,
+        user.id,
+      );
+      result.status = ResponseStatusType.SUCCESS;
+    } catch (e) {
+      result.error = e;
       result.status = ResponseStatusType.ERROR;
     }
 

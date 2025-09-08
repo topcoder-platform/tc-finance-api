@@ -25,7 +25,7 @@ export class WinningsRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  private generateFilterDate(date: DateFilterType) {
+  private generateFilterDate(date?: DateFilterType) {
     let filterDate: object | undefined;
     const currentDay = new Date(new Date().setHours(0, 0, 0, 0));
 
@@ -54,11 +54,11 @@ export class WinningsRepository {
   }
 
   private getWinningsQueryFilters(
-    type: string,
-    status: string,
-    winnerIds: string[] | undefined,
-    externalIds: string[] | undefined,
-    date: DateFilterType,
+    type?: string,
+    status?: string,
+    winnerIds?: string[] | undefined,
+    externalIds?: string[] | undefined,
+    date?: DateFilterType,
   ): Prisma.winningsFindManyArgs['where'] {
     return {
       winner_id: winnerIds
@@ -99,7 +99,7 @@ export class WinningsRepository {
   }
 
   private getOrderByWithWinnerId(
-    sortBy: string,
+    sortBy: string | undefined,
     sortOrder: 'asc' | 'desc',
     externalIds?: boolean,
   ) {
@@ -162,7 +162,7 @@ export class WinningsRepository {
         winnerIds = [searchProps.winnerId];
       } else if (searchProps.winnerIds) {
         winnerIds = [...searchProps.winnerIds];
-      } else if (searchProps.externalIds?.length > 0) {
+      } else if ((searchProps.externalIds?.length ?? 0) > 0) {
         externalIds = searchProps.externalIds;
       }
 
@@ -176,7 +176,7 @@ export class WinningsRepository {
 
       const orderBy = this.getOrderByWithWinnerId(
         searchProps.sortBy,
-        searchProps.sortOrder,
+        searchProps.sortOrder!,
         !winnerIds && !!externalIds?.length,
       );
 
@@ -240,9 +240,9 @@ export class WinningsRepository {
         })),
         pagination: {
           totalItems: count,
-          totalPages: Math.ceil(count / searchProps.limit),
-          pageSize: searchProps.limit,
-          currentPage: Math.ceil(searchProps.offset / searchProps.limit) + 1,
+          totalPages: Math.ceil(count / searchProps.limit!),
+          pageSize: searchProps.limit!,
+          currentPage: Math.ceil(searchProps.offset! / searchProps.limit!) + 1,
         },
       };
       // response.data = winnings as any

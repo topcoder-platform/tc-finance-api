@@ -69,8 +69,8 @@ async function bootstrap() {
   });
 
   await app.listen(ENV_CONFIG.PORT ?? 3000);
-  console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(
+  logger.log(`Application is running on: ${await app.getUrl()}`);
+  logger.log(
     `Swagger docs available at: ${await app.getUrl()}${API_DOCS_URL}`,
   );
 }

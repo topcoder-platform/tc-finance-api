@@ -34,7 +34,7 @@ export class SortPagination {
   @IsOptional()
   @IsInt()
   @Min(1)
-  limit: number = 10;
+  limit?: number = 10;
 
   @ApiProperty({
     description: 'The offset parameter for pagination',
@@ -43,7 +43,7 @@ export class SortPagination {
   @IsOptional()
   @IsInt()
   @Min(0)
-  offset: number = 0;
+  offset?: number = 0;
 
   @ApiProperty({
     description: 'The sortBy parameter for sorting',
@@ -51,7 +51,7 @@ export class SortPagination {
   })
   @IsOptional()
   @IsIn(OrderBy)
-  sortBy: string;
+  sortBy?: string;
 
   @ApiProperty({
     description: 'The sort order',
@@ -60,5 +60,5 @@ export class SortPagination {
   })
   @IsOptional()
   @IsEnum(SortOrder)
-  sortOrder: SortOrder = SortOrder.ASC;
+  sortOrder?: SortOrder = SortOrder.ASC;
 }

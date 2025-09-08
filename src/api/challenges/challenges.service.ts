@@ -5,8 +5,10 @@ import { Logger } from 'src/shared/global';
 import { Challenge, ChallengeResource, ResourceRole } from './models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
+import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { WinningsService } from '../winnings/winnings.service';
 import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
+import { WinningsRepository } from '../repository/winnings.repo';
 
 const placeToOrdinal = (place: number) => {
   if (place === 1) return "1st";
@@ -30,6 +32,7 @@ export class ChallengesService {
     private readonly m2MService: TopcoderM2MService,
     private readonly baService: BillingAccountsService,
     private readonly winningsService: WinningsService,
+    private readonly winningsRepo: WinningsRepository,
   ) {}
 
   async getChallenge(challengeId: string) {
@@ -40,7 +43,7 @@ export class ChallengesService {
       this.logger.log(JSON.stringify(challenge, null, 2));
       return challenge;
     } catch(e) {
-      this.logger.log('here', e);
+      this.logger.error(`Challenge ${challengeId} details couldn't be fetched!`, e);
     }
   }
 
@@ -56,7 +59,7 @@ export class ChallengesService {
 
       return groupBy(resources, (r) => rolesMap[r.roleId]) as {[role: string]: ChallengeResource[]};
     } catch(e) {
-      this.logger.log('here', e);
+      this.logger.error(`Challenge resources for challenge ${challengeId} couldn\'t be fetched!`, e);
     }
   }
 
@@ -82,8 +85,8 @@ export class ChallengesService {
 
     // generate placement payments
     const placementPrizes = sortBy(find(prizeSets, {type: 'PLACEMENT'})?.prizes, 'value');
-    if (placementPrizes.length !== winners.length) {
-      throw new Error('Task has incorrect number of placement prizes!');
+    if (placementPrizes.length < winners.length) {
+      throw new Error('Task has incorrect number of placement prizes! There are more winners than prizes!');
     }
 
     winners.forEach((winner) => {
@@ -161,7 +164,16 @@ export class ChallengesService {
       throw new Error('Challenge not found!');
     }
 
-    // TODO: make sure challenge is completed
+    if (challenge.status.toLowerCase() !== ChallengeStatuses.Completed.toLowerCase()) {
+      throw new Error('Challenge isn\'t completed yet!');
+    }
+
+    const existingPayments = (await this.winningsRepo.searchWinnings({ externalIds: [challengeId] }))?.data?.winnings;
+    if (existingPayments?.length > 0) {
+      this.logger.log(`Payments already exist for challenge ${challengeId}, skipping payment generation`);
+      throw new Error(`Payments already exist for challenge ${challengeId}, skipping payment generation`);
+    }
+
     const payments = await this.getChallengePayments(challenge);
     const totalAmount = payments.reduce((sum, payment) => sum + payment.details[0].totalAmount, 0);
 
