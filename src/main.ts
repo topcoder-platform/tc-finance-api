@@ -30,8 +30,7 @@ async function bootstrap() {
     'http://localhost:3000',
     /\.localhost:3000$/,
     ENV_CONFIG.TOPCODER_WALLET_URL,
-    //Temporary for v6 testing
-    'https://*.topcoder-dev.com',
+    /^https:\/\/[\w-]+\.topcoder-dev\.com$/, // allow wallet-v6 and other subdomains
   ];
 
   const corsConfig: cors.CorsOptions = {
