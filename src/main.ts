@@ -26,13 +26,38 @@ async function bootstrap() {
   app.setGlobalPrefix(ENV_CONFIG.API_BASE);
 
   // CORS related settings
+  const allowedOrigins: Array<string | RegExp> = [
+    'http://localhost:3000',
+    /\.localhost:3000$/,
+    ENV_CONFIG.TOPCODER_WALLET_URL,
+    //Temporary for v6 testing
+    'https://*.topcoder-dev.com',
+  ];
+
   const corsConfig: cors.CorsOptions = {
     allowedHeaders:
       'Origin, X-Requested-With, Content-Type, Accept, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Headers,currentOrg,overrideOrg,x-atlassian-cloud-id,x-api-key,x-orgid',
     credentials: true,
-    // origin: process.env.CORS_ALLOWED_ORIGIN
-    //   ? new RegExp(process.env.CORS_ALLOWED_ORIGIN)
-    //   : ['http://localhost:3000', /\.localhost:3000$/],
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const isAllowed = allowedOrigins.some((allowedOrigin) =>
+        allowedOrigin instanceof RegExp
+          ? allowedOrigin.test(origin)
+          : allowedOrigin === origin,
+      );
+
+      if (isAllowed) {
+        callback(null, true);
+        return;
+      }
+
+      logger.warn(`Blocked CORS origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    },
     methods: 'GET, POST, OPTIONS, PUT, DELETE, PATCH',
   };
   app.use(cors(corsConfig));
