@@ -1,11 +1,25 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { payment_releases, payment_status, Prisma } from '@prisma/client';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
+import {
+  payment_releases,
+  payment_status,
+  Prisma,
+  reference_type,
+} from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
+import {
+  TopcoderChallengesService,
+  WithdrawUpdateData,
+} from 'src/shared/topcoder/challenges.service';
+import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
+import { Logger } from 'src/shared/global';
+import { OtpService } from 'src/shared/global/otp.service';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -21,6 +35,16 @@ interface ReleasableWinningRow {
   datePaid: Date;
 }
 
+function formatDate(date = new Date()) {
+  const pad = (n, z = 2) => String(n).padStart(z, '0');
+
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
+    `${pad(date.getMilliseconds(), 3)}`
+  );
+}
+
 @Injectable()
 export class WithdrawalService {
   private readonly logger = new Logger(WithdrawalService.name);
@@ -30,10 +54,14 @@ export class WithdrawalService {
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentsService: PaymentsService,
     private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly identityVerificationRepo: IdentityVerificationRepository,
     private readonly trolleyService: TrolleyService,
+    private readonly tcChallengesService: TopcoderChallengesService,
+    private readonly tcMembersService: TopcoderMembersService,
+    private readonly otpService: OtpService,
   ) {}
 
-  getTrolleyRecipientByUserId(userId: string) {
+  getDbTrolleyRecipientByUserId(userId: string) {
     return this.prisma.trolley_recipient.findUnique({
       where: { user_id: userId },
     });
@@ -99,6 +127,7 @@ export class WithdrawalService {
     paymentMethodId: number,
     recipientId: string,
     winnings: ReleasableWinningRow[],
+    metadata: any,
   ) {
     try {
       const paymentRelease = await tx.payment_releases.create({
@@ -108,6 +137,7 @@ export class WithdrawalService {
           status: payment_status.PROCESSING,
           payment_method_id: paymentMethodId,
           payee_id: recipientId,
+          metadata,
           payment_release_associations: {
             createMany: {
               data: winnings.map((w) => ({
@@ -156,8 +186,12 @@ export class WithdrawalService {
     userHandle: string,
     winningsIds: string[],
     paymentMemo?: string,
+    otpCode?: string,
   ) {
-    this.logger.log('Processing withdrawal request');
+    this.logger.log(
+      `Processing withdrawal request for user ${userHandle}(${userId}), winnings: ${winningsIds.join(', ')}`,
+    );
+
     const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
 
     if (!hasActiveTaxForm) {
@@ -175,6 +209,53 @@ export class WithdrawalService {
       );
     }
 
+    const isIdentityVerified =
+      await this.identityVerificationRepo.completedIdentityVerification(userId);
+
+    if (!isIdentityVerified) {
+      throw new Error(
+        'Please complete identity verification before making a withdrawal.',
+      );
+    }
+
+    let userInfo: BasicMemberInfo;
+    this.logger.debug(`Getting user details for user ${userHandle}(${userId})`);
+    try {
+      userInfo = (await this.tcMembersService.getMemberInfoByUserHandle(
+        userHandle,
+        { fields: BASIC_MEMBER_FIELDS },
+      )) as unknown as BasicMemberInfo;
+    } catch {
+      throw new Error('Failed to fetch UserInfo for withdrawal!');
+    }
+
+    if (!otpCode) {
+      const otpError = await this.otpService.generateOtpCode(
+        userInfo,
+        reference_type.WITHDRAW_PAYMENT,
+      );
+      return { error: otpError };
+    } else {
+      const otpResponse = await this.otpService.verifyOtpCode(
+        otpCode,
+        userInfo,
+        reference_type.WITHDRAW_PAYMENT,
+      );
+
+      if (!otpResponse || otpResponse.code !== 'success') {
+        return { error: otpResponse };
+      }
+    }
+
+    if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
+      this.logger.error(
+        `User ${userHandle}(${userId}) attempted withdrawal but is restricted due to email domain '${userInfo.email}'.`,
+      );
+      throw new Error(
+        'Please contact Topgear support to process your withdrawal.',
+      );
+    }
+
     try {
       await this.prisma.$transaction(async (tx) => {
         const winnings = await this.getReleasableWinningsForUserId(
@@ -183,23 +264,73 @@ export class WithdrawalService {
           tx,
         );
 
-        const totalAmount = this.checkTotalAmount(winnings);
+        this.logger.log(
+          `Begin processing payments for user ${userHandle}(${userId})`,
+          winnings,
+        );
 
-        this.logger.log('Begin processing payments', winnings);
+        const dbTrolleyRecipient =
+          await this.getDbTrolleyRecipientByUserId(userId);
 
-        const recipient = await this.getTrolleyRecipientByUserId(userId);
-
-        if (!recipient) {
-          throw new Error(`Trolley recipient not found for user '${userId}'!`);
+        if (!dbTrolleyRecipient) {
+          throw new Error(
+            `Trolley recipient not found for user ${userHandle}(${userId})!`,
+          );
         }
+
+        const totalAmount = this.checkTotalAmount(winnings);
+        let paymentAmount = totalAmount;
+        let feeAmount = 0;
+        const trolleyRecipientPayoutDetails =
+          await this.trolleyService.getRecipientPayoutDetails(
+            dbTrolleyRecipient.trolley_id,
+          );
+
+        if (!trolleyRecipientPayoutDetails) {
+          throw new Error(
+            `Recipient payout details not found for Trolley Recipient ID '${dbTrolleyRecipient.trolley_id}', for user ${userHandle}(${userId}).`,
+          );
+        }
+
+        if (
+          trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
+          ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
+        ) {
+          const feePercent =
+            Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
+
+          feeAmount = +Math.min(
+            ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+            feePercent * paymentAmount,
+          ).toFixed(2);
+
+          paymentAmount -= feeAmount;
+        }
+
+        this.logger.log(
+          `
+            Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
+            Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
+          `,
+        );
 
         const paymentRelease = await this.createDbPaymentRelease(
           tx,
           userId,
-          totalAmount,
+          paymentAmount,
           connectedPaymentMethod.payment_method_id,
-          recipient.trolley_id,
+          dbTrolleyRecipient.trolley_id,
           winnings,
+          {
+            netAmount: paymentAmount,
+            feeAmount,
+            totalAmount: totalAmount,
+            payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
+            env_trolley_paypal_fee_percent:
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
+            env_trolley_paypal_fee_max_amount:
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+          },
         );
 
         const paymentBatch = await this.trolleyService.startBatchPayment(
@@ -207,9 +338,9 @@ export class WithdrawalService {
         );
 
         const trolleyPayment = await this.trolleyService.createPayment(
-          recipient.trolley_id,
+          dbTrolleyRecipient.trolley_id,
           paymentBatch.id,
-          totalAmount,
+          paymentAmount,
           paymentRelease.payment_release_id,
           paymentMemo,
         );
@@ -235,6 +366,26 @@ export class WithdrawalService {
           const errorMsg = `Failed to release payment: ${error.message}`;
           this.logger.error(errorMsg, error);
           throw new Error(errorMsg);
+        }
+
+        try {
+          for (const winning of winnings) {
+            const payoutData: WithdrawUpdateData = {
+              userId: +userId,
+              status: 'Paid',
+              datePaid: formatDate(new Date()),
+            };
+
+            await this.tcChallengesService.updateLegacyPayments(
+              winning.externalId as string,
+              payoutData,
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to update legacy payment while withdrawing for challenge ${error?.message ?? error}`,
+            error,
+          );
         }
       });
     } catch (error) {

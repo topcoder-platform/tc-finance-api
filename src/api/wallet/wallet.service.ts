@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
@@ -7,7 +7,13 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { WinningsType } from 'src/dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { TrolleyService } from 'src/shared/global/trolley.service';
+import {
+  RecipientTaxDetails,
+  TrolleyService,
+} from 'src/shared/global/trolley.service';
+import { Logger } from 'src/shared/global';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
+import { ENV_CONFIG } from 'src/config';
 
 /**
  * The winning service.
@@ -24,10 +30,11 @@ export class WalletService {
     private readonly prisma: PrismaService,
     private readonly taxFormRepo: TaxFormRepository,
     private readonly paymentMethodRepo: PaymentMethodRepository,
+    private readonly identityVerificationRepo: IdentityVerificationRepository,
     private readonly trolleyService: TrolleyService,
   ) {}
 
-  async getPaymentTaxDetails(userId: string) {
+  async getPayoutDetails(userId: string) {
     const recipient = await this.prisma.trolley_recipient.findFirst({
       where: { user_id: userId },
     });
@@ -36,9 +43,7 @@ export class WalletService {
       return;
     }
 
-    return await this.trolleyService.getRecipientTaxDetails(
-      recipient.trolley_id,
-    );
+    return this.trolleyService.getRecipientPayoutDetails(recipient.trolley_id);
   }
 
   /**
@@ -55,11 +60,17 @@ export class WalletService {
       const winnings = await this.getWinningsTotalsByWinnerID(userId);
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(userId);
+      const isIdentityVerified =
+        await this.identityVerificationRepo.completedIdentityVerification(
+          userId,
+        );
       const hasVerifiedPaymentMethod = Boolean(
         await this.paymentMethodRepo.getConnectedPaymentMethod(userId),
       );
 
-      const taxWithholdingDetails = await this.getPaymentTaxDetails(userId);
+      const payoutDetails = ((await this.getPayoutDetails(userId)) ??
+        {}) as RecipientTaxDetails;
+      const { payoutMethod, ...taxWithholdingDetails } = payoutDetails;
 
       result.data = {
         account: {
@@ -82,11 +93,16 @@ export class WalletService {
         },
         withdrawalMethod: {
           isSetupComplete: hasVerifiedPaymentMethod,
+          type: { 'bank-transfer': 'bank' }[payoutMethod] ?? payoutMethod,
         },
         taxForm: {
           isSetupComplete: hasActiveTaxForm,
         },
+        identityVerification: {
+          isSetupComplete: isIdentityVerified,
+        },
         ...(taxWithholdingDetails ?? {}),
+        minWithdrawAmount: ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT ?? 0,
       };
     } catch (error) {
       this.logger.error('Getting winnings audit failed', error);

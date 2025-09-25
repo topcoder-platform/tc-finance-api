@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { UserInfo } from 'src/dto/user.dto';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { UserInfo } from 'src/dto/user.type';
 import { TrolleyService as Trolley } from 'src/shared/global/trolley.service';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
@@ -157,6 +157,12 @@ export class TrolleyService {
    * @returns A URL string to the Trolley user portal.
    */
   async getPortalUrlForUser(user: UserInfo) {
+    if (user.email.toLowerCase().indexOf('@wipro.com') > -1) {
+      throw new BadRequestException(
+        'Please contact Topgear support to withdrawal your payments',
+      );
+    }
+
     const recipient = await this.getPayeeRecipient(user);
     const link = this.trolley.getRecipientPortalUrl({
       email: user.email,

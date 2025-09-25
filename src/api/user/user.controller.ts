@@ -23,12 +23,19 @@ import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 import { SearchWinningResult, WinningRequestDto } from 'src/dto/winning.dto';
 import { UserInfo } from 'src/dto/user.type';
 import { UserWinningRequestDto } from './dto/user.dto';
+import { PaymentsService } from 'src/shared/payments';
+import { Logger } from 'src/shared/global';
 
 @ApiTags('UserWinning')
 @Controller('/user')
 @ApiBearerAuth()
 export class UserController {
-  constructor(private readonly winningsRepo: WinningsRepository) {}
+  private readonly logger = new Logger(UserController.name);
+
+  constructor(
+    private readonly winningsRepo: WinningsRepository,
+    private readonly paymentsService: PaymentsService,
+  ) {}
 
   @Post('/winnings')
   @Roles(Role.User)
@@ -59,14 +66,28 @@ export class UserController {
       throw new ForbiddenException('insufficient permissions');
     }
 
+    try {
+      await this.paymentsService.reconcileUserPayments(user.id);
+    } catch (e) {
+      this.logger.error('Error reconciling user payments', e);
+
+      return {
+        error: {
+          code: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to reconcile user payments.',
+        },
+        status: ResponseStatusType.ERROR,
+      } as ResponseDto<SearchWinningResult>;
+    }
+
     const result = await this.winningsRepo.searchWinnings(
       body as WinningRequestDto,
     );
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }

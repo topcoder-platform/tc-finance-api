@@ -1,5 +1,14 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class ConfigEnv {
   @IsString()
@@ -65,4 +74,40 @@ export class ConfigEnv {
     return false;
   })
   ACCEPT_CUSTOM_PAYMENTS_MEMO;
+
+  @IsString()
+  @IsOptional()
+  TC_EMAIL_NOTIFICATIONS_TOPIC = 'external.action.email';
+
+  @IsString()
+  @IsOptional()
+  TC_EMAIL_FROM_NAME = 'Topcoder';
+
+  @IsString()
+  @IsNotEmpty()
+  TC_EMAIL_FROM_EMAIL: string;
+
+  @IsString()
+  SENDGRID_TEMPLATE_ID_PAYMENT_SETUP_NOTIFICATION =
+    'd-919e01f1314e44439bc90971b55f7db7';
+
+  @IsString()
+  TOPCODER_WALLET_URL = 'https://wallet.topcoder.com';
+
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  @IsOptional()
+  TROLLEY_PAYPAL_FEE_PERCENT: number = 0;
+
+  @IsNumber()
+  @IsOptional()
+  TROLLEY_PAYPAL_FEE_MAX_AMOUNT: number = 0;
+
+  @IsNumber()
+  @IsOptional()
+  OTP_CODE_VALIDITY_MINUTES: number = 5;
+
+  @IsString()
+  SENDGRID_TEMPLATE_ID_OTP_CODE: string = 'd-2d0ab9f6c9cc4efba50080668a9c35c1';
 }

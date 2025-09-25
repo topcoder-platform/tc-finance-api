@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   PaymentProcessedEventData,
   PaymentProcessedEventStatus,
@@ -9,6 +9,7 @@ import { PaymentsService } from 'src/shared/payments';
 import { payment_status } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { JsonObject } from '@prisma/client/runtime/library';
+import { Logger } from 'src/shared/global';
 
 @Injectable()
 export class PaymentHandler {
@@ -34,7 +35,11 @@ export class PaymentHandler {
         paymentId,
         payload.status.toUpperCase() as payment_status,
         payload.status.toUpperCase(),
-        { failureMessage: payload.failureMessage },
+        {
+          failureMessage: payload.failureMessage,
+          returnedNote: payload.returnedNote,
+          errors: payload.errors?.join(', '),
+        },
       );
 
       return;
@@ -52,10 +57,11 @@ export class PaymentHandler {
     const winningIds = (
       await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT winnings_id as id
-      FROM public.payment p
-      INNER JOIN public.payment_release_associations pra
+      FROM payment p
+      INNER JOIN payment_release_associations pra
       ON pra.payment_id = p.payment_id
       WHERE pra.payment_release_id::text = ${paymentId}
+      FOR UPDATE
     `
     ).map((w) => w.id);
 

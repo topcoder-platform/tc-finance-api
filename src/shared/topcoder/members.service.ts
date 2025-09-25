@@ -1,8 +1,9 @@
 import { chunk } from 'lodash';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { MEMBER_FIELDS } from './member.types';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
 
 const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
 
@@ -79,17 +80,58 @@ export class TopcoderMembersService {
     const requestUrl = `${TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
 
     try {
-      const response: { [key: string]: string } = await fetch(requestUrl, {
+      const response = await fetch(requestUrl, {
         headers: { Authorization: `Bearer ${m2mToken}` },
-      }).then((r) => r.json());
-      return response;
+      });
+
+      const jsonResponse: { [key: string]: string } = await response.json();
+
+      if (response.status > 299) {
+        throw new Error(jsonResponse.message ?? JSON.stringify(jsonResponse));
+      }
+
+      return jsonResponse;
     } catch (e) {
       this.logger.error(
-        `Failed to fetch tc member info for user '${handle}'! Error: `,
-        e?.message ?? e,
+        `Failed to fetch tc member info for user '${handle}'! Error: ${e?.message ?? e}`,
         e,
       );
-      return {};
+      throw e;
+    }
+  }
+
+  /**
+   * Retrieves member information from the Topcoder API based on the user's ID.
+   *
+   * @param userId - The ID of the user whose information is to be retrieved.
+   * @param options - Optional parameters for the request.
+   * @param options.fields - An array of specific member fields to include in the response.
+   *
+   * @returns A promise that resolves to the member information object or an empty object if the request fails.
+   *
+   * @throws Will log an error message to the console if the API request fails.
+   */
+  async getMemberInfoByUserId(
+    userId: string,
+    options = {} as { fields: MEMBER_FIELDS[] },
+  ) {
+    try {
+      // Fetch the handle for the given userId
+      const handlesMap = await this.getHandlesByUserIds([userId]);
+      const handle = handlesMap[userId];
+
+      if (!handle) {
+        throw new Error(`Handle not found for userId: ${userId}`);
+      }
+
+      // Fetch member info using the handle
+      return await this.getMemberInfoByUserHandle(handle, options);
+    } catch (e) {
+      this.logger.error(
+        `Failed to fetch tc member info for userId '${userId}'! Error: ${e?.message ?? e}`,
+        e,
+      );
+      throw e;
     }
   }
 }

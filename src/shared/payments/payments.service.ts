@@ -29,12 +29,19 @@ export class PaymentsService {
         setupComplete: boolean;
       }[]
     >`
-        SELECT
-          upm.user_id as "userId",
-          CASE WHEN utx.tax_form_status = 'ACTIVE' AND upm.status = 'CONNECTED' THEN TRUE ELSE FALSE END as "setupComplete"
-        FROM user_payment_methods upm
-        LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id AND utx.tax_form_status = 'ACTIVE'
-        WHERE upm.user_id IN (${Prisma.join(uniq(userIds))})
+      SELECT
+        upm.user_id as "userId",
+        CASE
+        WHEN utx.tax_form_status = 'ACTIVE'
+          AND upm.status = 'CONNECTED'
+          AND uiv.verification_status::text = 'ACTIVE'
+        THEN TRUE
+        ELSE FALSE
+        END as "setupComplete"
+      FROM user_payment_methods upm
+      LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id AND utx.tax_form_status = 'ACTIVE'
+      LEFT JOIN user_identity_verification_associations uiv ON upm.user_id = uiv.user_id
+      WHERE upm.user_id IN (${Prisma.join(uniq(userIds))})
       `;
 
     const setupStatusMap = {
@@ -138,6 +145,21 @@ export class PaymentsService {
     metadata?: JsonObject,
   ) {
     const prismaClient = transaction || this.prisma;
+
+    const failedOrReturnedRelease =
+      await prismaClient.payment_releases.findFirst({
+        where: {
+          payment_release_id: paymentId,
+          status: { in: [payment_status.RETURNED, payment_status.FAILED] },
+        },
+      });
+
+    if (failedOrReturnedRelease) {
+      throw new Error(
+        `Not processing payment release ${paymentId} because it was already marked as '${failedOrReturnedRelease.status}'.`,
+      );
+    }
+
     try {
       const r = await prismaClient.payment_releases.updateMany({
         where: {

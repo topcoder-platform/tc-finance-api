@@ -1,7 +1,7 @@
-import { Logger } from '@nestjs/common';
 import { decode } from 'jsonwebtoken';
 import { JwksClient } from 'jwks-rsa';
 import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
 
 const logger = new Logger(`auth/jwks`);
 
@@ -26,7 +26,7 @@ const client = new JwksClient({
 export const getSigningKey = (token: string) => {
   const tokenHeader = decode(token, { complete: true })?.header;
 
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     if (!tokenHeader || !tokenHeader.kid) {
       logger.error('Invalid token: Missing key ID');
       return reject(new Error('Invalid token: Missing key ID'));

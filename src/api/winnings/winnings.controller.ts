@@ -53,11 +53,11 @@ export class WinningsController {
       body,
       user.id,
     );
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }
@@ -84,9 +84,10 @@ export class WinningsController {
   ): Promise<ResponseDto<WinningDto[]>> {
     const result = await this.winningsRepo.searchWinnings(body);
 
-    result.status = result.error
-      ? ResponseStatusType.ERROR
-      : ResponseStatusType.SUCCESS;
+    result.status = ResponseStatusType.SUCCESS;
+    if (result.error) {
+      result.status = ResponseStatusType.ERROR;
+    }
 
     return {
       ...result,

@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
 
 @Injectable()
 export class TopcoderM2MService {

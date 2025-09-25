@@ -43,11 +43,11 @@ export class WalletController {
     @User() user: UserInfo,
   ): Promise<ResponseDto<WalletDetailDto>> {
     const result = await this.walletService.getWalletDetails(user.id);
+
+    result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
-
-    result.status = ResponseStatusType.SUCCESS;
 
     return result;
   }

@@ -20,6 +20,14 @@ export class WinningUpdateRequestDto {
   winningsId: string;
 
   @ApiProperty({
+    description: 'Payment description',
+    example: 'Task Payment',
+  })
+  @IsOptional()
+  @IsString()
+  description: string;
+
+  @ApiProperty({
     description: 'The audit note',
     example: 'audit note',
   })

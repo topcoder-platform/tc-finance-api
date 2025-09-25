@@ -3,19 +3,21 @@ import {
   HttpStatus,
   NotFoundException,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 
-import { PrismaPromise } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { PaymentsService } from 'src/shared/payments';
 
-import { TaxFormRepository } from '../repository/taxForm.repo';
-import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
+import {
+  AdminPaymentUpdateData,
+  TopcoderChallengesService,
+} from 'src/shared/topcoder/challenges.service';
+import { Logger } from 'src/shared/global';
 
 /**
  * The admin winning service.
@@ -30,10 +32,13 @@ export class AdminService {
    */
   constructor(
     private readonly prisma: PrismaService,
-    private readonly taxFormRepo: TaxFormRepository,
-    private readonly paymentMethodRepo: PaymentMethodRepository,
     private readonly paymentsService: PaymentsService,
+    private readonly tcChallengesService: TopcoderChallengesService,
   ) {}
+
+  private getWinningById(winningId: string) {
+    return this.prisma.winnings.findFirst({ where: { winning_id: winningId } });
+  }
 
   private getPaymentsByWinningsId(winningsId: string, paymentId?: string) {
     return this.prisma.payment.findMany({
@@ -46,6 +51,9 @@ export class AdminService {
               equals: paymentId,
             }
           : undefined,
+      },
+      include: {
+        winnings: true,
       },
     });
   }
@@ -79,7 +87,9 @@ export class AdminService {
         releaseDate = await this.getPaymentReleaseDateByWinningsId(winningsId);
       }
 
-      const transactions: PrismaPromise<any>[] = [];
+      const transactions: ((
+        tx: Prisma.TransactionClient,
+      ) => Promise<unknown>)[] = [];
       const now = new Date().getTime();
       payments.forEach((payment) => {
         if (
@@ -90,6 +100,42 @@ export class AdminService {
         }
 
         let version = payment.version ?? 1;
+
+        if (body.description) {
+          transactions.push((tx) =>
+            tx.payment.update({
+              where: {
+                payment_id: payment.payment_id,
+                version: version,
+              },
+              data: {
+                winnings: {
+                  update: {
+                    data: {
+                      description: body.description,
+                    },
+                  },
+                },
+                updated_at: new Date(),
+                updated_by: userId,
+                version,
+              },
+            }),
+          );
+
+          if (payment.installment_number === 1) {
+            transactions.push((tx) =>
+              this.addAudit(
+                userId,
+                winningsId,
+                `Modified payment description from "${payment.winnings.description}" to "${body.description}"`,
+                body.auditNote,
+                tx,
+              ),
+            );
+          }
+        }
+
         let paymentStatus = payment.payment_status as PaymentStatus;
         // Update Payment Status if requested
         if (body.paymentStatus) {
@@ -108,8 +154,8 @@ export class AdminService {
                 if (sinceRelease < 12) {
                   errMessage = `Cannot put a processing payment back to owed, unless it's been processing for at least 12 hours.  Currently it's only been ${sinceRelease.toFixed(1)} hours`;
                 } else {
-                  transactions.push(
-                    this.markPaymentReleaseAsFailedByWinningsId(winningsId),
+                  transactions.push((tx) =>
+                    this.markPaymentReleaseAsFailedByWinningsId(winningsId, tx),
                   );
                 }
               } else {
@@ -137,17 +183,18 @@ export class AdminService {
             throw new BadRequestException(errMessage);
           }
 
-          transactions.push(
+          transactions.push((tx) =>
             this.updatePaymentStatus(
               userId,
               winningsId,
               payment.payment_id,
               payment.payment_status,
               body.paymentStatus,
-              version,
+              version++,
+              tx,
             ),
           );
-          version += 1;
+
           paymentStatus = body.paymentStatus as PaymentStatus;
 
           if (body.paymentStatus === PaymentStatus.OWED) {
@@ -155,12 +202,13 @@ export class AdminService {
           }
 
           if (payment.installment_number === 1) {
-            transactions.push(
+            transactions.push((tx) =>
               this.addAudit(
                 userId,
                 winningsId,
                 `Modified payment status from ${payment.payment_status} to ${body.paymentStatus}`,
                 body.auditNote,
+                tx,
               ),
             );
           }
@@ -186,24 +234,25 @@ export class AdminService {
             );
           }
 
-          transactions.push(
+          transactions.push((tx) =>
             this.updateReleaseDate(
               userId,
               winningsId,
               payment.payment_id,
               newReleaseDate,
-              version,
+              version++,
+              tx,
             ),
           );
-          version += 1;
 
           if (payment.installment_number === 1) {
-            transactions.push(
+            transactions.push((tx) =>
               this.addAudit(
                 userId,
                 winningsId,
                 `Modified release date from ${payment.release_date?.toISOString()} to ${newReleaseDate.toISOString()}`,
                 body.auditNote,
+                tx,
               ),
             );
           }
@@ -218,7 +267,7 @@ export class AdminService {
         ) {
           // ideally we should be maintaining the original split of the payment amount between installments - but we aren't really using splits anymore
           if (payment.installment_number === 1) {
-            transactions.push(
+            transactions.push((tx) =>
               this.updatePaymentAmount(
                 userId,
                 winningsId,
@@ -227,20 +276,22 @@ export class AdminService {
                 body.paymentAmount,
                 body.paymentAmount,
                 version,
+                tx,
               ),
             );
 
-            transactions.push(
+            transactions.push((tx) =>
               this.addAudit(
                 userId,
                 winningsId,
                 // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
                 `Modified payment amount from ${payment.total_amount} to ${body.paymentAmount.toFixed(2)}`,
                 body.auditNote,
+                tx,
               ),
             );
           } else {
-            transactions.push(
+            transactions.push((tx) =>
               this.updatePaymentAmount(
                 userId,
                 winningsId,
@@ -249,15 +300,43 @@ export class AdminService {
                 0,
                 body.paymentAmount,
                 version,
+                tx,
               ),
             );
           }
         }
       });
 
-      if (transactions.length > 0) {
-        await this.prisma.$transaction(transactions);
-      }
+      transactions.push(async () => {
+        const winning = await this.getWinningById(winningsId);
+        if (!winning) {
+          this.logger.error(
+            `Error updating legacy system for winning ${winningsId}. Winning not found!`,
+          );
+          throw new Error(
+            `Error updating legacy system for winning ${winningsId}. Winning not found!`,
+          );
+        }
+
+        const payoutData: AdminPaymentUpdateData = {
+          userId: +winning.winner_id,
+          status: body.paymentStatus,
+          amount: body.paymentAmount,
+          releaseDate: body.releaseDate,
+        };
+
+        await this.tcChallengesService.updateLegacyPayments(
+          winning.external_id as string,
+          payoutData,
+        );
+      });
+
+      // Run all transaction tasks in a single prisma transaction
+      await this.prisma.$transaction(async (tx) => {
+        for (const transaction of transactions) {
+          await transaction(tx);
+        }
+      });
 
       if (needsReconciliation) {
         const winning = await this.prisma.winnings.findFirst({
@@ -320,8 +399,11 @@ export class AdminService {
     return paymentReleases?.release_date;
   }
 
-  private markPaymentReleaseAsFailedByWinningsId(winningsId: string) {
-    return this.prisma.payment_releases.updateMany({
+  private markPaymentReleaseAsFailedByWinningsId(
+    winningsId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    return (tx ?? this.prisma).payment_releases.updateMany({
       where: {
         payment_release_associations: {
           some: {
@@ -346,16 +428,22 @@ export class AdminService {
     oldPaymentStatus: string | null,
     newPaymentStatus: PaymentStatus,
     currentVersion: number,
+    tx?: Prisma.TransactionClient,
   ) {
     let setDatePaidNull = false;
     if (
-      (oldPaymentStatus === PaymentStatus.PAID ||
-        oldPaymentStatus === PaymentStatus.PROCESSING) &&
+      [
+        PaymentStatus.PAID,
+        PaymentStatus.PROCESSING,
+        PaymentStatus.RETURNED,
+        PaymentStatus.FAILED,
+      ].includes(oldPaymentStatus as PaymentStatus) &&
       newPaymentStatus === PaymentStatus.OWED
     ) {
       setDatePaidNull = true;
     }
-    return this.prisma.payment.update({
+
+    return (tx ?? this.prisma).payment.update({
       where: {
         payment_id: paymentId,
         winnings_id: winningsId,
@@ -376,8 +464,9 @@ export class AdminService {
     winningsId: string,
     action: string,
     auditNote?: string,
+    tx?: Prisma.TransactionClient,
   ) {
-    return this.prisma.audit.create({
+    return (tx ?? this.prisma).audit.create({
       data: {
         user_id: userId,
         winnings_id: winningsId,
@@ -393,8 +482,9 @@ export class AdminService {
     paymentId: string,
     newReleaseDate: Date,
     currentVersion: number,
+    tx?: Prisma.TransactionClient,
   ) {
-    return this.prisma.payment.update({
+    return (tx ?? this.prisma).payment.update({
       where: {
         payment_id: paymentId,
         winnings_id: winningsId,
@@ -424,8 +514,9 @@ export class AdminService {
     grossAmount: number,
     totalAmount: number,
     currentVersion: number,
+    tx?: Prisma.TransactionClient,
   ) {
-    return this.prisma.payment.update({
+    return (tx ?? this.prisma).payment.update({
       where: {
         payment_id: paymentId,
         winnings_id: winningsId,
@@ -458,17 +549,19 @@ export class AdminService {
    */
   async getWinningAudit(
     winningId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResponseDto<WinningAuditDto[]>> {
     const result = new ResponseDto<WinningAuditDto[]>();
 
     try {
-      const audits = await this.prisma.audit.findMany({
+      const audits = await (tx ?? this.prisma).audit.findMany({
         where: {
           winnings_id: {
             equals: winningId,
           },
         },
         take: 1000,
+        orderBy: { created_at: 'desc' },
       });
 
       result.data = audits.map((item) => ({
@@ -498,11 +591,14 @@ export class AdminService {
    */
   async getWinningAuditPayout(
     winningId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<ResponseDto<AuditPayoutDto[]>> {
     const result = new ResponseDto<AuditPayoutDto[]>();
 
     try {
-      const paymentReleases = await this.prisma.payment_releases.findMany({
+      const paymentReleases = await (
+        tx ?? this.prisma
+      ).payment_releases.findMany({
         where: {
           payment_release_associations: {
             some: {

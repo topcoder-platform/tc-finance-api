@@ -1,12 +1,12 @@
 import {
   Injectable,
-  Logger,
   NestMiddleware,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { ENV_CONFIG } from 'src/config';
 import { getSigningKey } from '../jwt';
+import { Logger } from 'src/shared/global';
 
 const logger = new Logger(`Auth/TokenValidatorMiddleware`);
 

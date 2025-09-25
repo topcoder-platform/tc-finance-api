@@ -4,10 +4,17 @@ import { WithdrawalController } from './withdrawal.controller';
 import { WithdrawalService } from './withdrawal.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
+import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
+import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
 
 @Module({
-  imports: [PaymentsModule],
+  imports: [PaymentsModule, TopcoderModule],
   controllers: [WithdrawalController],
-  providers: [WithdrawalService, TaxFormRepository, PaymentMethodRepository],
+  providers: [
+    WithdrawalService,
+    TaxFormRepository,
+    PaymentMethodRepository,
+    IdentityVerificationRepository,
+  ],
 })
 export class WithdrawalModule {}

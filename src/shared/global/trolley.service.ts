@@ -2,8 +2,9 @@ import url from 'url';
 import crypto from 'crypto';
 import trolley from 'trolleyhq';
 import { pick } from 'lodash';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
 
 const TROLLEY_ACCESS_KEY = ENV_CONFIG.TROLLEY_ACCESS_KEY;
 const TROLLEY_SECRET_KEY = ENV_CONFIG.TROLLEY_SECRET_KEY;
@@ -13,6 +14,7 @@ export interface RecipientTaxDetails {
   primaryCurrency: string | null;
   estimatedFees: string | null;
   taxWithholdingPercentage: string | null;
+  payoutMethod: 'paypal' | 'bank-transfer';
 }
 
 const client = trolley({
@@ -70,7 +72,7 @@ export class TrolleyService {
       hideEmail: 'false',
       roEmail: 'true',
       locale: 'en',
-      products: 'pay,tax',
+      products: 'pay,tax,trust',
     } as Record<string, string>)
       .toString()
       .replace(/\+/g, '%20');
@@ -116,8 +118,8 @@ export class TrolleyService {
       recipient: {
         id: recipientId,
       },
-      sourceAmount: totalAmount.toString(),
-      sourceCurrency: 'USD',
+      amount: totalAmount.toFixed(2),
+      currency: 'USD',
       memo: paymentMemo ?? 'Topcoder payment',
       externalId: transactionId,
     };
@@ -176,21 +178,30 @@ export class TrolleyService {
     }
   }
 
-  async getRecipientTaxDetails(
+  async getRecipientPayoutDetails(
     recipientId: string,
   ): Promise<RecipientTaxDetails | void> {
     try {
       const recipient = await this.client.recipient.find(recipientId);
-      return pick(recipient, [
+      const payoutDetails = pick(recipient, [
         'estimatedFees',
         'primaryCurrency',
         'taxWithholdingPercentage',
-      ]) as RecipientTaxDetails;
+        'payoutMethod',
+      ]);
+
+      if ((recipient as any).payoutMethod === 'paypal') {
+        payoutDetails.estimatedFees =
+          (recipient as any).gatewayFees?.paypal?.value ?? 0;
+      }
+
+      return payoutDetails as RecipientTaxDetails;
     } catch (error) {
       this.logger.error(
-        'Failed to load recipient tax details from trolley!',
+        'Failed to load recipient tax & payout details from trolley!',
         error,
       );
+      return {} as RecipientTaxDetails;
     }
   }
 }
