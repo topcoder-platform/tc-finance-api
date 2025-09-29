@@ -23,6 +23,9 @@ export class ConfigEnv {
   TOPCODER_API_BASE_URL!: string;
 
   @IsString()
+  TOPCODER_API_V5_BASE_URL!: string;
+
+  @IsString()
   AUTH0_M2M_AUDIENCE!: string;
 
   @IsString()

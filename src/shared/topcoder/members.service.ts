@@ -5,7 +5,7 @@ import { TopcoderM2MService } from './topcoder-m2m.service';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 
-const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
+const { TOPCODER_API_BASE_URL: TC_API_BASE } = ENV_CONFIG;
 
 @Injectable()
 export class TopcoderMembersService {
@@ -27,7 +27,7 @@ export class TopcoderMembersService {
 
     // Split the unique user IDs into chunks of 100 to comply with API request limits
     const requests = chunk(uniqUserIds, 30).map((chunk) => {
-      const requestUrl = `${TOPCODER_API_BASE_URL}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
+      const requestUrl = `${TC_API_BASE}/members?${chunk.map((id) => `userIds[]=${id}`).join('&')}&fields=handle,userId`;
       return fetch(requestUrl).then(
         async (response) =>
           (await response.json()) as { handle: string; userId: string },
@@ -77,7 +77,7 @@ export class TopcoderMembersService {
         e.message ?? e,
       );
     }
-    const requestUrl = `${TOPCODER_API_BASE_URL}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
+    const requestUrl = `${TC_API_BASE}/members/${handle}${fields ? `?fields=${fields.join(',')}` : ''}`;
 
     try {
       const response = await fetch(requestUrl, {
