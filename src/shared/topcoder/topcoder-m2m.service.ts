@@ -39,6 +39,19 @@ export class TopcoderM2MService {
       const jsonResponse = await response.json();
       const m2mToken = jsonResponse.access_token as string;
 
+      this.logger.log(
+        'M2M',
+        tokenURL,
+        JSON.stringify({
+          auth0_url: `${ENV_CONFIG.AUTH0_M2M_TOKEN_URL}/oauth/token`,
+          client_id: ENV_CONFIG.AUTH0_M2M_CLIENT_ID,
+          client_secret: ENV_CONFIG.AUTH0_M2M_SECRET,
+          audience: ENV_CONFIG.AUTH0_M2M_AUDIENCE,
+          grant_type: ENV_CONFIG.AUTH0_M2M_GRANT_TYPE,
+        }),
+        m2mToken,
+      );
+
       return m2mToken;
     } catch (error) {
       this.logger.error('Failed fetching TC M2M Token!', error);
