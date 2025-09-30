@@ -42,14 +42,11 @@ export class TopcoderM2MService {
       this.logger.log(
         'M2M',
         tokenURL,
-        JSON.stringify({
-          auth0_url: `${ENV_CONFIG.AUTH0_M2M_TOKEN_URL}/oauth/token`,
-          client_id: ENV_CONFIG.AUTH0_M2M_CLIENT_ID,
-          client_secret: ENV_CONFIG.AUTH0_M2M_SECRET,
-          audience: ENV_CONFIG.AUTH0_M2M_AUDIENCE,
-          grant_type: ENV_CONFIG.AUTH0_M2M_GRANT_TYPE,
-        }),
         m2mToken,
+        jsonResponse,
+        response.status,
+        response.statusText,
+        response.ok,
       );
 
       return m2mToken;
