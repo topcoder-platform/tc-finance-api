@@ -36,18 +36,26 @@ export class TopcoderM2MService {
         }),
       });
 
+      if (!response.ok) {
+        let jsonError: any;
+        try {
+          jsonError = await response.json();
+        } catch {
+          jsonError = null;
+        }
+
+        this.logger.error(
+          'Failed to fetch M2M token',
+          tokenURL,
+          response.status,
+          response.statusText,
+          jsonError,
+        );
+        return undefined;
+      }
+
       const jsonResponse = await response.json();
       const m2mToken = jsonResponse.access_token as string;
-
-      this.logger.log(
-        'M2M',
-        tokenURL,
-        m2mToken,
-        jsonResponse,
-        response.status,
-        response.statusText,
-        response.ok,
-      );
 
       return m2mToken;
     } catch (error) {
