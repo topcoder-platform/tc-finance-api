@@ -13,7 +13,7 @@ import {
 export class ConfigEnv {
   @IsString()
   @IsOptional()
-  API_BASE = '/v5/finance';
+  API_BASE = '/v6/finance';
 
   @IsInt()
   @IsOptional()
