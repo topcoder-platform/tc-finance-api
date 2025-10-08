@@ -33,6 +33,7 @@ export class TopcoderM2MService {
           client_secret: ENV_CONFIG.AUTH0_M2M_SECRET,
           audience: ENV_CONFIG.AUTH0_M2M_AUDIENCE,
           grant_type: ENV_CONFIG.AUTH0_M2M_GRANT_TYPE,
+          // fresh_token: true,
         }),
       });
 
@@ -44,5 +45,51 @@ export class TopcoderM2MService {
       this.logger.error('Failed fetching TC M2M Token!', error);
       return undefined;
     }
+  }
+
+  async m2mFetch<T = unknown>(url: string | URL, options = {} as RequestInit) {
+    let m2mToken: string | undefined;
+    try {
+      m2mToken = await this.getToken();
+    } catch (e) {
+      this.logger.error(
+        'Failed to fetch m2m token!',
+        e.message ?? e,
+      );
+    }
+
+    if (!m2mToken) {
+      throw new Error('Failed to fetch m2m token for m2m call!')
+    }
+
+    // Initialize headers, ensuring Authorization is added
+    const headers = new Headers(options.headers || {});
+    headers.set('Authorization', `Bearer ${m2mToken}`);
+
+    if (!headers.get('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    const finalOptions: RequestInit = {
+      ...options,
+      headers,
+    };
+
+    const response = await fetch(url, finalOptions);
+
+    if (!response.ok) {
+      // Optional: You could throw a custom error here
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+
+    // Try to parse JSON if content-type is application/json
+    if (contentType && contentType.includes('application/json')) {
+      return response.json() as Promise<T>;
+    }
+
+    // If not JSON, return text
+    return response.text() as unknown as T;
   }
 }

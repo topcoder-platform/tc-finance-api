@@ -5,7 +5,7 @@ import { TopcoderM2MService } from './topcoder-m2m.service';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 
-const { TOPCODER_API_BASE_URL: TC_API_BASE } = ENV_CONFIG;
+const { TOPCODER_API_V6_BASE_URL: TC_API_BASE } = ENV_CONFIG;
 
 @Injectable()
 export class TopcoderMembersService {
