@@ -46,16 +46,6 @@ export class TopcoderChallengesService {
     payoutData: WithdrawUpdateData | AdminPaymentUpdateData,
   ) {
     const requestData = mapStatus(payoutData);
-
-    let m2mToken: string | undefined;
-    try {
-      m2mToken = await this.m2MService.getToken();
-    } catch (e) {
-      this.logger.error(
-        'Failed to fetch m2m token for fetching member details!',
-        e.message ?? e,
-      );
-    }
     const requestUrl = `${TOPCODER_API_BASE_URL}/challenges/${challengeId}/legacy-payment`;
 
     this.logger.debug(
@@ -63,26 +53,16 @@ export class TopcoderChallengesService {
     );
 
     try {
-      const response = await fetch(requestUrl, {
+      const response = await this.m2MService.m2mFetch(requestUrl, {
         method: 'PATCH',
         body: JSON.stringify(requestData),
-        headers: {
-          Authorization: `Bearer ${m2mToken}`,
-          'Content-Type': 'application/json',
-        },
       });
 
-      const jsonResponse: { [key: string]: string } = await response.json();
-
-      if (response.status > 299) {
-        throw new Error(jsonResponse.message ?? JSON.stringify(jsonResponse));
-      }
-
       this.logger.debug(
-        `Response from updating legacy payment for challenge ${challengeId}: ${JSON.stringify(jsonResponse, null, 2)}`,
+        `Response from updating legacy payment for challenge ${challengeId}: ${JSON.stringify(response, null, 2)}`,
       );
 
-      return jsonResponse;
+      return response;
     } catch (e) {
       this.logger.error(
         `Failed to update legacy payment for challenge ${challengeId}! Error: ${e?.message ?? e}`,
