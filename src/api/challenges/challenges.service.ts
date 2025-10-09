@@ -82,26 +82,31 @@ export class ChallengesService {
     }[];
 
     const { prizeSets, winners, reviewers } = challenge;
+    const isCancelledFailedReview =
+      challenge.status.toLowerCase() ===
+      ChallengeStatuses.CancelledFailedReview.toLowerCase();
 
     // generate placement payments
     const placementPrizes = sortBy(find(prizeSets, {type: 'PLACEMENT'})?.prizes, 'value');
-    if (placementPrizes.length < winners.length) {
-      throw new Error('Task has incorrect number of placement prizes! There are more winners than prizes!');
-    }
+    if (!isCancelledFailedReview) {
+      if (placementPrizes.length < winners.length) {
+        throw new Error('Task has incorrect number of placement prizes! There are more winners than prizes!');
+      }
 
-    winners.forEach((winner) => {
-      payments.push({
-        handle: winner.handle,
-        amount: placementPrizes[winner.placement - 1].value,
-        userId: winner.userId.toString(),
-        type: challenge.task.isTask ? WinningsCategory.TASK_PAYMENT : WinningsCategory.CONTEST_PAYMENT,
-        description: challenge.type === 'Task' ? challenge.name : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+      winners.forEach((winner) => {
+        payments.push({
+          handle: winner.handle,
+          amount: placementPrizes[winner.placement - 1].value,
+          userId: winner.userId.toString(),
+          type: challenge.task.isTask ? WinningsCategory.TASK_PAYMENT : WinningsCategory.CONTEST_PAYMENT,
+          description: challenge.type === 'Task' ? challenge.name : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+        });
       });
-    });
+    }
 
     // generate copilot payments
     const copilotPrizes = find(prizeSets, {type: 'COPILOT'})?.prizes ?? [];
-    if (copilotPrizes.length) {
+    if (copilotPrizes.length && !isCancelledFailedReview) {
       const copilots = challengeResources.copilot;
 
       if (!copilots?.length) {
@@ -119,7 +124,7 @@ export class ChallengesService {
     }
 
     // generate reviewer payments
-    const firstPlacePrize = placementPrizes[0].value;
+    const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
     const challengeReviewer = find(reviewers, { isMemberReview: true });
 
     if (challengeReviewer && challengeResources.reviewer) {
@@ -164,8 +169,13 @@ export class ChallengesService {
       throw new Error('Challenge not found!');
     }
 
-    if (challenge.status.toLowerCase() !== ChallengeStatuses.Completed.toLowerCase()) {
-      throw new Error('Challenge isn\'t completed yet!');
+    const allowedStatuses = [
+      ChallengeStatuses.Completed.toLowerCase(),
+      ChallengeStatuses.CancelledFailedReview.toLowerCase(),
+    ];
+
+    if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
+      throw new Error('Challenge isn\'t in a payable status!');
     }
 
     const existingPayments = (await this.winningsRepo.searchWinnings({ externalIds: [challengeId] }))?.data?.winnings;
