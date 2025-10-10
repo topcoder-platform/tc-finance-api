@@ -1,4 +1,12 @@
-import { includes, isEmpty, sortBy, find, camelCase, groupBy } from 'lodash';
+import {
+  includes,
+  isEmpty,
+  sortBy,
+  find,
+  camelCase,
+  groupBy,
+  orderBy,
+} from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
@@ -11,18 +19,14 @@ import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 
 const placeToOrdinal = (place: number) => {
-  if (place === 1) return "1st";
-  if (place === 2) return "2nd";
-  if (place === 3) return "3rd";
+  if (place === 1) return '1st';
+  if (place === 2) return '2nd';
+  if (place === 3) return '3rd';
 
   return `${place}th`;
-}
+};
 
-const {
-  TOPCODER_API_V6_BASE_URL,
-  TGBillingAccounts,
-} = ENV_CONFIG;
-
+const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
 
 @Injectable()
 export class ChallengesService {
@@ -42,30 +46,45 @@ export class ChallengesService {
       const challenge = await this.m2MService.m2mFetch<Challenge>(requestUrl);
       this.logger.log(JSON.stringify(challenge, null, 2));
       return challenge;
-    } catch(e) {
-      this.logger.error(`Challenge ${challengeId} details couldn't be fetched!`, e);
+    } catch (e) {
+      this.logger.error(
+        `Challenge ${challengeId} details couldn't be fetched!`,
+        e,
+      );
     }
   }
 
   async getChallengeResources(challengeId: string) {
     try {
-      const resources = await this.m2MService.m2mFetch<ChallengeResource[]>(`${TOPCODER_API_V6_BASE_URL}/resources?challengeId=${challengeId}`);
-      const resourceRoles = await this.m2MService.m2mFetch<ResourceRole[]>(`${TOPCODER_API_V6_BASE_URL}/resource-roles`);
+      const resources = await this.m2MService.m2mFetch<ChallengeResource[]>(
+        `${TOPCODER_API_V6_BASE_URL}/resources?challengeId=${challengeId}`,
+      );
+      const resourceRoles = await this.m2MService.m2mFetch<ResourceRole[]>(
+        `${TOPCODER_API_V6_BASE_URL}/resource-roles`,
+      );
 
-      const rolesMap = resourceRoles.reduce((map, role) => {
-        map[role.id] = camelCase(role.name);
-        return map;
-      }, {} as {[key: string]: string});
+      const rolesMap = resourceRoles.reduce(
+        (map, role) => {
+          map[role.id] = camelCase(role.name);
+          return map;
+        },
+        {} as { [key: string]: string },
+      );
 
-      return groupBy(resources, (r) => rolesMap[r.roleId]) as {[role: string]: ChallengeResource[]};
-    } catch(e) {
-      this.logger.error(`Challenge resources for challenge ${challengeId} couldn\'t be fetched!`, e);
+      return groupBy(resources, (r) => rolesMap[r.roleId]) as {
+        [role: string]: ChallengeResource[];
+      };
+    } catch (e) {
+      this.logger.error(
+        `Challenge resources for challenge ${challengeId} couldn\'t be fetched!`,
+        e,
+      );
     }
   }
 
   async getChallengePayments(challenge: Challenge) {
     this.logger.log(
-      `Generating payments for challenge ${challenge.name} (${challenge.id}).`
+      `Generating payments for challenge ${challenge.name} (${challenge.id}).`,
     );
     const challengeResources = await this.getChallengeResources(challenge.id);
 
@@ -87,10 +106,17 @@ export class ChallengesService {
       ChallengeStatuses.CancelledFailedReview.toLowerCase();
 
     // generate placement payments
-    const placementPrizes = sortBy(find(prizeSets, {type: 'PLACEMENT'})?.prizes, 'value');
+    const placementPrizes = orderBy(
+      find(prizeSets, { type: 'PLACEMENT' })?.prizes,
+      'value',
+      'desc',
+    );
+
     if (!isCancelledFailedReview) {
       if (placementPrizes.length < winners.length) {
-        throw new Error('Task has incorrect number of placement prizes! There are more winners than prizes!');
+        throw new Error(
+          'Task has incorrect number of placement prizes! There are more winners than prizes!',
+        );
       }
 
       winners.forEach((winner) => {
@@ -98,14 +124,19 @@ export class ChallengesService {
           handle: winner.handle,
           amount: placementPrizes[winner.placement - 1].value,
           userId: winner.userId.toString(),
-          type: challenge.task.isTask ? WinningsCategory.TASK_PAYMENT : WinningsCategory.CONTEST_PAYMENT,
-          description: challenge.type === 'Task' ? challenge.name : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+          type: challenge.task.isTask
+            ? WinningsCategory.TASK_PAYMENT
+            : WinningsCategory.CONTEST_PAYMENT,
+          description:
+            challenge.type === 'Task'
+              ? challenge.name
+              : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
         });
       });
     }
 
     // generate copilot payments
-    const copilotPrizes = find(prizeSets, {type: 'COPILOT'})?.prizes ?? [];
+    const copilotPrizes = find(prizeSets, { type: 'COPILOT' })?.prizes ?? [];
     if (copilotPrizes.length && !isCancelledFailedReview) {
       const copilots = challengeResources.copilot;
 
@@ -119,8 +150,8 @@ export class ChallengesService {
           amount: copilotPrizes[0].value,
           userId: copilot.memberId.toString(),
           type: WinningsCategory.COPILOT_PAYMENT,
-        })
-      })
+        });
+      });
     }
 
     // generate reviewer payments
@@ -132,32 +163,45 @@ export class ChallengesService {
         payments.push({
           handle: reviewer.memberHandle,
           userId: reviewer.memberId.toString(),
-          amount: Math.round((challengeReviewer.basePayment ?? 0) + ((challengeReviewer.incrementalPayment ?? 0) * challenge.numOfSubmissions) * firstPlacePrize),
+          amount: Math.round(
+            (challengeReviewer.basePayment ?? 0) +
+              ((challengeReviewer.incrementalPayment ?? 0) / 100) *
+                challenge.numOfSubmissions *
+                firstPlacePrize,
+          ),
           type: WinningsCategory.REVIEW_BOARD_PAYMENT,
-        })
+        });
       });
     }
 
-    const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalAmount = payments.reduce(
+      (sum, payment) => sum + payment.amount,
+      0,
+    );
     return payments.map((payment) => ({
       winnerId: payment.userId.toString(),
       type: WinningsType.PAYMENT,
-      origin: "Topcoder",
+      origin: 'Topcoder',
       category: payment.type,
       title: challenge.name,
       description: payment.description || challenge.name,
       externalId: challenge.id,
-      details: [{
-        totalAmount: payment.amount,
-        grossAmount: payment.amount,
-        installmentNumber: 1,
-        currency: "USD",
-        billingAccount: `${challenge.billing.billingAccountId}`,
-        challengeFee: totalAmount * challenge.billing.markup,
-      }],
+      details: [
+        {
+          totalAmount: payment.amount,
+          grossAmount: payment.amount,
+          installmentNumber: 1,
+          currency: 'USD',
+          billingAccount: `${challenge.billing.billingAccountId}`,
+          challengeFee: totalAmount * challenge.billing.markup,
+        },
+      ],
       attributes: {
         billingAccountId: challenge.billing.billingAccountId,
-        payroll: includes(TGBillingAccounts, challenge.billing.billingAccountId),
+        payroll: includes(
+          TGBillingAccounts,
+          challenge.billing.billingAccountId,
+        ),
       },
     }));
   }
@@ -175,17 +219,26 @@ export class ChallengesService {
     ];
 
     if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
-      throw new Error('Challenge isn\'t in a payable status!');
+      throw new Error("Challenge isn't in a payable status!");
     }
 
-    const existingPayments = (await this.winningsRepo.searchWinnings({ externalIds: [challengeId] }))?.data?.winnings;
+    const existingPayments = (
+      await this.winningsRepo.searchWinnings({ externalIds: [challengeId] })
+    )?.data?.winnings;
     if (existingPayments?.length > 0) {
-      this.logger.log(`Payments already exist for challenge ${challengeId}, skipping payment generation`);
-      throw new Error(`Payments already exist for challenge ${challengeId}, skipping payment generation`);
+      this.logger.log(
+        `Payments already exist for challenge ${challengeId}, skipping payment generation`,
+      );
+      throw new Error(
+        `Payments already exist for challenge ${challengeId}, skipping payment generation`,
+      );
     }
 
     const payments = await this.getChallengePayments(challenge);
-    const totalAmount = payments.reduce((sum, payment) => sum + payment.details[0].totalAmount, 0);
+    const totalAmount = payments.reduce(
+      (sum, payment) => sum + payment.details[0].totalAmount,
+      0,
+    );
 
     const baValidation = {
       challengeId: challenge.id,
@@ -199,9 +252,13 @@ export class ChallengesService {
       baValidation.markup = challenge.billing.clientBillingRate;
     }
 
-    await Promise.all(payments.map(p => this.winningsService.createWinningWithPayments(p,userId)));
+    await Promise.all(
+      payments.map((p) =>
+        this.winningsService.createWinningWithPayments(p, userId),
+      ),
+    );
 
-    this.logger.log("Task Completed. locking consumed budget", baValidation);
+    this.logger.log('Task Completed. locking consumed budget', baValidation);
     await this.baService.lockConsumeAmount(baValidation);
   }
 }
