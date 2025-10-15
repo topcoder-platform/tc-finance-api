@@ -1,12 +1,4 @@
-import {
-  includes,
-  isEmpty,
-  sortBy,
-  find,
-  camelCase,
-  groupBy,
-  orderBy,
-} from 'lodash';
+import { includes, isEmpty, find, camelCase, groupBy, orderBy } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
@@ -76,7 +68,7 @@ export class ChallengesService {
       };
     } catch (e) {
       this.logger.error(
-        `Challenge resources for challenge ${challengeId} couldn\'t be fetched!`,
+        `Challenge resources for challenge ${challengeId} couldn't be fetched!`,
         e,
       );
     }
@@ -164,10 +156,11 @@ export class ChallengesService {
           handle: reviewer.memberHandle,
           userId: reviewer.memberId.toString(),
           amount: Math.round(
-            (challengeReviewer.basePayment ?? 0) +
-              ((challengeReviewer.incrementalPayment ?? 0) / 100) *
-                challenge.numOfSubmissions *
-                firstPlacePrize,
+            (challengeReviewer.fixedAmount ?? 0) +
+              (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
+              (challengeReviewer.incrementalCoefficient ?? 0) *
+                firstPlacePrize *
+                challenge.numOfSubmissions,
           ),
           type: WinningsCategory.REVIEW_BOARD_PAYMENT,
         });
@@ -200,7 +193,7 @@ export class ChallengesService {
         billingAccountId: challenge.billing.billingAccountId,
         payroll: includes(
           TGBillingAccounts,
-          challenge.billing.billingAccountId,
+          +challenge.billing.billingAccountId,
         ),
       },
     }));
