@@ -126,8 +126,9 @@ export interface Reviewer {
   scorecardId: string;
   isMemberReview: boolean;
   memberReviewerCount?: number;
-  basePayment?: number;
-  incrementalPayment?: number;
+  baseCoefficient?: number;
+  incrementalCoefficient?: number;
+  fixedAmount?: number;
   isAIReviewer: boolean;
 }
 
