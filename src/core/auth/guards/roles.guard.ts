@@ -17,6 +17,11 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
+    const tokenIsM2M = Boolean(request.m2mTokenScope);
+    if (tokenIsM2M) {
+      return true;
+    }
+
     const { auth0User = {} } = request;
     const userRoles = Object.keys(auth0User).reduce((roles, key) => {
       if (key.match(/claims\/roles$/gi)) {
