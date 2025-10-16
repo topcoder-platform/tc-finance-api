@@ -17,7 +17,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const { auth0User } = request;
+    const { auth0User = {} } = request;
     const userRoles = Object.keys(auth0User).reduce((roles, key) => {
       if (key.match(/claims\/roles$/gi)) {
         return auth0User[key] as string[];
