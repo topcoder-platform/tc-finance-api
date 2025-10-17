@@ -2,7 +2,12 @@ import { includes, isEmpty, find, camelCase, groupBy, orderBy } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
-import { Challenge, ChallengeResource, ResourceRole } from './models';
+import {
+  Challenge,
+  ChallengeResource,
+  ChallengeSubmission,
+  ResourceRole,
+} from './models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
@@ -36,11 +41,28 @@ export class ChallengesService {
 
     try {
       const challenge = await this.m2MService.m2mFetch<Challenge>(requestUrl);
-      this.logger.log(JSON.stringify(challenge, null, 2));
       return challenge;
     } catch (e) {
       this.logger.error(
         `Challenge ${challengeId} details couldn't be fetched!`,
+        e,
+      );
+    }
+  }
+
+  async getChallengeSubmissionsCount(challengeId: string) {
+    const requestUrl = `${TOPCODER_API_V6_BASE_URL}/submissions?challengeId=${challengeId}&perPage=9999`;
+
+    try {
+      const submissions =
+        await this.m2MService.m2mFetch<ChallengeSubmission[]>(requestUrl);
+      const uniqueSubmissions = Object.fromEntries(
+        submissions.map((s) => [s.memberId, s]),
+      );
+      return Object.keys(uniqueSubmissions).length;
+    } catch (e) {
+      this.logger.error(
+        `Challenge submissions couldn't be fetched for challenge ${challengeId}!`,
         e,
       );
     }
@@ -149,6 +171,8 @@ export class ChallengesService {
     // generate reviewer payments
     const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
     const challengeReviewer = find(reviewers, { isMemberReview: true });
+    const numOfSubmissions =
+      (await this.getChallengeSubmissionsCount(challenge.id)) ?? 1;
 
     if (challengeReviewer && challengeResources.reviewer) {
       challengeResources.reviewer?.forEach((reviewer) => {
@@ -160,7 +184,7 @@ export class ChallengesService {
               (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
               (challengeReviewer.incrementalCoefficient ?? 0) *
                 firstPlacePrize *
-                challenge.numOfSubmissions,
+                numOfSubmissions,
           ),
           type: WinningsCategory.REVIEW_BOARD_PAYMENT,
         });
@@ -246,9 +270,16 @@ export class ChallengesService {
     }
 
     await Promise.all(
-      payments.map((p) =>
-        this.winningsService.createWinningWithPayments(p, userId),
-      ),
+      payments.map(async (p) => {
+        try {
+          await this.winningsService.createWinningWithPayments(p, userId);
+        } catch (e) {
+          this.logger.log(
+            `Failed to create winnings payment for user ${p.winnerId}!`,
+            e,
+          );
+        }
+      }),
     );
 
     this.logger.log('Task Completed. locking consumed budget', baValidation);
