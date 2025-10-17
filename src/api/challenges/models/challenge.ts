@@ -142,3 +142,9 @@ export interface ResourceRole {
   id: string;
   name: string;
 }
+
+export interface ChallengeSubmission {
+  id: string;
+  memberId: string;
+  type: 'CONTEST_SUBMISSION';
+}
