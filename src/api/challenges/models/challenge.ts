@@ -143,8 +143,19 @@ export interface ResourceRole {
   name: string;
 }
 
-export interface ChallengeSubmission {
+export interface ChallengeReview {
   id: string;
-  memberId: string;
-  type: 'CONTEST_SUBMISSION';
+  resourceId: string;
+  phaseId: string;
+  submissionId: string;
+  scorecardId: string;
+  committed: boolean;
+  finalScore: number;
+  initialScore: number;
+  typeId: string;
+  status: string;
+  reviewDate: string;
+  reviewerHandle: string;
+  phaseName: string;
+  submitterHandle: string;
 }

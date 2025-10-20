@@ -56,8 +56,8 @@ export class WinningsRepository {
   private getWinningsQueryFilters(
     type?: string,
     status?: string,
-    winnerIds?: string[] | undefined,
-    externalIds?: string[] | undefined,
+    winnerIds?: string[],
+    externalIds?: string[],
     date?: DateFilterType,
   ): Prisma.winningsFindManyArgs['where'] {
     return {
