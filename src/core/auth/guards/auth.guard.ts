@@ -23,7 +23,7 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = context.switchToHttp().getRequest();
-    const routeM2MOnly = this.reflector.getAllAndOverride<boolean>(IS_M2M_KEY, [
+    const isM2M = this.reflector.getAllAndOverride<boolean>(IS_M2M_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -36,45 +36,24 @@ export class AuthGuard implements CanActivate {
       };
     }
 
-    const tokenIsM2M = Boolean(req.m2mTokenScope);
-
-    // If route explicitly requires M2M, enforce M2M + scope
-    if (routeM2MOnly) {
-      if (!req.idTokenVerified || !tokenIsM2M) {
-        throw new UnauthorizedException();
-      }
-
-      const allowedM2mScopes = this.reflector.getAllAndOverride<M2mScope[]>(
-        SCOPES_KEY,
-        [context.getHandler(), context.getClass()],
-      );
-      const reqScopes = String(req.m2mTokenScope || '').split(' ');
-      return reqScopes.some((s) => allowedM2mScopes.includes(s as M2mScope));
-    }
-
-    // Hybrid (default) route behavior: allow either
-    // - Verified user JWT (email present), OR
-    // - Verified M2M token but only if scope matches when scopes are declared on the route
-
-    // User JWT branch
-    if (!tokenIsM2M) {
+    // Regular authentication - check that we have user's email and have verified the id token
+    if (!isM2M) {
       return Boolean(req.email && req.idTokenVerified);
     }
 
-    // M2M branch on non-M2M-only route: require declared scopes, otherwise deny
-    if (!req.idTokenVerified) {
+    // M2M authentication - check scopes
+    if (!req.idTokenVerified || !req.m2mTokenScope)
       throw new UnauthorizedException();
-    }
 
     const allowedM2mScopes = this.reflector.getAllAndOverride<M2mScope[]>(
       SCOPES_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (!allowedM2mScopes || allowedM2mScopes.length === 0) {
-      // No scopes declared for this route, do not allow M2M by default
-      return false;
+
+    const reqScopes = req.m2mTokenScope.split(' ');
+    if (reqScopes.some((reqScope) => allowedM2mScopes.includes(reqScope))) {
+      return true;
     }
-    const reqScopes = String(req.m2mTokenScope || '').split(' ');
-    return reqScopes.some((s) => allowedM2mScopes.includes(s as M2mScope));
+    return false;
   }
 }
