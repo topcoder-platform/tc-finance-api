@@ -1,11 +1,11 @@
 import { includes, isEmpty, find, camelCase, groupBy, orderBy } from 'lodash';
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 import {
   Challenge,
   ChallengeResource,
-  ChallengeSubmission,
+  ChallengeReview,
   ResourceRole,
 } from './models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
@@ -18,6 +18,15 @@ import {
   WinningsType,
 } from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
+import { PrismaService } from 'src/shared/global/prisma.service';
+
+interface PaymentPayload {
+  handle: string;
+  amount: number;
+  userId: string;
+  type: WinningsCategory;
+  description?: string;
+}
 
 const placeToOrdinal = (place: number) => {
   if (place === 1) return '1st';
@@ -34,6 +43,7 @@ export class ChallengesService {
   private readonly logger = new Logger(ChallengesService.name);
 
   constructor(
+    private readonly prisma: PrismaService,
     private readonly m2MService: TopcoderM2MService,
     private readonly baService: BillingAccountsService,
     private readonly winningsService: WinningsService,
@@ -54,20 +64,19 @@ export class ChallengesService {
     }
   }
 
-  async getChallengeSubmissionsCount(challengeId: string) {
-    const requestUrl = `${TC_API_BASE}/submissions?challengeId=${challengeId}&perPage=9999`;
+  async getChallengeReviews(challengeId: string) {
+    const requestUrl = `${TC_API_BASE}/reviews?challengeId=${challengeId}&status=COMPLETED&thin=true&perPage=9999`;
 
     try {
-      const submissions =
-        await this.m2MService.m2mFetch<ChallengeSubmission[]>(requestUrl);
-      const uniqueSubmissions = Object.fromEntries(
-        submissions.map((s) => [s.memberId, s]),
-      );
-      return Object.keys(uniqueSubmissions).length;
+      const resposne = await this.m2MService.m2mFetch<{
+        data: ChallengeReview[];
+      }>(requestUrl);
+      return resposne.data;
     } catch (e) {
       this.logger.error(
-        `Challenge submissions couldn't be fetched for challenge ${challengeId}!`,
-        e,
+        `Challenge reviews couldn't be fetched for challenge ${challengeId}!`,
+        e.message,
+        e.status,
       );
     }
   }
@@ -100,28 +109,16 @@ export class ChallengesService {
     }
   }
 
-  async getChallengePayments(challenge: Challenge) {
-    this.logger.log(
-      `Generating payments for challenge ${challenge.name} (${challenge.id}).`,
-    );
-    const challengeResources = await this.getChallengeResources(challenge.id);
+  generateWinnersPayments(challenge: Challenge): PaymentPayload[] {
+    const { prizeSets, winners } = challenge;
 
-    if (!challengeResources || isEmpty(challengeResources)) {
-      throw new Error('Missing challenge resources!');
-    }
-
-    const payments = [] as {
-      handle: string;
-      amount: number;
-      userId: string;
-      type: WinningsCategory;
-      description?: string;
-    }[];
-
-    const { prizeSets, winners, reviewers } = challenge;
     const isCancelledFailedReview =
       challenge.status.toLowerCase() ===
       ChallengeStatuses.CancelledFailedReview.toLowerCase();
+
+    if (isCancelledFailedReview) {
+      return [];
+    }
 
     // generate placement payments
     const placementPrizes = orderBy(
@@ -130,70 +127,123 @@ export class ChallengesService {
       'desc',
     );
 
-    if (!isCancelledFailedReview) {
-      if (placementPrizes.length < winners.length) {
-        throw new Error(
-          'Task has incorrect number of placement prizes! There are more winners than prizes!',
-        );
-      }
-
-      winners.forEach((winner) => {
-        payments.push({
-          handle: winner.handle,
-          amount: placementPrizes[winner.placement - 1].value,
-          userId: winner.userId.toString(),
-          type: challenge.task.isTask
-            ? WinningsCategory.TASK_PAYMENT
-            : WinningsCategory.CONTEST_PAYMENT,
-          description:
-            challenge.type === 'Task'
-              ? challenge.name
-              : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
-        });
-      });
+    if (placementPrizes.length < winners.length) {
+      throw new Error(
+        'Task has incorrect number of placement prizes! There are more winners than prizes!',
+      );
     }
 
-    // generate copilot payments
-    const copilotPrizes = find(prizeSets, { type: 'COPILOT' })?.prizes ?? [];
-    if (copilotPrizes.length && !isCancelledFailedReview) {
-      const copilots = challengeResources.copilot;
+    return winners.map((winner) => ({
+      handle: winner.handle,
+      amount: placementPrizes[winner.placement - 1].value,
+      userId: winner.userId.toString(),
+      type: challenge.task.isTask
+        ? WinningsCategory.TASK_PAYMENT
+        : WinningsCategory.CONTEST_PAYMENT,
+      description:
+        challenge.type === 'Task'
+          ? challenge.name
+          : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+    }));
+  }
 
-      if (!copilots?.length) {
-        throw new Error('Task has a copilot prize but no copilot assigned!');
-      }
+  generateCopilotPayment(
+    challenge: Challenge,
+    copilots: ChallengeResource[],
+  ): PaymentPayload[] {
+    const isCancelledFailedReview =
+      challenge.status.toLowerCase() ===
+      ChallengeStatuses.CancelledFailedReview.toLowerCase();
 
-      copilots.forEach((copilot) => {
-        payments.push({
-          handle: copilot.memberHandle,
-          amount: copilotPrizes[0].value,
-          userId: copilot.memberId.toString(),
-          type: WinningsCategory.COPILOT_PAYMENT,
-        });
-      });
+    const copilotPrizes =
+      find(challenge.prizeSets, { type: 'COPILOT' })?.prizes ?? [];
+
+    if (!copilotPrizes.length || isCancelledFailedReview) {
+      return [];
     }
+
+    if (!copilots?.length) {
+      throw new Error('Task has a copilot prize but no copilot assigned!');
+    }
+
+    return copilots.map((copilot) => ({
+      handle: copilot.memberHandle,
+      amount: copilotPrizes[0].value,
+      userId: copilot.memberId.toString(),
+      type: WinningsCategory.COPILOT_PAYMENT,
+    }));
+  }
+
+  async generateReviewersPayments(
+    challenge: Challenge,
+    reviewers: ChallengeResource[],
+  ): Promise<PaymentPayload[]> {
+    // generate placement payments
+    const placementPrizes = orderBy(
+      find(challenge.prizeSets, { type: 'PLACEMENT' })?.prizes,
+      'value',
+      'desc',
+    );
 
     // generate reviewer payments
     const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
-    const challengeReviewer = find(reviewers, { isMemberReview: true });
-    const numOfSubmissions =
-      (await this.getChallengeSubmissionsCount(challenge.id)) ?? 1;
+    const challengeReviewer = find(challenge.reviewers, {
+      isMemberReview: true,
+    });
 
-    if (challengeReviewer && challengeResources.reviewer) {
-      challengeResources.reviewer?.forEach((reviewer) => {
-        payments.push({
-          handle: reviewer.memberHandle,
-          userId: reviewer.memberId.toString(),
-          amount: Math.round(
-            (challengeReviewer.fixedAmount ?? 0) +
-              (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
-              (challengeReviewer.incrementalCoefficient ?? 0) *
-                firstPlacePrize *
-                numOfSubmissions,
-          ),
-          type: WinningsCategory.REVIEW_BOARD_PAYMENT,
-        });
-      });
+    const challengeReviews = await this.getChallengeReviews(challenge.id);
+
+    if (!challengeReviewer || !reviewers?.length || !challengeReviews?.length) {
+      return [];
     }
+
+    return reviewers.map((reviewer) => {
+      const numOfSubmissions = challengeReviews.filter(
+        (r) =>
+          r.reviewerHandle.toLowerCase() ===
+          reviewer.memberHandle.toLowerCase(),
+      ).length;
+      return {
+        handle: reviewer.memberHandle,
+        userId: reviewer.memberId.toString(),
+        amount: Math.round(
+          (challengeReviewer.fixedAmount ?? 0) +
+            (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
+            (challengeReviewer.incrementalCoefficient ?? 0) *
+              firstPlacePrize *
+              numOfSubmissions,
+        ),
+        type: WinningsCategory.REVIEW_BOARD_PAYMENT,
+      };
+    });
+  }
+
+  async getChallengePayments(challenge: Challenge) {
+    this.logger.log(
+      `Generating payments for challenge ${challenge.name} (${challenge.id}).`,
+    );
+
+    const challengeResources = await this.getChallengeResources(challenge.id);
+
+    if (!challengeResources || isEmpty(challengeResources)) {
+      throw new Error('Missing challenge resources!');
+    }
+
+    const winnersPayments = this.generateWinnersPayments(challenge);
+    const copilotPayments = this.generateCopilotPayment(
+      challenge,
+      challengeResources.copilot,
+    );
+    const reviewersPayments = await this.generateReviewersPayments(
+      challenge,
+      challengeResources.reviewer,
+    );
+
+    const payments: PaymentPayload[] = [
+      ...winnersPayments,
+      ...copilotPayments,
+      ...reviewersPayments,
+    ];
 
     const totalAmount = payments.reduce(
       (sum, payment) => sum + payment.amount,
@@ -227,33 +277,19 @@ export class ChallengesService {
     }));
   }
 
-  async generateChallengePayments(challengeId: string, userId: string) {
-    const challenge = await this.getChallenge(challengeId);
-
-    if (!challenge) {
-      throw new Error('Challenge not found!');
-    }
-
-    const allowedStatuses = [
-      ChallengeStatuses.Completed.toLowerCase(),
-      ChallengeStatuses.CancelledFailedReview.toLowerCase(),
-    ];
-
-    if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
-      throw new Error("Challenge isn't in a payable status!");
-    }
-
+  private async createPayments(challenge: Challenge, userId: string) {
     const existingPayments = (
       await this.winningsRepo.searchWinnings({
-        externalIds: [challengeId],
+        externalIds: [challenge.id],
       } as WinningRequestDto)
     )?.data?.winnings;
+
     if (existingPayments?.length > 0) {
       this.logger.log(
-        `Payments already exist for challenge ${challengeId}, skipping payment generation`,
+        `Payments already exist for challenge ${challenge.id}, skipping payment generation`,
       );
       throw new Error(
-        `Payments already exist for challenge ${challengeId}, skipping payment generation`,
+        `Payments already exist for challenge ${challenge.id}, skipping payment generation`,
       );
     }
 
@@ -290,5 +326,58 @@ export class ChallengesService {
 
     this.logger.log('Task Completed. locking consumed budget', baValidation);
     await this.baService.lockConsumeAmount(baValidation);
+  }
+
+  async generateChallengePayments(challengeId: string, userId: string) {
+    const challenge = await this.getChallenge(challengeId);
+
+    if (!challenge) {
+      throw new Error('Challenge not found!');
+    }
+
+    const allowedStatuses = [
+      ChallengeStatuses.Completed.toLowerCase(),
+      ChallengeStatuses.CancelledFailedReview.toLowerCase(),
+    ];
+
+    if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
+      throw new Error("Challenge isn't in a payable status!");
+    }
+
+    // need to read for update (LOCK the rows)
+    try {
+      await this.prisma.challenge_lock.create({
+        data: { external_id: challenge.id },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        this.logger.log(`Challenge Lock already acquired for ${challenge.id}`);
+        // P2002 = unique constraint failed → lock already exists
+        throw new ConflictException(
+          `Challenge Lock already acquired for ${challenge.id}`,
+        );
+      }
+      throw err;
+    }
+
+    try {
+      await this.createPayments(challenge, userId);
+    } catch (error) {
+      if (error.message.includes('Lock already acquired')) {
+        throw new ConflictException(
+          'Another payment operation is in progress.',
+        );
+      } else {
+        throw error;
+      }
+    } finally {
+      await this.prisma.challenge_lock
+        .deleteMany({
+          where: { external_id: challenge.id },
+        })
+        .catch(() => {
+          // swallow errors if lock was already released
+        });
+    }
   }
 }
