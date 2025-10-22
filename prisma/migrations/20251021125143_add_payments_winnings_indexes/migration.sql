@@ -1,0 +1,12 @@
+CREATE INDEX idx_payment_installment_number ON payment USING btree (installment_number);
+CREATE INDEX idx_payment_installment_status_version ON payment USING btree (installment_number, payment_status, winnings_id, version DESC);
+CREATE INDEX idx_payment_status_winnings ON payment USING btree (payment_status, winnings_id);
+CREATE INDEX idx_payment_win_inst_status ON payment USING btree (winnings_id, installment_number, payment_status);
+CREATE INDEX idx_payment_winnings_id ON payment USING btree (winnings_id);
+CREATE INDEX idx_payment_winnings_installment ON payment USING btree (winnings_id, installment_number);
+CREATE INDEX idx_payment_winnings_installment1_status ON payment USING btree (winnings_id, payment_status) WHERE (installment_number = 1);
+CREATE INDEX idx_winnings_category_created_at ON winnings USING btree (category, created_at DESC);
+CREATE INDEX idx_winnings_created_at ON winnings USING btree (created_at DESC);
+CREATE INDEX idx_winnings_external_id ON winnings USING btree (external_id) WHERE (external_id IS NOT NULL);
+CREATE INDEX idx_winnings_winner_created_at ON winnings USING btree (winner_id, created_at DESC);
+CREATE INDEX idx_winnings_winner_id_only ON winnings USING btree (winner_id) INCLUDE (winning_id);

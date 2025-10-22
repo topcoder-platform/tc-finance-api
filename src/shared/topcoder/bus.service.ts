@@ -3,7 +3,7 @@ import { ENV_CONFIG } from 'src/config';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 import { Logger } from '../global';
 
-const { TOPCODER_API_BASE_URL } = ENV_CONFIG;
+const { TOPCODER_API_V5_BASE_URL: TC_API_BASE } = ENV_CONFIG;
 
 @Injectable()
 export class TopcoderBusService {
@@ -43,7 +43,7 @@ export class TopcoderBusService {
 
     try {
       const headers = await this.getHeaders();
-      const response = await fetch(`${TOPCODER_API_BASE_URL}/bus/events`, {
+      const response = await fetch(`${TC_API_BASE}/bus/events`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
