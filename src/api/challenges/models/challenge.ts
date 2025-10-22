@@ -126,8 +126,9 @@ export interface Reviewer {
   scorecardId: string;
   isMemberReview: boolean;
   memberReviewerCount?: number;
-  basePayment?: number;
-  incrementalPayment?: number;
+  baseCoefficient?: number;
+  incrementalCoefficient?: number;
+  fixedAmount?: number;
   isAIReviewer: boolean;
 }
 
@@ -140,4 +141,10 @@ export interface ChallengeResource {
 export interface ResourceRole {
   id: string;
   name: string;
+}
+
+export interface ChallengeSubmission {
+  id: string;
+  memberId: string;
+  type: 'CONTEST_SUBMISSION';
 }

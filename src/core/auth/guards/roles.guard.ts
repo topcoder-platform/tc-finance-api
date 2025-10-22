@@ -17,9 +17,14 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const { auth0User } = request;
+    const tokenIsM2M = Boolean(request.m2mTokenScope);
+    if (tokenIsM2M) {
+      return Boolean(request.idTokenVerified);
+    }
+
+    const { auth0User = {} } = request;
     const userRoles = Object.keys(auth0User).reduce((roles, key) => {
-      if (key.match(/claims\/roles$/gi)) {
+      if (key.match(/\/roles$/gi)) {
         return auth0User[key] as string[];
       }
 
@@ -31,7 +36,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const userHandle = Object.keys(auth0User).reduce((handles, key) => {
-      if (key.match(/claims\/handle$/gi)) {
+      if (key.match(/\/handle$/gi)) {
         return auth0User[key] as string;
       }
 
@@ -39,7 +44,7 @@ export class RolesGuard implements CanActivate {
     }, []);
 
     const userId = Object.keys(auth0User).reduce((ids, key) => {
-      if (key.match(/claims\/userId$/gi)) {
+      if (key.match(/\/userId$/gi)) {
         return auth0User[key] as string;
       }
 

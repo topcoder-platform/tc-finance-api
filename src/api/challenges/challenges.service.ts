@@ -1,8 +1,13 @@
-import { includes, isEmpty, sortBy, find, camelCase, groupBy } from 'lodash';
+import { includes, isEmpty, find, camelCase, groupBy, orderBy } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
-import { Challenge, ChallengeResource, ResourceRole } from './models';
+import {
+  Challenge,
+  ChallengeResource,
+  ChallengeSubmission,
+  ResourceRole,
+} from './models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
@@ -40,11 +45,28 @@ export class ChallengesService {
 
     try {
       const challenge = await this.m2MService.m2mFetch<Challenge>(requestUrl);
-      this.logger.log(JSON.stringify(challenge, null, 2));
       return challenge;
     } catch (e) {
       this.logger.error(
         `Challenge ${challengeId} details couldn't be fetched!`,
+        e,
+      );
+    }
+  }
+
+  async getChallengeSubmissionsCount(challengeId: string) {
+    const requestUrl = `${TC_API_BASE}/submissions?challengeId=${challengeId}&perPage=9999`;
+
+    try {
+      const submissions =
+        await this.m2MService.m2mFetch<ChallengeSubmission[]>(requestUrl);
+      const uniqueSubmissions = Object.fromEntries(
+        submissions.map((s) => [s.memberId, s]),
+      );
+      return Object.keys(uniqueSubmissions).length;
+    } catch (e) {
+      this.logger.error(
+        `Challenge submissions couldn't be fetched for challenge ${challengeId}!`,
         e,
       );
     }
@@ -97,36 +119,43 @@ export class ChallengesService {
     }[];
 
     const { prizeSets, winners, reviewers } = challenge;
+    const isCancelledFailedReview =
+      challenge.status.toLowerCase() ===
+      ChallengeStatuses.CancelledFailedReview.toLowerCase();
 
     // generate placement payments
-    const placementPrizes = sortBy(
+    const placementPrizes = orderBy(
       find(prizeSets, { type: 'PLACEMENT' })?.prizes,
       'value',
+      'desc',
     );
-    if (placementPrizes.length < winners.length) {
-      throw new Error(
-        'Task has incorrect number of placement prizes! There are more winners than prizes!',
-      );
-    }
 
-    winners.forEach((winner) => {
-      payments.push({
-        handle: winner.handle,
-        amount: placementPrizes[winner.placement - 1].value,
-        userId: winner.userId.toString(),
-        type: challenge.task.isTask
-          ? WinningsCategory.TASK_PAYMENT
-          : WinningsCategory.CONTEST_PAYMENT,
-        description:
-          challenge.type === 'Task'
-            ? challenge.name
-            : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+    if (!isCancelledFailedReview) {
+      if (placementPrizes.length < winners.length) {
+        throw new Error(
+          'Task has incorrect number of placement prizes! There are more winners than prizes!',
+        );
+      }
+
+      winners.forEach((winner) => {
+        payments.push({
+          handle: winner.handle,
+          amount: placementPrizes[winner.placement - 1].value,
+          userId: winner.userId.toString(),
+          type: challenge.task.isTask
+            ? WinningsCategory.TASK_PAYMENT
+            : WinningsCategory.CONTEST_PAYMENT,
+          description:
+            challenge.type === 'Task'
+              ? challenge.name
+              : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+        });
       });
-    });
+    }
 
     // generate copilot payments
     const copilotPrizes = find(prizeSets, { type: 'COPILOT' })?.prizes ?? [];
-    if (copilotPrizes.length) {
+    if (copilotPrizes.length && !isCancelledFailedReview) {
       const copilots = challengeResources.copilot;
 
       if (!copilots?.length) {
@@ -144,8 +173,10 @@ export class ChallengesService {
     }
 
     // generate reviewer payments
-    const firstPlacePrize = placementPrizes[0].value;
+    const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
     const challengeReviewer = find(reviewers, { isMemberReview: true });
+    const numOfSubmissions =
+      (await this.getChallengeSubmissionsCount(challenge.id)) ?? 1;
 
     if (challengeReviewer && challengeResources.reviewer) {
       challengeResources.reviewer?.forEach((reviewer) => {
@@ -153,10 +184,11 @@ export class ChallengesService {
           handle: reviewer.memberHandle,
           userId: reviewer.memberId.toString(),
           amount: Math.round(
-            (challengeReviewer.basePayment ?? 0) +
-              (challengeReviewer.incrementalPayment ?? 0) *
-                challenge.numOfSubmissions *
-                firstPlacePrize,
+            (challengeReviewer.fixedAmount ?? 0) +
+              (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
+              (challengeReviewer.incrementalCoefficient ?? 0) *
+                firstPlacePrize *
+                numOfSubmissions,
           ),
           type: WinningsCategory.REVIEW_BOARD_PAYMENT,
         });
@@ -202,18 +234,18 @@ export class ChallengesService {
       throw new Error('Challenge not found!');
     }
 
-    if (
-      challenge.status.toLowerCase() !==
-      ChallengeStatuses.Completed.toLowerCase()
-    ) {
-      throw new Error("Challenge isn't completed yet!");
+    const allowedStatuses = [
+      ChallengeStatuses.Completed.toLowerCase(),
+      ChallengeStatuses.CancelledFailedReview.toLowerCase(),
+    ];
+
+    if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
+      throw new Error("Challenge isn't in a payable status!");
     }
 
     const existingPayments = (
       await this.winningsRepo.searchWinnings({
         externalIds: [challengeId],
-        limit: 1,
-        offset: 0,
       } as WinningRequestDto)
     )?.data?.winnings;
     if (existingPayments?.length > 0) {
@@ -244,9 +276,16 @@ export class ChallengesService {
     }
 
     await Promise.all(
-      payments.map((p) =>
-        this.winningsService.createWinningWithPayments(p, userId),
-      ),
+      payments.map(async (p) => {
+        try {
+          await this.winningsService.createWinningWithPayments(p, userId);
+        } catch (e) {
+          this.logger.log(
+            `Failed to create winnings payment for user ${p.winnerId}!`,
+            e,
+          );
+        }
+      }),
     );
 
     this.logger.log('Task Completed. locking consumed budget', baValidation);

@@ -56,7 +56,7 @@ export class WinningsService {
     }
 
     this.logger.debug(
-      `Member info retrieved successfully for user handle: ${userId}`,
+      `Member info retrieved successfully for user: ${userId}`,
       { member },
     );
 
@@ -142,7 +142,7 @@ export class WinningsService {
     const result = new ResponseDto<string>();
 
     this.logger.debug(
-      `Creating winning with payments for user ${userId}`,
+      `Creating winning with payments for user ${body.winnerId}`,
       body,
     );
 
@@ -186,7 +186,7 @@ export class WinningsService {
       );
       const isIdentityVerified =
         await this.identityVerificationRepo.completedIdentityVerification(
-          userId,
+          body.winnerId,
         );
 
       for (const detail of body.details || []) {
