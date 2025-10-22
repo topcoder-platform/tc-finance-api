@@ -15,7 +15,6 @@ export class ConfigEnv {
   @IsOptional()
   API_BASE = '/v6/finance';
 
-  @IsInt()
   @IsOptional()
   PORT = 3000;
 
