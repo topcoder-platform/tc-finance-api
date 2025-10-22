@@ -56,8 +56,8 @@ export class WinningsRepository {
   private getWinningsQueryFilters(
     type?: string,
     status?: string,
-    winnerIds?: string[] | undefined,
-    externalIds?: string[] | undefined,
+    winnerIds?: string[],
+    externalIds?: string[],
     date?: DateFilterType,
   ): Prisma.winningsFindManyArgs['where'] {
     return {
@@ -176,7 +176,7 @@ export class WinningsRepository {
 
       const orderBy = this.getOrderByWithWinnerId(
         searchProps.sortBy,
-        searchProps.sortOrder!,
+        searchProps.sortOrder,
         !winnerIds && !!externalIds?.length,
       );
 
@@ -240,9 +240,9 @@ export class WinningsRepository {
         })),
         pagination: {
           totalItems: count,
-          totalPages: Math.ceil(count / searchProps.limit!),
-          pageSize: searchProps.limit!,
-          currentPage: Math.ceil(searchProps.offset! / searchProps.limit!) + 1,
+          totalPages: Math.ceil(count / searchProps.limit),
+          pageSize: searchProps.limit,
+          currentPage: Math.ceil(searchProps.offset / searchProps.limit) + 1,
         },
       };
       // response.data = winnings as any

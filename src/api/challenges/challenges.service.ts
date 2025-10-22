@@ -12,7 +12,11 @@ import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.ser
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { WinningsService } from '../winnings/winnings.service';
-import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
+import {
+  WinningRequestDto,
+  WinningsCategory,
+  WinningsType,
+} from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 
 const placeToOrdinal = (place: number) => {
@@ -23,7 +27,7 @@ const placeToOrdinal = (place: number) => {
   return `${place}th`;
 };
 
-const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
+const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
 
 @Injectable()
 export class ChallengesService {
@@ -37,7 +41,7 @@ export class ChallengesService {
   ) {}
 
   async getChallenge(challengeId: string) {
-    const requestUrl = `${TOPCODER_API_V6_BASE_URL}/challenges/${challengeId}`;
+    const requestUrl = `${TC_API_BASE}/challenges/${challengeId}`;
 
     try {
       const challenge = await this.m2MService.m2mFetch<Challenge>(requestUrl);
@@ -51,7 +55,7 @@ export class ChallengesService {
   }
 
   async getChallengeSubmissionsCount(challengeId: string) {
-    const requestUrl = `${TOPCODER_API_V6_BASE_URL}/submissions?challengeId=${challengeId}&perPage=9999`;
+    const requestUrl = `${TC_API_BASE}/submissions?challengeId=${challengeId}&perPage=9999`;
 
     try {
       const submissions =
@@ -71,10 +75,10 @@ export class ChallengesService {
   async getChallengeResources(challengeId: string) {
     try {
       const resources = await this.m2MService.m2mFetch<ChallengeResource[]>(
-        `${TOPCODER_API_V6_BASE_URL}/resources?challengeId=${challengeId}`,
+        `${TC_API_BASE}/resources?challengeId=${challengeId}`,
       );
       const resourceRoles = await this.m2MService.m2mFetch<ResourceRole[]>(
-        `${TOPCODER_API_V6_BASE_URL}/resource-roles`,
+        `${TC_API_BASE}/resource-roles`,
       );
 
       const rolesMap = resourceRoles.reduce(
@@ -217,7 +221,7 @@ export class ChallengesService {
         billingAccountId: challenge.billing.billingAccountId,
         payroll: includes(
           TGBillingAccounts,
-          +challenge.billing.billingAccountId,
+          parseInt(challenge.billing.billingAccountId),
         ),
       },
     }));
@@ -240,7 +244,9 @@ export class ChallengesService {
     }
 
     const existingPayments = (
-      await this.winningsRepo.searchWinnings({ externalIds: [challengeId] })
+      await this.winningsRepo.searchWinnings({
+        externalIds: [challengeId],
+      } as WinningRequestDto)
     )?.data?.winnings;
     if (existingPayments?.length > 0) {
       this.logger.log(
