@@ -7,8 +7,8 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 
-import { M2mScope } from 'src/core/auth/auth.constants';
-import { M2M, AllowedM2mScope, User } from 'src/core/auth/decorators';
+import { M2mScope, Role } from 'src/core/auth/auth.constants';
+import { AllowedM2mScope, User, Roles, M2M } from 'src/core/auth/decorators';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 import { UserInfo } from 'src/dto/user.type';
 import {
@@ -29,8 +29,8 @@ export class WinningsController {
   ) {}
 
   @Post()
-  @M2M()
   @AllowedM2mScope(M2mScope.CreatePayments)
+  @Roles(Role.PaymentAdmin, Role.PaymentEditor)
   @ApiOperation({
     summary: 'Create winning with payments.',
     description: 'User must have "create:payments" scope to access.',
