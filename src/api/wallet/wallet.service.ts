@@ -83,12 +83,6 @@ export class WalletService {
               ),
               unit: 'currency',
             },
-            // hide rewards for now
-            // {
-            //   type: WinningsType.REWARD,
-            //   amount: rewardTotal,
-            //   unit: 'points',
-            // },
           ],
         },
         withdrawalMethod: {
@@ -118,7 +112,7 @@ export class WalletService {
 
   getWinningsTotalsByWinnerID(winnerId: string) {
     return this.prisma.$queryRaw<
-      { payment_type: 'PAYMENT' | 'REWARD'; total_owed: number }[]
+      { payment_type: 'PAYMENT'; total_owed: number }[]
     >`
       WITH latest_payment_version AS (
         SELECT
@@ -133,7 +127,6 @@ export class WalletService {
         w.type AS payment_type,
         CASE
           WHEN w.type = 'PAYMENT' THEN SUM(p.total_amount)
-          WHEN w.type = 'REWARD' THEN SUM(r.points)
           ELSE 0
         END AS total_owed
       FROM
@@ -144,8 +137,6 @@ export class WalletService {
         AND p.installment_number = 1
         INNER JOIN latest_payment_version lpv ON p.winnings_id = lpv.winnings_id
         AND p.version = lpv.max_version
-        LEFT JOIN reward r ON w.winning_id = r.winnings_id
-        AND w.type = 'REWARD'
       WHERE
         w.winner_id = ${winnerId}
       GROUP BY

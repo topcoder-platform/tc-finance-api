@@ -20,7 +20,6 @@ import {
 
 export enum WinningsType {
   PAYMENT = 'PAYMENT',
-  REWARD = 'REWARD',
 }
 
 export enum WinningsCategory {
