@@ -7,7 +7,6 @@ import { IdentityVerificationRepository } from '../repository/identity-verificat
 import {
   payment_releases,
   payment_status,
-  Prisma,
   reference_type,
 } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
@@ -70,9 +69,8 @@ export class WithdrawalService {
   private async getReleasableWinningsForUserId(
     userId: string,
     winningsIds: string[],
-    tx: Prisma.TransactionClient,
   ) {
-    const winnings = await tx.$queryRaw<ReleasableWinningRow[]>`
+    const winnings = await this.prisma.$queryRaw<ReleasableWinningRow[]>`
       SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid"
       FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
       AND p.installment_number = 1
@@ -121,7 +119,6 @@ export class WithdrawalService {
   }
 
   private async createDbPaymentRelease(
-    tx: Prisma.TransactionClient,
     userId: string,
     totalAmount: number,
     paymentMethodId: number,
@@ -130,7 +127,7 @@ export class WithdrawalService {
     metadata: any,
   ) {
     try {
-      const paymentRelease = await tx.payment_releases.create({
+      const paymentRelease = await this.prisma.payment_releases.create({
         data: {
           user_id: userId,
           total_net_amount: totalAmount,
@@ -161,19 +158,23 @@ export class WithdrawalService {
   }
 
   private async updateDbReleaseRecord(
-    tx: Prisma.TransactionClient,
     paymentRelease: payment_releases,
-    externalTxId: string,
+    data: { externalTxId?: string; status?: string },
   ) {
     try {
-      await tx.payment_releases.update({
+      await this.prisma.payment_releases.update({
         where: { payment_release_id: paymentRelease.payment_release_id },
-        data: { external_transaction_id: externalTxId },
+        data: {
+          external_transaction_id: data.externalTxId,
+          status: data.status,
+        },
       });
 
-      this.logger.log(
-        `DB payment_release[${paymentRelease.payment_release_id}] updated successfully with trolley payment id: ${externalTxId}`,
-      );
+      if (data.externalTxId) {
+        this.logger.log(
+          `DB payment_release[${paymentRelease.payment_release_id}] updated successfully with trolley payment id: ${data.externalTxId}`,
+        );
+      }
     } catch (error) {
       const errorMsg = `Failed to update DB payment_release: ${error.message}`;
       this.logger.error(errorMsg, error);
@@ -229,6 +230,21 @@ export class WithdrawalService {
       throw new Error('Failed to fetch UserInfo for withdrawal!');
     }
 
+    if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
+      this.logger.error(
+        `User ${userHandle}(${userId}) attempted withdrawal but is restricted due to email domain '${userInfo.email}'.`,
+      );
+      throw new Error(
+        'Please contact Topgear support to process your withdrawal.',
+      );
+    }
+
+    // check winnings before even sending otp code
+    const winnings = await this.getReleasableWinningsForUserId(
+      userId,
+      winningsIds,
+    );
+
     if (!otpCode) {
       const otpError = await this.otpService.generateOtpCode(
         userInfo,
@@ -247,147 +263,146 @@ export class WithdrawalService {
       }
     }
 
-    if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
-      this.logger.error(
-        `User ${userHandle}(${userId}) attempted withdrawal but is restricted due to email domain '${userInfo.email}'.`,
-      );
-      throw new Error(
-        'Please contact Topgear support to process your withdrawal.',
-      );
-    }
-
     try {
-      await this.prisma.$transaction(async (tx) => {
-        const winnings = await this.getReleasableWinningsForUserId(
-          userId,
-          winningsIds,
-          tx,
+      this.logger.log(
+        `Begin processing payments for user ${userHandle}(${userId})`,
+        winnings,
+      );
+
+      const dbTrolleyRecipient =
+        await this.getDbTrolleyRecipientByUserId(userId);
+
+      if (!dbTrolleyRecipient) {
+        throw new Error(
+          `Trolley recipient not found for user ${userHandle}(${userId})!`,
+        );
+      }
+
+      const totalAmount = this.checkTotalAmount(winnings);
+      let paymentAmount = totalAmount;
+      let feeAmount = 0;
+      const trolleyRecipientPayoutDetails =
+        await this.trolleyService.getRecipientPayoutDetails(
+          dbTrolleyRecipient.trolley_id,
         );
 
-        this.logger.log(
-          `Begin processing payments for user ${userHandle}(${userId})`,
-          winnings,
+      if (!trolleyRecipientPayoutDetails) {
+        throw new Error(
+          `Recipient payout details not found for Trolley Recipient ID '${dbTrolleyRecipient.trolley_id}', for user ${userHandle}(${userId}).`,
         );
+      }
 
-        const dbTrolleyRecipient =
-          await this.getDbTrolleyRecipientByUserId(userId);
+      if (
+        trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
+        ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
+      ) {
+        const feePercent = Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
 
-        if (!dbTrolleyRecipient) {
-          throw new Error(
-            `Trolley recipient not found for user ${userHandle}(${userId})!`,
-          );
-        }
+        feeAmount = +Math.min(
+          ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+          feePercent * paymentAmount,
+        ).toFixed(2);
 
-        const totalAmount = this.checkTotalAmount(winnings);
-        let paymentAmount = totalAmount;
-        let feeAmount = 0;
-        const trolleyRecipientPayoutDetails =
-          await this.trolleyService.getRecipientPayoutDetails(
-            dbTrolleyRecipient.trolley_id,
-          );
+        paymentAmount -= feeAmount;
+      }
 
-        if (!trolleyRecipientPayoutDetails) {
-          throw new Error(
-            `Recipient payout details not found for Trolley Recipient ID '${dbTrolleyRecipient.trolley_id}', for user ${userHandle}(${userId}).`,
-          );
-        }
+      this.logger.log(
+        `
+          Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
+          Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
+        `,
+      );
 
-        if (
-          trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
-          ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
-        ) {
-          const feePercent =
-            Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
-
-          feeAmount = +Math.min(
+      const paymentRelease = await this.createDbPaymentRelease(
+        userId,
+        paymentAmount,
+        connectedPaymentMethod.payment_method_id,
+        dbTrolleyRecipient.trolley_id,
+        winnings,
+        {
+          netAmount: paymentAmount,
+          feeAmount,
+          totalAmount: totalAmount,
+          payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
+          env_trolley_paypal_fee_percent: ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
+          env_trolley_paypal_fee_max_amount:
             ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
-            feePercent * paymentAmount,
-          ).toFixed(2);
+        },
+      );
 
-          paymentAmount -= feeAmount;
-        }
+      const paymentBatch = await this.trolleyService.startBatchPayment(
+        `${userId}_${userHandle}`,
+      );
 
-        this.logger.log(
-          `
-            Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
-            Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
-          `,
-        );
+      const trolleyPayment = await this.trolleyService.createPayment(
+        dbTrolleyRecipient.trolley_id,
+        paymentBatch.id,
+        paymentAmount,
+        paymentRelease.payment_release_id,
+        paymentMemo,
+      );
 
-        const paymentRelease = await this.createDbPaymentRelease(
-          tx,
-          userId,
-          paymentAmount,
-          connectedPaymentMethod.payment_method_id,
-          dbTrolleyRecipient.trolley_id,
-          winnings,
-          {
-            netAmount: paymentAmount,
-            feeAmount,
-            totalAmount: totalAmount,
-            payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
-            env_trolley_paypal_fee_percent:
-              ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
-            env_trolley_paypal_fee_max_amount:
-              ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
-          },
-        );
-
-        const paymentBatch = await this.trolleyService.startBatchPayment(
-          `${userId}_${userHandle}`,
-        );
-
-        const trolleyPayment = await this.trolleyService.createPayment(
-          dbTrolleyRecipient.trolley_id,
-          paymentBatch.id,
-          paymentAmount,
-          paymentRelease.payment_release_id,
-          paymentMemo,
-        );
-
-        await this.updateDbReleaseRecord(tx, paymentRelease, trolleyPayment.id);
-
-        try {
-          await this.paymentsService.updatePaymentProcessingState(
-            winningsIds,
-            payment_status.PROCESSING,
-            tx,
-          );
-        } catch (e) {
-          this.logger.error(
-            `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
-          );
-          throw new Error('Failed to update payment processing state!');
-        }
-
-        try {
-          await this.trolleyService.startProcessingPayment(paymentBatch.id);
-        } catch (error) {
-          const errorMsg = `Failed to release payment: ${error.message}`;
-          this.logger.error(errorMsg, error);
-          throw new Error(errorMsg);
-        }
-
-        try {
-          for (const winning of winnings) {
-            const payoutData: WithdrawUpdateData = {
-              userId: +userId,
-              status: 'Paid',
-              datePaid: formatDate(new Date()),
-            };
-
-            await this.tcChallengesService.updateLegacyPayments(
-              winning.externalId as string,
-              payoutData,
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            `Failed to update legacy payment while withdrawing for challenge ${error?.message ?? error}`,
-            error,
-          );
-        }
+      await this.updateDbReleaseRecord(paymentRelease, {
+        externalTxId: trolleyPayment.id,
       });
+
+      try {
+        await this.paymentsService.updatePaymentProcessingState(
+          winningsIds,
+          payment_status.PROCESSING,
+        );
+      } catch (e) {
+        this.logger.error(
+          `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
+        );
+
+        // mark release as failed
+        await this.updateDbReleaseRecord(paymentRelease, {
+          status: 'FAILED',
+        });
+
+        throw new Error('Failed to update payment processing state!');
+      }
+
+      try {
+        await this.trolleyService.startProcessingPayment(paymentBatch.id);
+      } catch (error) {
+        const errorMsg = `Failed to release payment: ${error.message}`;
+        this.logger.error(errorMsg, error);
+
+        // revert to owed
+        await this.paymentsService.updatePaymentProcessingState(
+          winningsIds,
+          payment_status.OWED,
+        );
+
+        // mark release as failed
+        await this.updateDbReleaseRecord(paymentRelease, {
+          status: 'FAILED',
+        });
+
+        throw new Error(errorMsg);
+      }
+
+      try {
+        for (const winning of winnings) {
+          const payoutData: WithdrawUpdateData = {
+            userId: +userId,
+            status: 'Paid',
+            datePaid: formatDate(new Date()),
+          };
+
+          await this.tcChallengesService.updateLegacyPayments(
+            winning.externalId as string,
+            payoutData,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to update legacy payment while withdrawing for challenge ${error?.message ?? error}`,
+          error,
+        );
+      }
     } catch (error) {
       if (error.code === 'P2010' && error.meta?.code === '55P03') {
         this.logger.error(
