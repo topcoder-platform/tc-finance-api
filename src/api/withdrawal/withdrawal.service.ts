@@ -252,14 +252,29 @@ export class WithdrawalService {
       );
       return { error: otpError };
     } else {
-      const otpResponse = await this.otpService.verifyOtpCode(
-        otpCode,
-        userInfo,
-        reference_type.WITHDRAW_PAYMENT,
-      );
+      try {
+        const otpResponse = await this.otpService.verifyOtpCode(
+          otpCode,
+          userInfo,
+          reference_type.WITHDRAW_PAYMENT,
+        );
 
-      if (!otpResponse || otpResponse.code !== 'success') {
-        return { error: otpResponse };
+        if (!otpResponse || otpResponse.code !== 'success') {
+          return { error: otpResponse };
+        }
+      } catch (error) {
+        if (error.code === 'P2010' && error.meta?.code === '55P03') {
+          this.logger.error(
+            'Payment request denied because payment row was locked previously!',
+            error,
+          );
+
+          throw new Error(
+            'Some or all of the winnings you requested to process are either processing, on hold or already paid.',
+          );
+        } else {
+          throw error;
+        }
       }
     }
 

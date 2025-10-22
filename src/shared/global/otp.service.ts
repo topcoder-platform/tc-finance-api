@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import crypto from 'crypto';
-import { reference_type } from '@prisma/client';
+import { otp, reference_type } from '@prisma/client';
 import { ENV_CONFIG } from 'src/config';
 import { TopcoderEmailService } from '../topcoder/tc-email.service';
 import { BasicMemberInfo } from '../topcoder';
@@ -104,62 +104,65 @@ export class OtpService {
     userInfo: BasicMemberInfo,
     actionType: reference_type,
   ) {
-    const record = await this.prisma.otp.findFirst({
-      where: {
-        otp_hash: hashOtp(otpCode),
-      },
-      orderBy: {
-        expiration_time: 'desc',
-      },
+    return await this.prisma.$transaction(async (tx) => {
+      const records = await tx.$queryRaw<otp>`
+        SELECT id, email, otp_hash, expiration_time, action_type, created_at, updated_at, verified_at
+        FROM otp
+        WHERE otp_hash=${hashOtp(otpCode)}
+        ORDER BY expiration_time DESC
+        LIMIT 1
+        FOR UPDATE NOWAIT;
+      `;
+      const record = records[0];
+
+      if (!record) {
+        this.logger.warn(`No OTP record found for the provided code.`);
+        return { code: 'otp_invalid', message: `Invalid OTP code.` };
+      }
+
+      if (record.email !== userInfo.email) {
+        this.logger.warn(`Email mismatch for OTP verification.`);
+        return {
+          code: 'otp_email_mismatch',
+          message: `Email mismatch for OTP verification.`,
+        };
+      }
+
+      if (record.action_type !== actionType) {
+        this.logger.warn(`Action type mismatch for OTP verification.`);
+        return {
+          code: 'otp_action_type_mismatch',
+          message: `Action type mismatch for OTP verification.`,
+        };
+      }
+
+      if (record.expiration_time && record.expiration_time < new Date()) {
+        this.logger.warn(`OTP code has expired.`);
+        return { code: 'otp_expired', message: `OTP code has expired.` };
+      }
+
+      if (record.verified_at !== null) {
+        this.logger.warn(`OTP code has already been verified.`);
+        return {
+          code: 'otp_already_verified',
+          message: `OTP code has already been verified.`,
+        };
+      }
+
+      this.logger.log(
+        `OTP code ${otpCode} verified successfully for action ${actionType}`,
+      );
+
+      await tx.otp.update({
+        where: {
+          id: record.id,
+        },
+        data: {
+          verified_at: new Date(),
+        },
+      });
+
+      return { code: 'success' };
     });
-
-    if (!record) {
-      this.logger.warn(`No OTP record found for the provided code.`);
-      return { code: 'otp_invalid', message: `Invalid OTP code.` };
-    }
-
-    if (record.email !== userInfo.email) {
-      this.logger.warn(`Email mismatch for OTP verification.`);
-      return {
-        code: 'otp_email_mismatch',
-        message: `Email mismatch for OTP verification.`,
-      };
-    }
-
-    if (record.action_type !== actionType) {
-      this.logger.warn(`Action type mismatch for OTP verification.`);
-      return {
-        code: 'otp_action_type_mismatch',
-        message: `Action type mismatch for OTP verification.`,
-      };
-    }
-
-    if (record.expiration_time && record.expiration_time < new Date()) {
-      this.logger.warn(`OTP code has expired.`);
-      return { code: 'otp_expired', message: `OTP code has expired.` };
-    }
-
-    if (record.verified_at !== null) {
-      this.logger.warn(`OTP code has already been verified.`);
-      return {
-        code: 'otp_already_verified',
-        message: `OTP code has already been verified.`,
-      };
-    }
-
-    this.logger.log(
-      `OTP code ${otpCode} verified successfully for action ${actionType}`,
-    );
-
-    await this.prisma.otp.update({
-      where: {
-        id: record.id,
-      },
-      data: {
-        verified_at: new Date(),
-      },
-    });
-
-    return { code: 'success' };
   }
 }
