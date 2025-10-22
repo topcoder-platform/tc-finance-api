@@ -353,13 +353,18 @@ export class WithdrawalService {
         );
       } catch (e) {
         this.logger.error(
-          `Failed to update payment processing state: ${e.message} for winnings '${winningsIds.join(',')}`,
+          `Failed to update payment processing state: ${e?.message} for winnings '${winningsIds.join(',')}`,
         );
 
         // mark release as failed
         await this.updateDbReleaseRecord(paymentRelease, {
           status: 'FAILED',
         });
+
+        await this.trolleyService.removePayment(
+          trolleyPayment.id,
+          paymentBatch.id,
+        );
 
         throw new Error('Failed to update payment processing state!');
       }
