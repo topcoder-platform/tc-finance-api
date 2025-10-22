@@ -14,6 +14,9 @@ export class PrismaService
 
   constructor() {
     super({
+      transactionOptions: {
+        timeout: 20000, // 20s
+      },
       log: [
         { level: 'query', emit: 'event' },
         { level: 'info', emit: 'event' },
@@ -26,8 +29,8 @@ export class PrismaService
     this.$on('query' as never, (e: Prisma.QueryEvent) => {
       const queryTime = e.duration;
 
-      // log slow queries (> 500ms)
-      if (queryTime > 500) {
+      // log slow queries (> 5s)
+      if (queryTime > 5000) {
         this.logger.warn(
           `Slow query detected! Duration: ${queryTime}ms | Query: ${e.query}`,
         );

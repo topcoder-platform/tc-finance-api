@@ -180,28 +180,27 @@ export class WinningsRepository {
         !winnerIds && !!externalIds?.length,
       );
 
-      const [winnings, count] = await this.prisma.$transaction([
-        this.prisma.winnings.findMany({
-          where: queryWhere,
-          include: {
-            payment: {
-              where: {
-                installment_number: 1,
-              },
-              orderBy: [
-                {
-                  created_at: 'desc',
-                },
-              ],
+      const winnings = await this.prisma.winnings.findMany({
+        where: queryWhere,
+        include: {
+          payment: {
+            where: {
+              installment_number: 1,
             },
-            origin: true,
+            orderBy: [
+              {
+                created_at: 'desc',
+              },
+            ],
           },
-          orderBy,
-          skip: searchProps.offset,
-          take: searchProps.limit,
-        }),
-        this.prisma.winnings.count({ where: queryWhere }),
-      ]);
+          origin: true,
+        },
+        orderBy,
+        skip: searchProps.offset,
+        take: searchProps.limit,
+      });
+
+      const count = await this.prisma.winnings.count({ where: queryWhere });
 
       const usersPayoutStatusMap = winnings?.length
         ? await this.getUsersPayoutStatusForWinnings(winnings)
