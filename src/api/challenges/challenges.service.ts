@@ -1,4 +1,12 @@
-import { includes, isEmpty, find, camelCase, groupBy, orderBy } from 'lodash';
+import {
+  includes,
+  isEmpty,
+  find,
+  camelCase,
+  groupBy,
+  orderBy,
+  uniqBy,
+} from 'lodash';
 import { ConflictException, Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
@@ -186,35 +194,83 @@ export class ChallengesService {
 
     // generate reviewer payments
     const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
-    const challengeReviewer = find(challenge.reviewers, {
+    const hasMemberReviewers = find(challenge.reviewers, {
       isMemberReview: true,
     });
 
     const challengeReviews = await this.getChallengeReviews(challenge.id);
 
-    if (!challengeReviewer || !reviewers?.length || !challengeReviews?.length) {
+    if (
+      !hasMemberReviewers ||
+      !reviewers?.length ||
+      !challengeReviews?.length
+    ) {
       return [];
     }
 
-    return reviewers.map((reviewer) => {
-      const numOfSubmissions = challengeReviews.filter(
-        (r) =>
-          r.reviewerHandle.toLowerCase() ===
-          reviewer.memberHandle.toLowerCase(),
-      ).length;
-      return {
-        handle: reviewer.memberHandle,
-        userId: reviewer.memberId.toString(),
-        amount: Math.ceil(
-          (challengeReviewer.fixedAmount ?? 0) +
-            (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
-            (challengeReviewer.incrementalCoefficient ?? 0) *
-              firstPlacePrize *
-              numOfSubmissions,
-        ),
-        type: WinningsCategory.REVIEW_BOARD_PAYMENT,
-      };
-    });
+    // For each challenge resource reviewer (can be main reviewer, approver, screener, etc)
+    // we get the reviewer's reviews
+    // and group them by phaseId
+    // based on the phaseId, we're fetching the correct challenge reviewer type (which has assigned payments coefficients)
+    // then we create the reviewe's payments for each phase based on the number of reviews done on each phase and the type of challenge reviewer assigned
+    return reviewers
+      .map((reviewer) => {
+        // Find all reviews that were performed by this reviewer (case-insensitive match)
+        const reviews = challengeReviews
+          .filter(
+            (r) =>
+              r.reviewerHandle.toLowerCase() ===
+              reviewer.memberHandle.toLowerCase(),
+          )
+          .map((r) => {
+            const challengePhase = find(challenge.phases, { id: r.phaseId });
+
+            if (!challengePhase) {
+              throw new Error(
+                `Failed to find challenge phase for review phase: ${r.phaseName} (${r.phaseId})`,
+              );
+            }
+
+            return {
+              ...r,
+              // Find the corresponding phase object in the challenge definition using its id
+              phaseId: challengePhase?.phaseId,
+            };
+          });
+
+        // Group the reviews by their associated phaseId
+        return Object.entries(groupBy(reviews, 'phaseId')).map(
+          ([phaseId, phaseReviews]) => {
+            // Find the reviewer entry in the challenge's reviewer list for this phase
+            // (be sure to exclude ai reviews)
+            const challengeReviewer = find(challenge.reviewers, {
+              isMemberReview: true,
+              phaseId,
+            });
+
+            if (!challengeReviewer) {
+              throw new Error(
+                `Failed to find challenge reviewer for phase: ${phaseReviews[0].phaseName} (${phaseId})`,
+              );
+            }
+
+            return {
+              handle: reviewer.memberHandle,
+              userId: reviewer.memberId.toString(),
+              amount: Math.ceil(
+                (challengeReviewer.fixedAmount ?? 0) +
+                  (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
+                  (challengeReviewer.incrementalCoefficient ?? 0) *
+                    firstPlacePrize *
+                    phaseReviews.length,
+              ),
+              type: WinningsCategory.REVIEW_BOARD_PAYMENT,
+              description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
+            };
+          },
+        );
+      })
+      .flat();
   }
 
   async getChallengePayments(challenge: Challenge) {
@@ -233,10 +289,29 @@ export class ChallengesService {
       challenge,
       challengeResources.copilot,
     );
-    const reviewersPayments = await this.generateReviewersPayments(
-      challenge,
-      challengeResources.reviewer,
-    );
+
+    let reviewersPayments: PaymentPayload[] = [];
+    try {
+      reviewersPayments = await this.generateReviewersPayments(
+        challenge,
+        uniqBy(
+          [
+            ...(challengeResources.iterativeReviewer ?? []),
+            ...(challengeResources.reviewer ?? []),
+            ...(challengeResources.checkpointScreener ?? []),
+            ...(challengeResources.checkpointReviewer ?? []),
+            ...(challengeResources.screener ?? []),
+            ...(challengeResources.approver ?? []),
+          ],
+          'memberId',
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate reviewers payments for challenge ${challenge.id}!`,
+        error.message,
+      );
+    }
 
     const payments: PaymentPayload[] = [
       ...winnersPayments,
