@@ -178,7 +178,6 @@ export class ChallengesService {
     challenge: Challenge,
     reviewers: ChallengeResource[],
   ): Promise<PaymentPayload[]> {
-    // generate placement payments
     const placementPrizes = orderBy(
       find(challenge.prizeSets, { type: 'PLACEMENT' })?.prizes,
       'value',
@@ -206,7 +205,7 @@ export class ChallengesService {
       return {
         handle: reviewer.memberHandle,
         userId: reviewer.memberId.toString(),
-        amount: Math.round(
+        amount: Math.ceil(
           (challengeReviewer.fixedAmount ?? 0) +
             (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
             (challengeReviewer.incrementalCoefficient ?? 0) *
@@ -311,21 +310,22 @@ export class ChallengesService {
       baValidation.markup = challenge.billing.clientBillingRate;
     }
 
-    await Promise.all(
-      payments.map(async (p) => {
-        try {
-          await this.winningsService.createWinningWithPayments(p, userId);
-        } catch (e) {
-          this.logger.log(
-            `Failed to create winnings payment for user ${p.winnerId}!`,
-            e,
-          );
-        }
-      }),
-    );
+    // await Promise.all(
+    //   payments.map(async (p) => {
+    //     try {
+    //       await this.winningsService.createWinningWithPayments(p, userId);
+    //     } catch (e) {
+    //       this.logger.log(
+    //         `Failed to create winnings payment for user ${p.winnerId}!`,
+    //         e,
+    //       );
+    //     }
+    //   }),
+    // );
+    console.log('here3', payments);
 
     this.logger.log('Task Completed. locking consumed budget', baValidation);
-    await this.baService.lockConsumeAmount(baValidation);
+    // await this.baService.lockConsumeAmount(baValidation);
   }
 
   async generateChallengePayments(challengeId: string, userId: string) {
