@@ -126,10 +126,10 @@ export interface Reviewer {
   scorecardId: string;
   isMemberReview: boolean;
   memberReviewerCount?: number;
+  phaseId: string;
   baseCoefficient?: number;
   incrementalCoefficient?: number;
   fixedAmount?: number;
-  isAIReviewer: boolean;
 }
 
 export interface ChallengeResource {
