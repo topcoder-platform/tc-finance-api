@@ -216,17 +216,22 @@ export class ChallengesService {
     return reviewers
       .map((reviewer) => {
         // Find all reviews that were performed by this reviewer (case-insensitive match)
-        const reviews = challengeReviews.filter(
-          (r) =>
-            r.reviewerHandle.toLowerCase() ===
-            reviewer.memberHandle.toLowerCase(),
-        );
+        const reviews = challengeReviews
+          .filter(
+            (r) =>
+              r.reviewerHandle.toLowerCase() ===
+              reviewer.memberHandle.toLowerCase(),
+          )
+          .map((r) => ({
+            ...r,
+            // Find the corresponding phase object in the challenge definition using its id
+            phaseId: find(challenge.phases, { id: r.phaseId })!.phaseId,
+          }));
 
         // Group the reviews by their associated phaseId
         return Object.entries(groupBy(reviews, 'phaseId')).map(
-          ([chPhaseId, phaseReviews]) => {
-            // Find the corresponding phase object in the challenge definition using its id
-            const phaseId = find(challenge.phases, { id: chPhaseId })!.phaseId;
+          ([phaseId, phaseReviews]) => {
+            console.log('HERE', phaseReviews, phaseId);
             // Find the reviewer entry in the challenge's reviewer list for this phase
             // (be sure to exclude ai reviews)
             const challengeReviewer = find(challenge.reviewers, {
@@ -270,24 +275,20 @@ export class ChallengesService {
       challengeResources.copilot,
     );
 
-    let reviewersPayments;
-    try {
-      reviewersPayments = await this.generateReviewersPayments(
-        challenge,
-        uniqBy(
-          [
-            ...challengeResources.reviewer,
-            ...challengeResources.checkpointScreener,
-            ...challengeResources.checkpointReviewer,
-            ...challengeResources.screener,
-            ...challengeResources.approver,
-          ],
-          'memberId',
-        ),
-      );
-    } catch (e) {
-      console.log('er', e);
-    }
+    const reviewersPayments = await this.generateReviewersPayments(
+      challenge,
+      uniqBy(
+        [
+          ...(challengeResources.iterativeReviewer ?? []),
+          ...(challengeResources.reviewer ?? []),
+          ...(challengeResources.checkpointScreener ?? []),
+          ...(challengeResources.checkpointReviewer ?? []),
+          ...(challengeResources.screener ?? []),
+          ...(challengeResources.approver ?? []),
+        ],
+        'memberId',
+      ),
+    );
 
     const payments: PaymentPayload[] = [
       ...winnersPayments,
