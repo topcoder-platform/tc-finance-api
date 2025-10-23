@@ -222,22 +222,37 @@ export class ChallengesService {
               r.reviewerHandle.toLowerCase() ===
               reviewer.memberHandle.toLowerCase(),
           )
-          .map((r) => ({
-            ...r,
-            // Find the corresponding phase object in the challenge definition using its id
-            phaseId: find(challenge.phases, { id: r.phaseId })!.phaseId,
-          }));
+          .map((r) => {
+            const challengePhase = find(challenge.phases, { id: r.phaseId });
+
+            if (!challengePhase) {
+              throw new Error(
+                `Failed to find challenge phase for review phase: ${r.phaseName} (${r.phaseId})`,
+              );
+            }
+
+            return {
+              ...r,
+              // Find the corresponding phase object in the challenge definition using its id
+              phaseId: challengePhase?.phaseId,
+            };
+          });
 
         // Group the reviews by their associated phaseId
         return Object.entries(groupBy(reviews, 'phaseId')).map(
           ([phaseId, phaseReviews]) => {
-            console.log('HERE', phaseReviews, phaseId);
             // Find the reviewer entry in the challenge's reviewer list for this phase
             // (be sure to exclude ai reviews)
             const challengeReviewer = find(challenge.reviewers, {
               isMemberReview: true,
               phaseId,
-            })!;
+            });
+
+            if (!challengeReviewer) {
+              throw new Error(
+                `Failed to find challenge reviewer for phase: ${phaseReviews[0].phaseName} (${phaseId})`,
+              );
+            }
 
             return {
               handle: reviewer.memberHandle,
@@ -275,20 +290,28 @@ export class ChallengesService {
       challengeResources.copilot,
     );
 
-    const reviewersPayments = await this.generateReviewersPayments(
-      challenge,
-      uniqBy(
-        [
-          ...(challengeResources.iterativeReviewer ?? []),
-          ...(challengeResources.reviewer ?? []),
-          ...(challengeResources.checkpointScreener ?? []),
-          ...(challengeResources.checkpointReviewer ?? []),
-          ...(challengeResources.screener ?? []),
-          ...(challengeResources.approver ?? []),
-        ],
-        'memberId',
-      ),
-    );
+    let reviewersPayments: PaymentPayload[] = [];
+    try {
+      reviewersPayments = await this.generateReviewersPayments(
+        challenge,
+        uniqBy(
+          [
+            ...(challengeResources.iterativeReviewer ?? []),
+            ...(challengeResources.reviewer ?? []),
+            ...(challengeResources.checkpointScreener ?? []),
+            ...(challengeResources.checkpointReviewer ?? []),
+            ...(challengeResources.screener ?? []),
+            ...(challengeResources.approver ?? []),
+          ],
+          'memberId',
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate reviewers payments for challenge ${challenge.id}!`,
+        error.message,
+      );
+    }
 
     const payments: PaymentPayload[] = [
       ...winnersPayments,
