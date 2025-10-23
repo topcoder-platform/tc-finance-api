@@ -150,6 +150,20 @@ export class TrolleyService {
     }
   }
 
+  async removePayment(paymentId: string, batchId: string) {
+    try {
+      await this.client.payment.remove(paymentId, batchId);
+      this.logger.debug(`Removed trolley payment with id ${paymentId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to remove trolley payment: '${error.message}'!`,
+        paymentId,
+        batchId,
+        error,
+      );
+    }
+  }
+
   async startProcessingPayment(paymentBatchId: string) {
     try {
       // generate quote

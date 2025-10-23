@@ -109,12 +109,9 @@ export class PaymentsService {
   async updatePaymentProcessingState(
     winningsIds: string[],
     status: payment_status,
-    transaction?: Prisma.TransactionClient,
   ) {
     try {
-      const prismaClient = transaction || this.prisma;
-
-      const r = await prismaClient.payment.updateMany({
+      const r = await this.prisma.payment.updateMany({
         where: {
           winnings_id: { in: winningsIds },
         },
