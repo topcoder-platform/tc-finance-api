@@ -310,22 +310,21 @@ export class ChallengesService {
       baValidation.markup = challenge.billing.clientBillingRate;
     }
 
-    // await Promise.all(
-    //   payments.map(async (p) => {
-    //     try {
-    //       await this.winningsService.createWinningWithPayments(p, userId);
-    //     } catch (e) {
-    //       this.logger.log(
-    //         `Failed to create winnings payment for user ${p.winnerId}!`,
-    //         e,
-    //       );
-    //     }
-    //   }),
-    // );
-    console.log('here3', payments);
+    await Promise.all(
+      payments.map(async (p) => {
+        try {
+          await this.winningsService.createWinningWithPayments(p, userId);
+        } catch (e) {
+          this.logger.log(
+            `Failed to create winnings payment for user ${p.winnerId}!`,
+            e,
+          );
+        }
+      }),
+    );
 
     this.logger.log('Task Completed. locking consumed budget', baValidation);
-    // await this.baService.lockConsumeAmount(baValidation);
+    await this.baService.lockConsumeAmount(baValidation);
   }
 
   async generateChallengePayments(challengeId: string, userId: string) {
