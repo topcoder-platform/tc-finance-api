@@ -178,7 +178,6 @@ export class ChallengesService {
     challenge: Challenge,
     reviewers: ChallengeResource[],
   ): Promise<PaymentPayload[]> {
-    // generate placement payments
     const placementPrizes = orderBy(
       find(challenge.prizeSets, { type: 'PLACEMENT' })?.prizes,
       'value',
@@ -206,7 +205,7 @@ export class ChallengesService {
       return {
         handle: reviewer.memberHandle,
         userId: reviewer.memberId.toString(),
-        amount: Math.round(
+        amount: Math.ceil(
           (challengeReviewer.fixedAmount ?? 0) +
             (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
             (challengeReviewer.incrementalCoefficient ?? 0) *
