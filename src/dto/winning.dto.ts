@@ -127,7 +127,7 @@ export class WinningRequestDto extends SortPagination {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
-  winnerId: string;
+  winnerId?: string;
 
   @ApiProperty({
     description: 'The array of the winner ids',
@@ -138,7 +138,7 @@ export class WinningRequestDto extends SortPagination {
   @ArrayNotEmpty()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  winnerIds: string[];
+  winnerIds?: string[];
 
   @ApiProperty({
     description: 'The array of the external ids',
@@ -149,7 +149,7 @@ export class WinningRequestDto extends SortPagination {
   @ArrayNotEmpty()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  externalIds: string[];
+  externalIds?: string[];
 
   @ApiProperty({
     description: 'The type of winnings category',
@@ -158,7 +158,7 @@ export class WinningRequestDto extends SortPagination {
   })
   @IsOptional()
   @IsEnum(WinningsCategory)
-  type: WinningsCategory;
+  type?: WinningsCategory;
 
   @ApiProperty({
     description: 'The payment status',
@@ -167,7 +167,7 @@ export class WinningRequestDto extends SortPagination {
   })
   @IsOptional()
   @IsEnum(PaymentStatus)
-  status: PaymentStatus;
+  status?: PaymentStatus;
 
   @ApiProperty({
     description: 'The filter date',
@@ -176,7 +176,7 @@ export class WinningRequestDto extends SortPagination {
   })
   @IsOptional()
   @IsEnum(DateFilterType)
-  date: DateFilterType;
+  date?: DateFilterType;
 }
 
 export class WinningCreateRequestDto {

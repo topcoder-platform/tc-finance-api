@@ -1,0 +1,6 @@
+CREATE TABLE "challenge_lock" (
+  "id" SERIAL PRIMARY KEY,
+  "external_id" VARCHAR(255) NOT NULL UNIQUE,
+  "lock_time" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "error" TEXT
+);

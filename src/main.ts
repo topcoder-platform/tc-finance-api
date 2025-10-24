@@ -3,17 +3,11 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ApiModule } from './api/api.module';
 import { AppModule } from './app.module';
-import { PaymentProvidersModule } from './api/payment-providers/payment-providers.module';
-import { WebhooksModule } from './api/webhooks/webhooks.module';
 import { ENV_CONFIG } from './config';
-import { AdminModule } from './api/admin/admin.module';
-import { UserModule } from './api/user/user.module';
-import { WalletModule } from './api/wallet/wallet.module';
-import { WinningsModule } from './api/winnings/winnings.module';
-import { WithdrawalModule } from './api/withdrawal/withdrawal.module';
 import { Logger } from 'src/shared/global';
+
+const API_DOCS_URL = `${ENV_CONFIG.API_BASE}/api-docs`;
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -83,19 +77,8 @@ async function bootstrap() {
       in: 'header',
     })
     .build();
-  const document = SwaggerModule.createDocument(app, config, {
-    include: [
-      ApiModule,
-      AdminModule,
-      UserModule,
-      WinningsModule,
-      WithdrawalModule,
-      WalletModule,
-      PaymentProvidersModule,
-      WebhooksModule,
-    ],
-  });
-  SwaggerModule.setup('/v5/finance/api-docs', app, document);
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup(API_DOCS_URL, app, document);
 
   // Add an event handler to log uncaught promise rejections and prevent the server from crashing
   process.on('unhandledRejection', (reason, promise) => {
@@ -110,6 +93,8 @@ async function bootstrap() {
   });
 
   await app.listen(ENV_CONFIG.PORT ?? 3000);
+  logger.log(`Application is running on: ${await app.getUrl()}`);
+  logger.log(`Swagger docs available at: ${await app.getUrl()}${API_DOCS_URL}`);
 }
 
 void bootstrap();

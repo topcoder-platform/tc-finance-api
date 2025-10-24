@@ -4,6 +4,7 @@ import { TopcoderM2MService } from './topcoder-m2m.service';
 import { TopcoderChallengesService } from './challenges.service';
 import { TopcoderBusService } from './bus.service';
 import { TopcoderEmailService } from './tc-email.service';
+import { BillingAccountsService } from './billing-accounts.service';
 
 @Module({
   providers: [
@@ -12,12 +13,15 @@ import { TopcoderEmailService } from './tc-email.service';
     TopcoderM2MService,
     TopcoderBusService,
     TopcoderEmailService,
+    BillingAccountsService,
   ],
   exports: [
     TopcoderChallengesService,
     TopcoderMembersService,
+    TopcoderM2MService,
     TopcoderBusService,
     TopcoderEmailService,
+    BillingAccountsService,
   ],
 })
 export class TopcoderModule {}

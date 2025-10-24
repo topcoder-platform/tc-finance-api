@@ -11,10 +11,7 @@ import {
 } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
-import {
-  TopcoderChallengesService,
-  WithdrawUpdateData,
-} from 'src/shared/topcoder/challenges.service';
+import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
@@ -32,16 +29,6 @@ interface ReleasableWinningRow {
   status: payment_status;
   releaseDate: Date;
   datePaid: Date;
-}
-
-function formatDate(date = new Date()) {
-  const pad = (n, z = 2) => String(n).padStart(z, '0');
-
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
-    `${pad(date.getMilliseconds(), 3)}`
-  );
 }
 
 @Injectable()
@@ -402,26 +389,6 @@ export class WithdrawalService {
         });
 
         throw new Error(errorMsg);
-      }
-
-      try {
-        for (const winning of winnings) {
-          const payoutData: WithdrawUpdateData = {
-            userId: +userId,
-            status: 'Paid',
-            datePaid: formatDate(new Date()),
-          };
-
-          await this.tcChallengesService.updateLegacyPayments(
-            winning.externalId as string,
-            payoutData,
-          );
-        }
-      } catch (error) {
-        this.logger.error(
-          `Failed to update legacy payment while withdrawing for challenge ${error?.message ?? error}`,
-          error,
-        );
       }
     } catch (error) {
       if (error.code === 'P2010' && error.meta?.code === '55P03') {
