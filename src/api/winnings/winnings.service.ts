@@ -88,8 +88,13 @@ export class WinningsService {
     }
   }
 
-  private async setPayrollPaymentMethod(userId: string) {
-    const payrollPaymentMethod = await this.prisma.payment_method.findFirst({
+  private async setPayrollPaymentMethod(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const payrollPaymentMethod = await (
+      tx || this.prisma
+    ).payment_method.findFirst({
       where: {
         payment_method_type: 'Wipro Payroll',
       },
@@ -101,7 +106,7 @@ export class WinningsService {
     }
 
     if (
-      await this.prisma.user_payment_methods.findFirst({
+      await (tx || this.prisma).user_payment_methods.findFirst({
         where: {
           user_id: userId,
           payment_method_id: payrollPaymentMethod.payment_method_id,
@@ -180,13 +185,18 @@ export class WinningsService {
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
         body.winnerId,
+        tx,
       );
       const hasConnectedPaymentMethod = Boolean(
-        await this.paymentMethodRepo.getConnectedPaymentMethod(body.winnerId),
+        await this.paymentMethodRepo.getConnectedPaymentMethod(
+          body.winnerId,
+          tx,
+        ),
       );
       const isIdentityVerified =
         await this.identityVerificationRepo.completedIdentityVerification(
           body.winnerId,
+          tx,
         );
 
       for (const detail of body.details || []) {
@@ -213,7 +223,7 @@ export class WinningsService {
             `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
           );
           paymentModel.payment_status = PaymentStatus.PAID;
-          await this.setPayrollPaymentMethod(body.winnerId);
+          await this.setPayrollPaymentMethod(body.winnerId, tx);
         }
 
         winningModel.payment.create.push(paymentModel);
@@ -223,7 +233,7 @@ export class WinningsService {
       }
 
       this.logger.debug('Attempting to create winning with nested payments.');
-      const createdWinning = await this.prisma.winnings.create({
+      const createdWinning = await tx.winnings.create({
         data: winningModel as any,
       });
 
