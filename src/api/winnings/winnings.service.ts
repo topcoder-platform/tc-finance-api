@@ -88,8 +88,13 @@ export class WinningsService {
     }
   }
 
-  private async setPayrollPaymentMethod(userId: string) {
-    const payrollPaymentMethod = await this.prisma.payment_method.findFirst({
+  private async setPayrollPaymentMethod(
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const payrollPaymentMethod = await (
+      tx || this.prisma
+    ).payment_method.findFirst({
       where: {
         payment_method_type: 'Wipro Payroll',
       },
@@ -101,7 +106,7 @@ export class WinningsService {
     }
 
     if (
-      await this.prisma.user_payment_methods.findFirst({
+      await (tx || this.prisma).user_payment_methods.findFirst({
         where: {
           user_id: userId,
           payment_method_id: payrollPaymentMethod.payment_method_id,
@@ -146,110 +151,120 @@ export class WinningsService {
       body,
     );
 
-    const originId = await this.originRepo.getOriginIdByName(body.origin);
+    return this.prisma.$transaction(async (tx) => {
+      const originId = await this.originRepo.getOriginIdByName(body.origin, tx);
 
-    if (!originId) {
-      this.logger.warn('Invalid origin provided', { originId });
+      if (!originId) {
+        this.logger.warn('Invalid origin provided', { originId });
 
-      result.error = {
-        code: HttpStatus.BAD_REQUEST,
-        message: 'Origin name does not exist',
-      };
-      return result;
-    }
+        result.error = {
+          code: HttpStatus.BAD_REQUEST,
+          message: 'Origin name does not exist',
+        };
+        return result;
+      }
 
-    const winningModel = {
-      winner_id: body.winnerId,
-      type: body.type,
-      origin_id: originId,
-      category: body.category,
-      title: body.title,
-      description: body.description,
-      external_id: body.externalId,
-      attributes: body.attributes,
-      created_by: userId,
-      payment: {
-        create: [] as Partial<payment>[],
-      },
-    };
-
-    this.logger.debug('Constructed winning model', { winningModel });
-
-    const payrollPayment = (body.attributes || {})['payroll'] === true;
-
-    const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
-      body.winnerId,
-    );
-    const hasConnectedPaymentMethod = Boolean(
-      await this.paymentMethodRepo.getConnectedPaymentMethod(body.winnerId),
-    );
-    const isIdentityVerified =
-      await this.identityVerificationRepo.completedIdentityVerification(
-        body.winnerId,
-      );
-
-    for (const detail of body.details || []) {
-      const paymentModel = {
-        gross_amount: Prisma.Decimal(detail.grossAmount),
-        total_amount: Prisma.Decimal(detail.totalAmount),
-        installment_number: detail.installmentNumber,
-        currency: detail.currency,
-        net_amount: Prisma.Decimal(0),
-        payment_status: '' as payment_status,
+      const winningModel = {
+        winner_id: body.winnerId,
+        type: body.type,
+        origin_id: originId,
+        category: body.category,
+        title: body.title,
+        description: body.description,
+        external_id: body.externalId,
+        attributes: body.attributes,
         created_by: userId,
-        billing_account: detail.billingAccount,
-        challenge_fee: Prisma.Decimal(detail.challengeFee),
+        payment: {
+          create: [] as Partial<payment>[],
+        },
       };
 
-      paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
-      paymentModel.payment_status =
-        hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
-          ? PaymentStatus.OWED
-          : PaymentStatus.ON_HOLD;
+      this.logger.debug('Constructed winning model', { winningModel });
 
-      if (payrollPayment) {
-        this.logger.debug(
-          `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
+      const payrollPayment = (body.attributes || {})['payroll'] === true;
+
+      const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
+        body.winnerId,
+        tx,
+      );
+      const hasConnectedPaymentMethod = Boolean(
+        await this.paymentMethodRepo.getConnectedPaymentMethod(
+          body.winnerId,
+          tx,
+        ),
+      );
+      const isIdentityVerified =
+        await this.identityVerificationRepo.completedIdentityVerification(
+          body.winnerId,
+          tx,
         );
-        paymentModel.payment_status = PaymentStatus.PAID;
-        await this.setPayrollPaymentMethod(body.winnerId);
+
+      for (const detail of body.details || []) {
+        const paymentModel = {
+          gross_amount: Prisma.Decimal(detail.grossAmount),
+          total_amount: Prisma.Decimal(detail.totalAmount),
+          installment_number: detail.installmentNumber,
+          currency: detail.currency,
+          net_amount: Prisma.Decimal(0),
+          payment_status: '' as payment_status,
+          created_by: userId,
+          billing_account: detail.billingAccount,
+          challenge_fee: Prisma.Decimal(detail.challengeFee),
+        };
+
+        paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
+        paymentModel.payment_status =
+          hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
+            ? PaymentStatus.OWED
+            : PaymentStatus.ON_HOLD;
+
+        if (payrollPayment) {
+          this.logger.debug(
+            `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
+          );
+          paymentModel.payment_status = PaymentStatus.PAID;
+          await this.setPayrollPaymentMethod(body.winnerId, tx);
+        }
+
+        winningModel.payment.create.push(paymentModel);
+        this.logger.debug('Added payment model to winning model', {
+          paymentModel,
+        });
       }
 
-      winningModel.payment.create.push(paymentModel);
-      this.logger.debug('Added payment model to winning model', {
-        paymentModel,
+      this.logger.debug('Attempting to create winning with nested payments.');
+      const createdWinning = await tx.winnings.create({
+        data: winningModel as any,
       });
-    }
 
-    this.logger.debug('Attempting to create winning with nested payments.');
-    const createdWinning = await this.prisma.winnings.create({
-      data: winningModel as any,
-    });
-
-    if (!createdWinning) {
-      this.logger.error('Failed to create winning!');
-      result.error = {
-        code: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Failed to create winning!',
-      };
-    } else {
-      this.logger.debug('Successfully created winning', { createdWinning });
-    }
-
-    if (!payrollPayment && (!hasConnectedPaymentMethod || !hasActiveTaxForm)) {
-      const amount = body.details.find(
-        (d) => d.installmentNumber === 1,
-      )?.totalAmount;
-
-      if (amount) {
-        this.logger.debug(
-          `Sending setup email notification for user ${body.winnerId} with amount ${amount}`,
-        );
-        void this.sendSetupEmailNotification(body.winnerId, amount);
+      if (!createdWinning) {
+        this.logger.error('Failed to create winning!');
+        result.error = {
+          code: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to create winning!',
+        };
+      } else {
+        this.logger.debug('Successfully created winning', { createdWinning });
       }
-    }
 
-    this.logger.debug('Transaction completed successfully.');
-    return result;
+      if (
+        !payrollPayment &&
+        (!hasConnectedPaymentMethod || !hasActiveTaxForm)
+      ) {
+        const amount = body.details.find(
+          (d) => d.installmentNumber === 1,
+        )?.totalAmount;
+
+        if (amount) {
+          this.logger.debug(
+            `Sending setup email notification for user ${body.winnerId} with amount ${amount}`,
+          );
+          void this.sendSetupEmailNotification(body.winnerId, amount);
+        }
+      }
+
+      this.logger.debug('Transaction completed successfully.');
+      return result;
+    });
   }
 }
