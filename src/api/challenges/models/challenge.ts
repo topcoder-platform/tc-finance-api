@@ -36,7 +36,8 @@ export interface Challenge {
   created: string;
   updated: string;
   overview: PrizeOverview;
-  winners: Winner[]; // Replace with type if needed
+  winners: Winner[];
+  checkpointWinners: Winner[];
   numOfSubmissions: number;
   numOfCheckpointSubmissions: number;
   numOfRegistrants: number;

@@ -14,7 +14,9 @@ import {
   Challenge,
   ChallengeResource,
   ChallengeReview,
+  Prize,
   ResourceRole,
+  Winner,
 } from './models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
@@ -117,9 +119,12 @@ export class ChallengesService {
     }
   }
 
-  generateWinnersPayments(challenge: Challenge): PaymentPayload[] {
-    const { prizeSets, winners } = challenge;
-
+  generateWinnersPayments(
+    challenge: Challenge,
+    winners: Winner[],
+    prizes: Prize[],
+    type?: WinningsCategory,
+  ): PaymentPayload[] {
     const isCancelledFailedReview =
       challenge.status.toLowerCase() ===
       ChallengeStatuses.CancelledFailedReview.toLowerCase();
@@ -127,6 +132,53 @@ export class ChallengesService {
     if (isCancelledFailedReview) {
       return [];
     }
+
+    return winners.map((winner) => ({
+      handle: winner.handle,
+      amount: prizes[winner.placement - 1].value,
+      userId: winner.userId.toString(),
+      type:
+        type ??
+        (challenge.task.isTask
+          ? WinningsCategory.TASK_PAYMENT
+          : WinningsCategory.CONTEST_PAYMENT),
+      description:
+        challenge.type === 'Task'
+          ? challenge.name
+          : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+    }));
+  }
+
+  generateCheckpointWinnersPayments(challenge: Challenge): PaymentPayload[] {
+    const { prizeSets, checkpointWinners } = challenge;
+
+    // generate placement payments
+    const checkpointPrizes = orderBy(
+      find(prizeSets, { type: 'CHECKPOINT' })?.prizes,
+      'value',
+      'desc',
+    );
+
+    if ((checkpointPrizes?.length ?? 0) < (checkpointWinners?.length ?? 0)) {
+      throw new Error(
+        'Task has incorrect number of checkpoint prizes! There are more checkpoint winners than checkpoint prizes!',
+      );
+    }
+
+    if (!checkpointPrizes?.length) {
+      return [];
+    }
+
+    return this.generateWinnersPayments(
+      challenge,
+      checkpointWinners,
+      checkpointPrizes,
+      WinningsCategory.CONTEST_CHECKPOINT_PAYMENT,
+    );
+  }
+
+  generatePlacementWinnersPayments(challenge: Challenge): PaymentPayload[] {
+    const { prizeSets, winners } = challenge;
 
     // generate placement payments
     const placementPrizes = orderBy(
@@ -141,18 +193,7 @@ export class ChallengesService {
       );
     }
 
-    return winners.map((winner) => ({
-      handle: winner.handle,
-      amount: placementPrizes[winner.placement - 1].value,
-      userId: winner.userId.toString(),
-      type: challenge.task.isTask
-        ? WinningsCategory.TASK_PAYMENT
-        : WinningsCategory.CONTEST_PAYMENT,
-      description:
-        challenge.type === 'Task'
-          ? challenge.name
-          : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
-    }));
+    return this.generateWinnersPayments(challenge, winners, placementPrizes);
   }
 
   generateCopilotPayment(
@@ -284,7 +325,9 @@ export class ChallengesService {
       throw new Error('Missing challenge resources!');
     }
 
-    const winnersPayments = this.generateWinnersPayments(challenge);
+    const winnersPayments = this.generatePlacementWinnersPayments(challenge);
+    const checkpointPayments =
+      this.generateCheckpointWinnersPayments(challenge);
     const copilotPayments = this.generateCopilotPayment(
       challenge,
       challengeResources.copilot,
@@ -315,6 +358,7 @@ export class ChallengesService {
 
     const payments: PaymentPayload[] = [
       ...winnersPayments,
+      ...checkpointPayments,
       ...copilotPayments,
       ...reviewersPayments,
     ];
