@@ -19,6 +19,16 @@ import {
 } from 'src/shared/topcoder/challenges.service';
 import { Logger } from 'src/shared/global';
 
+function formatDate(date = new Date()) {
+  const pad = (n, z = 2) => String(n).padStart(z, '0');
+
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
+    `${pad(date.getMilliseconds(), 3)}`
+  );
+}
+
 /**
  * The admin winning service.
  */
@@ -322,7 +332,7 @@ export class AdminService {
           userId: +winning.winner_id,
           status: body.paymentStatus,
           amount: body.paymentAmount,
-          releaseDate: body.releaseDate,
+          releaseDate: formatDate(new Date(body.releaseDate)),
         };
 
         await this.tcChallengesService.updateLegacyPayments(
