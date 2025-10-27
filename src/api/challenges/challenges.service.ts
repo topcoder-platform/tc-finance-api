@@ -411,6 +411,22 @@ export class ChallengesService {
       );
     }
 
+    const paymentTypes = [
+      ...new Set(
+        challenge.prizeSets
+          .map((set) => set.prizes.map((prize) => prize.type))
+          .flat(),
+      ),
+    ];
+    const isRewardsPayment = paymentTypes.some((type) => type !== 'USD');
+
+    if (isRewardsPayment) {
+      this.logger.log(
+        `Rewards system detected: ${paymentTypes.join(', ')}. Skipping payments generation for challenge ${challenge.name} (${challenge.id}).`,
+      );
+      return;
+    }
+
     const payments = await this.getChallengePayments(challenge);
     const totalAmount = payments.reduce(
       (sum, payment) => sum + payment.details[0].totalAmount,
