@@ -145,7 +145,7 @@ export class ChallengesService {
       description:
         challenge.type === 'Task'
           ? challenge.name
-          : `${challenge.name} - ${placeToOrdinal(winner.placement)} Place`,
+          : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
     }));
   }
 
@@ -220,6 +220,7 @@ export class ChallengesService {
       amount: copilotPrizes[0].value,
       userId: copilot.memberId.toString(),
       type: WinningsCategory.COPILOT_PAYMENT,
+      description: `${challenge.name} - Copilot payment`,
     }));
   }
 
