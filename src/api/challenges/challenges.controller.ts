@@ -51,7 +51,10 @@ export class ChallengesController {
       );
       result.status = ResponseStatusType.SUCCESS;
     } catch (e) {
-      result.error = e;
+      result.error = {
+        ...e,
+        message: e.message,
+      };
       result.status = ResponseStatusType.ERROR;
     }
 
