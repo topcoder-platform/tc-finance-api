@@ -16,6 +16,16 @@ import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 import { Logger } from 'src/shared/global';
 
+function formatDate(date = new Date()) {
+  const pad = (n, z = 2) => String(n).padStart(z, '0');
+
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
+    `${pad(date.getMilliseconds(), 3)}`
+  );
+}
+
 /**
  * The admin winning service.
  */
