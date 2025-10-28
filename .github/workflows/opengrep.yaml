@@ -1,0 +1,32 @@
+name: OpenGrep Scanner
+
+permissions:
+  contents: read
+  security-events: write
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+jobs:
+  opengrep-scan:
+    name: Use OpenGrep
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install OpenGrep
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          opengrep --version
+
+      - name: Scan with OpenGrep
+        run: |
+          opengrep --config=r/all --sarif --verbose . > opengrep-results.sarif
+
+      - name: Upload OpenGrep scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "opengrep-results.sarif"
