@@ -1,0 +1,17 @@
+export const ChallengeStatuses = {
+  New: 'New',
+  Active: 'Active',
+  Draft: 'Draft',
+  Approved: 'Approved',
+  Canceled: 'Canceled',
+  Completed: 'Completed',
+  Deleted: 'Deleted',
+  CancelledFailedReview: 'CANCELLED_FAILED_REVIEW',
+  CancelledFailedScreening: 'CANCELLED_FAILED_SCREENING',
+  CancelledZeroSubmissions: 'CANCELLED_ZERO_SUBMISSIONS',
+  CancelledWinnerUnresponsive: 'CANCELLED_WINNER_UNRESPONSIVE',
+  CancelledClientRequest: 'CANCELLED_CLIENT_REQUEST',
+  CancelledRequirementsInfeasible: 'CANCELLED_REQUIREMENTS_INFEASIBLE',
+  CancelledZeroRegistrations: 'CANCELLED_ZERO_REGISTRATIONS',
+  CancelledPaymentFailed: 'CANCELLED_PAYMENT_FAILED',
+};

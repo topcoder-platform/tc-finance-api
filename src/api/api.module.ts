@@ -17,6 +17,8 @@ import { WinningsModule } from './winnings/winnings.module';
 import { UserModule } from './user/user.module';
 import { WalletModule } from './wallet/wallet.module';
 import { WithdrawalModule } from './withdrawal/withdrawal.module';
+import { ChallengesModule } from './challenges/challenges.module';
+import { ChallengePaymentsModule } from './challenge-payments/challenge-payments.module';
 
 @Module({
   imports: [
@@ -26,9 +28,11 @@ import { WithdrawalModule } from './withdrawal/withdrawal.module';
     WebhooksModule,
     AdminModule,
     WinningsModule,
+    ChallengePaymentsModule,
     UserModule,
     WalletModule,
     WithdrawalModule,
+    ChallengesModule,
   ],
   controllers: [HealthCheckController],
   providers: [

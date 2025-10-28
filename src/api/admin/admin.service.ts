@@ -13,10 +13,7 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
-import {
-  AdminPaymentUpdateData,
-  TopcoderChallengesService,
-} from 'src/shared/topcoder/challenges.service';
+import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 import { Logger } from 'src/shared/global';
 
 function formatDate(date = new Date()) {
@@ -315,30 +312,6 @@ export class AdminService {
             );
           }
         }
-      });
-
-      transactions.push(async () => {
-        const winning = await this.getWinningById(winningsId);
-        if (!winning) {
-          this.logger.error(
-            `Error updating legacy system for winning ${winningsId}. Winning not found!`,
-          );
-          throw new Error(
-            `Error updating legacy system for winning ${winningsId}. Winning not found!`,
-          );
-        }
-
-        const payoutData: AdminPaymentUpdateData = {
-          userId: +winning.winner_id,
-          status: body.paymentStatus,
-          amount: body.paymentAmount,
-          releaseDate: formatDate(new Date(body.releaseDate)),
-        };
-
-        await this.tcChallengesService.updateLegacyPayments(
-          winning.external_id as string,
-          payoutData,
-        );
       });
 
       // Run all transaction tasks in a single prisma transaction

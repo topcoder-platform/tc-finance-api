@@ -103,45 +103,11 @@ model payment_releases {
   payment_method               payment_method                 @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model payoneer_payment_method {
-  id                     Int                  @id @default(autoincrement())
-  user_payment_method_id String?               @db.Uuid
-  user_id                String               @unique @db.VarChar(80)
-  payee_id               String               @db.VarChar(50)
-  payoneer_id            String?              @db.VarChar(50)
-  user_payment_methods   user_payment_methods? @relation(fields: [user_payment_method_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_payoneer_user_payment_method")
-}
-
-model paypal_payment_method {
-  id                     Int                  @id @default(autoincrement())
-  user_payment_method_id String?               @db.Uuid
-  user_id                String               @unique @db.VarChar(80)
-  email                  String?              @db.VarChar(150)
-  payer_id               String?              @db.VarChar(50)
-  country_code           String?              @db.VarChar(2)
-  user_payment_methods   user_payment_methods? @relation(fields: [user_payment_method_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_paypal_user_payment_method")
-}
-
-model reward {
-  reward_id   String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  winnings_id String    @db.Uuid
-  points      Int?
-  title       String?   @db.VarChar(255)
-  description String?
-  reference   Json?
-  attributes  Json?
-  created_at  DateTime? @default(now()) @db.Timestamp(6)
-  updated_at  DateTime? @default(now()) @db.Timestamp(6)
-  winnings    winnings  @relation(fields: [winnings_id], references: [winning_id], onDelete: NoAction, onUpdate: NoAction)
-}
-
 model user_payment_methods {
   id                      String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   user_id                 String                    @db.VarChar(80)
   payment_method_id       Int
   status                  payment_method_status?    @default(OTP_PENDING)
-  payoneer_payment_method payoneer_payment_method[]
-  paypal_payment_method   paypal_payment_method[]
   trolley_payment_method  trolley_recipient[]
   payment_method          payment_method            @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_payment_method")
 
@@ -172,7 +138,6 @@ model winnings {
   updated_at  DateTime?          @default(now()) @db.Timestamp(6)
   audit       audit[]
   payment     payment[]
-  reward      reward[]
   origin      origin?            @relation(fields: [origin_id], references: [origin_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([category, created_at(sort: Desc)], map: "idx_winnings_category_created_at")
@@ -221,6 +186,13 @@ model trolley_recipient_payment_method {
   trolley_recipient_id Int
   recipient_account_id                String               @unique @db.VarChar(80)
   trolley_recipient   trolley_recipient @relation(fields: [trolley_recipient_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_trolley_recipient_trolley_recipient_payment_method")
+}
+
+model challenge_lock {
+  id Int @id @default(autoincrement())
+  external_id  String            @unique @db.VarChar(255)
+  lock_time    DateTime       @default(now()) @db.Timestamp(6)
+  error        String?            @db.Text
 }
 
 enum verification_status {
