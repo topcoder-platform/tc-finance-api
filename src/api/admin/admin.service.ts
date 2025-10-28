@@ -332,7 +332,8 @@ export class AdminService {
           userId: +winning.winner_id,
           status: body.paymentStatus,
           amount: body.paymentAmount,
-          releaseDate: formatDate(new Date(body.releaseDate)),
+          releaseDate:
+            body.releaseDate && formatDate(new Date(body.releaseDate)),
         };
 
         await this.tcChallengesService.updateLegacyPayments(
