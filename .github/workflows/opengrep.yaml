@@ -20,12 +20,11 @@ jobs:
       - name: Install OpenGrep
         run: |
           curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
-          export PATH='/home/runner/.opengrep/cli/latest':$PATH
-          opengrep --version
+          /home/runner/.opengrep/cli/latest/opengrep --version
 
       - name: Scan with OpenGrep
         run: |
-          opengrep --config=r/all --sarif --verbose . > opengrep-results.sarif
+          /home/runner/.opengrep/cli/latest/opengrep --config=r/all --sarif --verbose . > opengrep-results.sarif
 
       - name: Upload OpenGrep scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
