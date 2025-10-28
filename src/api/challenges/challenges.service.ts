@@ -61,7 +61,9 @@ export class ChallengesService {
   ) {}
 
   async getChallenge(challengeId: string) {
-    const requestUrl = `${TC_API_BASE}/challenges/${challengeId}`;
+    // Use the URL constructor to avoid path traversal/SSRF risks.
+    const baseUrl = TC_API_BASE.endsWith('/') ? TC_API_BASE.slice(0, -1) : TC_API_BASE;
+    const requestUrl = new URL(`/challenges/${challengeId}`, baseUrl).toString();
 
     try {
       const challenge = await this.m2MService.m2mFetch<Challenge>(requestUrl);
