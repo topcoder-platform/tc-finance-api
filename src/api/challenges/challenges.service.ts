@@ -8,6 +8,7 @@ import {
   uniqBy,
 } from 'lodash';
 import { ConflictException, Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 import {
@@ -61,6 +62,10 @@ export class ChallengesService {
   ) {}
 
   async getChallenge(challengeId: string) {
+    if (!isUUID(challengeId)) {
+      throw new BadRequestException('Invalid challengeId provided! Uuid expected!');
+    }
+
     // Use the URL constructor to avoid path traversal/SSRF risks.
     const baseUrl = TC_API_BASE.endsWith('/') ? TC_API_BASE.slice(0, -1) : TC_API_BASE;
     const requestUrl = new URL(`/challenges/${challengeId}`, baseUrl).toString();
