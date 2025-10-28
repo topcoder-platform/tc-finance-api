@@ -1,4 +1,5 @@
-import { Controller, Post, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Param, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import {
   ApiOperation,
   ApiParam,
@@ -42,6 +43,10 @@ export class ChallengesController {
     @Param('challengeId') challengeId: string,
     @User() user: UserInfo,
   ): Promise<ResponseDto<string>> {
+    if (!isUUID(challengeId)) {
+      throw new BadRequestException('Invalid challengeId provided! Uuid expected!');
+    }
+
     const result = new ResponseDto<string>();
 
     try {
