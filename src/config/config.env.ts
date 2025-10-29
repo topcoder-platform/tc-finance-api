@@ -13,14 +13,16 @@ import {
 export class ConfigEnv {
   @IsString()
   @IsOptional()
-  API_BASE = '/v5/finance';
+  API_BASE = '/v6/finance';
 
-  @IsInt()
   @IsOptional()
   PORT = 3000;
 
   @IsString()
-  TOPCODER_API_BASE_URL!: string;
+  TOPCODER_API_V5_BASE_URL!: string;
+
+  @IsString()
+  TOPCODER_API_V6_BASE_URL!: string;
 
   @IsString()
   AUTH0_M2M_AUDIENCE!: string;
@@ -110,4 +112,7 @@ export class ConfigEnv {
 
   @IsString()
   SENDGRID_TEMPLATE_ID_OTP_CODE: string = 'd-2d0ab9f6c9cc4efba50080668a9c35c1';
+
+  @IsInt({ each: true })
+  TGBillingAccounts = [80000062, 80002800];
 }
