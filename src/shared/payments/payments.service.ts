@@ -3,9 +3,12 @@ import { JsonObject } from '@prisma/client/runtime/library';
 import { PrismaService } from '../global/prisma.service';
 import { payment_status, Prisma } from '@prisma/client';
 import { uniq } from 'lodash';
+import { Logger } from 'src/shared/global';
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -95,14 +98,59 @@ export class PaymentsService {
    * This ensures that the payment statuses are accurately reflected in the system.
    */
   async reconcileUserPayments(...userIds: string[]) {
-    const usersPayoutStatus = await this.getUsersPayoutStatus(userIds);
+    try {
+      const usersPayoutStatus = await this.getUsersPayoutStatus(userIds);
+      this.logger.debug(
+        `Reconciling payments for userIds=${JSON.stringify(
+          userIds,
+        )}; complete=${usersPayoutStatus.complete.length}; inProgress=${usersPayoutStatus.inProgress.length}`,
+      );
 
-    if (usersPayoutStatus.complete.length) {
-      await this.toggleUserPaymentsStatus(usersPayoutStatus.complete, false);
-    }
+      if (usersPayoutStatus.complete.length) {
+        this.logger.info(
+          `Setting payments to OWED for users: ${usersPayoutStatus.complete.join(
+            ',',
+          )}`,
+        );
+        await this.toggleUserPaymentsStatus(usersPayoutStatus.complete, false);
+        this.logger.debug(
+          `Payments set to OWED for users: ${usersPayoutStatus.complete.join(
+            ',',
+          )}`,
+        );
+      }
 
-    if (usersPayoutStatus.inProgress.length) {
-      await this.toggleUserPaymentsStatus(usersPayoutStatus.inProgress, true);
+      if (usersPayoutStatus.inProgress.length) {
+        this.logger.info(
+          `Setting payments to ON_HOLD for users: ${usersPayoutStatus.inProgress.join(
+            ',',
+          )}`,
+        );
+        await this.toggleUserPaymentsStatus(usersPayoutStatus.inProgress, true);
+        this.logger.debug(
+          `Payments set to ON_HOLD for users: ${usersPayoutStatus.inProgress.join(
+            ',',
+          )}`,
+        );
+      }
+
+      if (
+        usersPayoutStatus.complete.length === 0 &&
+        usersPayoutStatus.inProgress.length === 0
+      ) {
+        this.logger.debug(
+          `No payment status changes required for userIds=${JSON.stringify(
+            userIds,
+          )}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to reconcile payments for userIds=${JSON.stringify(
+          userIds,
+        )}: ${error?.message ?? error}`,
+      );
+      throw error;
     }
   }
 

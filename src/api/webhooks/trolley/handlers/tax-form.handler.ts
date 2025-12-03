@@ -63,6 +63,10 @@ export class TaxFormHandler {
     recipient: trolley_recipient,
     taxFormData: TaxFormStatusUpdatedEventData,
   ) {
+    this.logger.log(
+      `Processing tax form '${taxFormId}' for user '${recipient.user_id}' (recipient trolley id: '${recipient.trolley_id}')`,
+    );
+
     const existingFormAssociation =
       await this.prisma.user_tax_form_associations.findFirst({
         where: {
@@ -71,26 +75,45 @@ export class TaxFormHandler {
         },
       });
 
+    if (existingFormAssociation) {
+      this.logger.debug(
+        `Found existing association id='${existingFormAssociation.id}' status='${existingFormAssociation.tax_form_status}' date_filed='${existingFormAssociation.date_filed}'`,
+      );
+    } else {
+      this.logger.debug('No existing tax form association found');
+    }
+
     const taxFormStatus = this.getTaxFormStatus(
       existingFormAssociation,
       taxFormData,
     );
+    this.logger.log(`Determined tax form status: '${taxFormStatus}'`);
 
     // voided forms associations are removed from DB
     if (
       taxFormData.status === TrolleyTaxFormStatus.Voided &&
       existingFormAssociation
     ) {
-      return this.prisma.user_tax_form_associations.deleteMany({
+      this.logger.log(
+        `Tax form '${taxFormId}' marked Voided — removing association(s) for user '${recipient.user_id}'`,
+      );
+      const result = await this.prisma.user_tax_form_associations.deleteMany({
         where: {
           user_id: recipient.user_id,
           tax_form_id: taxFormId,
         },
       });
+      this.logger.log(
+        `Deleted ${result.count ?? 0} association(s) for user '${recipient.user_id}' taxFormId '${taxFormId}'`,
+      );
+      return result;
     }
 
     if (!existingFormAssociation) {
-      return this.prisma.user_tax_form_associations.create({
+      this.logger.log(
+        `Creating tax form association for user '${recipient.user_id}' taxFormId '${taxFormId}'`,
+      );
+      const created = await this.prisma.user_tax_form_associations.create({
         data: {
           user_id: recipient.user_id,
           tax_form_status: taxFormStatus,
@@ -98,15 +121,26 @@ export class TaxFormHandler {
           tax_form_id: taxFormId,
         },
       });
+      this.logger.log(
+        `Created association id='${created.id}' tax_form_status='${created.tax_form_status}'`,
+      );
+      return created;
     }
 
-    return this.prisma.user_tax_form_associations.update({
-      where: { id: existingFormAssociation?.id },
+    this.logger.log(
+      `Updating association id='${existingFormAssociation.id}' for user '${recipient.user_id}'`,
+    );
+    const updated = await this.prisma.user_tax_form_associations.update({
+      where: { id: existingFormAssociation.id },
       data: {
         tax_form_status: taxFormStatus,
         date_filed: taxFormData.signedAt,
       },
     });
+    this.logger.log(
+      `Updated association id='${updated.id}' tax_form_status='${updated.tax_form_status}'`,
+    );
+    return updated;
   }
 
   /**
