@@ -79,34 +79,58 @@ export class AdminService {
 
     let needsReconciliation = false;
     const winningsId = body.winningsId;
+    this.logger.log(
+      `updateWinnings called by ${userId} for winningsId=${winningsId}`,
+    );
+    this.logger.log(`updateWinnings payload: ${JSON.stringify(body)}`);
+
     try {
       const payments = await this.getPaymentsByWinningsId(
         winningsId,
         body.paymentId,
       );
 
+      this.logger.log(
+        `Found ${payments.length} payment(s) for winningsId=${winningsId}`,
+      );
       if (payments.length === 0) {
+        this.logger.warn(
+          `No payments found for winningsId=${winningsId}, paymentId=${body.paymentId}`,
+        );
         throw new NotFoundException('failed to get current payments');
       }
 
       let releaseDate;
       if (body.paymentStatus) {
         releaseDate = await this.getPaymentReleaseDateByWinningsId(winningsId);
+        this.logger.log(
+          `Payment release date for winningsId=${winningsId}: ${releaseDate}`,
+        );
       }
 
       const transactions: ((
         tx: Prisma.TransactionClient,
       ) => Promise<unknown>)[] = [];
       const now = new Date().getTime();
+
+      // iterate payments and build transaction list
       payments.forEach((payment) => {
+        this.logger.log(
+          `Processing payment ${payment.payment_id} (installment ${payment.installment_number}) with current status=${payment.payment_status}`,
+        );
+
         if (
           payment.payment_status &&
           payment.payment_status === PaymentStatus.CANCELLED
         ) {
+          this.logger.warn(
+            `Attempt to update cancelled payment ${payment.payment_id} — rejecting`,
+          );
           throw new BadRequestException('cannot update cancelled winnings');
         }
 
         let version = payment.version ?? 1;
+        const queuedActions: string[] = [];
 
         if (body.description) {
           transactions.push((tx) =>
@@ -129,6 +153,9 @@ export class AdminService {
               },
             }),
           );
+          queuedActions.push(
+            `update description -> "${body.description}" (version ${version})`,
+          );
 
           if (payment.installment_number === 1) {
             transactions.push((tx) =>
@@ -140,6 +167,7 @@ export class AdminService {
                 tx,
               ),
             );
+            queuedActions.push('add audit for description change');
           }
         }
 
@@ -171,6 +199,9 @@ export class AdminService {
                   payment.payment_status !== PaymentStatus.ON_HOLD_ADMIN &&
                   payment.payment_status !== PaymentStatus.PAID
                 ) {
+                  this.logger.warn(
+                    `Invalid attempt to set OWED for payment ${payment.payment_id} when not on hold admin or paid`,
+                  );
                   throw new BadRequestException(
                     "cannot put a payment back to owed unless it is on hold by an admin, or it's been paid",
                   );
@@ -180,6 +211,9 @@ export class AdminService {
               break;
 
             default:
+              this.logger.warn(
+                `Invalid payment status provided: ${body.paymentStatus}`,
+              );
               throw new BadRequestException('invalid payment status provided');
           }
 
@@ -187,6 +221,9 @@ export class AdminService {
             errMessage &&
             payment.payment_status === PaymentStatus.PROCESSING
           ) {
+            this.logger.warn(
+              `Rejected status change for ${payment.payment_id}: ${errMessage}`,
+            );
             throw new BadRequestException(errMessage);
           }
 
@@ -201,11 +238,17 @@ export class AdminService {
               tx,
             ),
           );
+          queuedActions.push(
+            `update status ${payment.payment_status} -> ${body.paymentStatus}`,
+          );
 
           paymentStatus = body.paymentStatus as PaymentStatus;
 
           if (body.paymentStatus === PaymentStatus.OWED) {
             needsReconciliation = true;
+            this.logger.log(
+              `Payment ${payment.payment_id} marked OWED; will trigger reconciliation later`,
+            );
           }
 
           if (payment.installment_number === 1) {
@@ -218,6 +261,7 @@ export class AdminService {
                 tx,
               ),
             );
+            queuedActions.push('add audit for status change');
           }
         }
 
@@ -232,6 +276,9 @@ export class AdminService {
               PaymentStatus.ON_HOLD_ADMIN,
             ].includes(paymentStatus)
           ) {
+            this.logger.warn(
+              `Cannot update release date for payment ${payment.payment_id} in status ${paymentStatus}`,
+            );
             throw new BadRequestException(
               `Cannot update release date for payment unless it's in one of the states: ${[
                 PaymentStatus.OWED,
@@ -251,6 +298,9 @@ export class AdminService {
               tx,
             ),
           );
+          queuedActions.push(
+            `update release_date ${payment.release_date?.toISOString()} -> ${newReleaseDate.toISOString()}`,
+          );
 
           if (payment.installment_number === 1) {
             transactions.push((tx) =>
@@ -262,6 +312,7 @@ export class AdminService {
                 tx,
               ),
             );
+            queuedActions.push('add audit for release date change');
           }
         }
 
@@ -297,6 +348,10 @@ export class AdminService {
                 tx,
               ),
             );
+
+            queuedActions.push(
+              `update amounts -> ${body.paymentAmount.toFixed(2)} (installment 1)`,
+            );
           } else {
             transactions.push((tx) =>
               this.updatePaymentAmount(
@@ -310,16 +365,34 @@ export class AdminService {
                 tx,
               ),
             );
+            queuedActions.push(
+              `update amounts -> total ${body.paymentAmount.toFixed(2)} (installment ${payment.installment_number})`,
+            );
           }
         }
+
+        this.logger.log(
+          `Queued ${queuedActions.length} action(s) for payment ${payment.payment_id}: ${queuedActions.join(
+            ' ; ',
+          )}`,
+        );
       });
+
+      this.logger.log(
+        `Executing ${transactions.length} transaction step(s) for winningsId=${winningsId}`,
+      );
 
       // Run all transaction tasks in a single prisma transaction
       await this.prisma.$transaction(async (tx) => {
-        for (const transaction of transactions) {
-          await transaction(tx);
+        for (let i = 0; i < transactions.length; i++) {
+          this.logger.log(`Executing transaction ${i + 1}/${transactions.length}`);
+          await transactions[i](tx);
         }
       });
+
+      this.logger.log(
+        `Successfully executed transactions for winningsId=${winningsId}`,
+      );
 
       if (needsReconciliation) {
         const winning = await this.prisma.winnings.findFirst({
@@ -332,16 +405,32 @@ export class AdminService {
         });
 
         if (winning?.winner_id) {
+          this.logger.log(
+            `Triggering payments reconciliation for user ${winning.winner_id}`,
+          );
           await this.paymentsService.reconcileUserPayments(winning.winner_id);
+          this.logger.log(
+            `Reconciliation triggered for user ${winning.winner_id}`,
+          );
+        } else {
+          this.logger.warn(
+            `Needs reconciliation but no winner_id found for winningsId=${winningsId}`,
+          );
         }
       }
 
       result.data = 'Successfully updated winnings';
+      this.logger.log(
+        `updateWinnings completed for winningsId=${winningsId}: ${result.data}`,
+      );
     } catch (error) {
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
       ) {
+        this.logger.warn(
+          `updateWinnings validation error for winningsId=${winningsId}: ${error.message}`,
+        );
         throw error;
       }
       this.logger.error('Updating winnings failed', error);
