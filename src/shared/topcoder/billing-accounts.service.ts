@@ -8,12 +8,11 @@ const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
 
 interface LockAmountDTO {
   challengeId: string;
-  lockAmount: number;
+  amount: number;
 }
 interface ConsumeAmountDTO {
   challengeId: string;
-  consumeAmount: number;
-  markup?: number;
+  amount: number;
 }
 
 export interface BAValidation {
@@ -40,7 +39,7 @@ export class BillingAccountsService {
         `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/lock-amount`,
         {
           method: 'PATCH',
-          body: JSON.stringify({ param: dto }),
+          body: JSON.stringify(dto),
         },
       );
     } catch (err: any) {
@@ -49,7 +48,7 @@ export class BillingAccountsService {
           'Failed to lock challenge amount',
       );
       throw new Error(
-        `Budget Error: Requested amount $${dto.lockAmount} exceeds available budget for Billing Account #${billingAccountId}.
+        `Budget Error: Requested amount $${dto.amount} exceeds available budget for Billing Account #${billingAccountId}.
         Please contact the Topcoder Project Manager for further assistance.`,
       );
     }
@@ -63,7 +62,7 @@ export class BillingAccountsService {
         `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/consume-amount`,
         {
           method: 'PATCH',
-          body: JSON.stringify({ param: dto }),
+          body: JSON.stringify(dto),
         },
       );
     } catch (err: any) {
@@ -111,7 +110,7 @@ export class BillingAccountsService {
 
       await this.lockAmount(billingAccountId, {
         challengeId: baValidation.challengeId!,
-        lockAmount:
+        amount:
           (rollback ? prevAmount : currAmount) * (1 + baValidation.markup!),
       });
     } else if (status === ChallengeStatuses.Completed.toLowerCase()) {
@@ -125,9 +124,8 @@ export class BillingAccountsService {
       if (currAmount !== prevAmount) {
         await this.consumeAmount(billingAccountId, {
           challengeId: baValidation.challengeId!,
-          consumeAmount:
+          amount:
             (rollback ? prevAmount : currAmount) * (1 + baValidation.markup!),
-          markup: baValidation.markup,
         });
       }
     } else if (
@@ -155,7 +153,7 @@ export class BillingAccountsService {
         if (currAmount !== prevAmount) {
           await this.lockAmount(billingAccountId, {
             challengeId: baValidation.challengeId!,
-            lockAmount: rollback ? prevAmount : 0,
+            amount: rollback ? prevAmount : 0,
           });
         }
       }
