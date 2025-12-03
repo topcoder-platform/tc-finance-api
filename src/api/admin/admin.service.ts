@@ -79,10 +79,10 @@ export class AdminService {
 
     let needsReconciliation = false;
     const winningsId = body.winningsId;
-    this.logger.info(
+    this.logger.log(
       `updateWinnings called by ${userId} for winningsId=${winningsId}`,
     );
-    this.logger.debug(`updateWinnings payload: ${JSON.stringify(body)}`);
+    this.logger.log(`updateWinnings payload: ${JSON.stringify(body)}`);
 
     try {
       const payments = await this.getPaymentsByWinningsId(
@@ -90,7 +90,7 @@ export class AdminService {
         body.paymentId,
       );
 
-      this.logger.debug(
+      this.logger.log(
         `Found ${payments.length} payment(s) for winningsId=${winningsId}`,
       );
       if (payments.length === 0) {
@@ -103,7 +103,7 @@ export class AdminService {
       let releaseDate;
       if (body.paymentStatus) {
         releaseDate = await this.getPaymentReleaseDateByWinningsId(winningsId);
-        this.logger.debug(
+        this.logger.log(
           `Payment release date for winningsId=${winningsId}: ${releaseDate}`,
         );
       }
@@ -115,7 +115,7 @@ export class AdminService {
 
       // iterate payments and build transaction list
       payments.forEach((payment) => {
-        this.logger.debug(
+        this.logger.log(
           `Processing payment ${payment.payment_id} (installment ${payment.installment_number}) with current status=${payment.payment_status}`,
         );
 
@@ -246,7 +246,7 @@ export class AdminService {
 
           if (body.paymentStatus === PaymentStatus.OWED) {
             needsReconciliation = true;
-            this.logger.debug(
+            this.logger.log(
               `Payment ${payment.payment_id} marked OWED; will trigger reconciliation later`,
             );
           }
@@ -371,26 +371,26 @@ export class AdminService {
           }
         }
 
-        this.logger.debug(
+        this.logger.log(
           `Queued ${queuedActions.length} action(s) for payment ${payment.payment_id}: ${queuedActions.join(
             ' ; ',
           )}`,
         );
       });
 
-      this.logger.info(
+      this.logger.log(
         `Executing ${transactions.length} transaction step(s) for winningsId=${winningsId}`,
       );
 
       // Run all transaction tasks in a single prisma transaction
       await this.prisma.$transaction(async (tx) => {
         for (let i = 0; i < transactions.length; i++) {
-          this.logger.debug(`Executing transaction ${i + 1}/${transactions.length}`);
+          this.logger.log(`Executing transaction ${i + 1}/${transactions.length}`);
           await transactions[i](tx);
         }
       });
 
-      this.logger.info(
+      this.logger.log(
         `Successfully executed transactions for winningsId=${winningsId}`,
       );
 
@@ -405,11 +405,11 @@ export class AdminService {
         });
 
         if (winning?.winner_id) {
-          this.logger.info(
+          this.logger.log(
             `Triggering payments reconciliation for user ${winning.winner_id}`,
           );
           await this.paymentsService.reconcileUserPayments(winning.winner_id);
-          this.logger.info(
+          this.logger.log(
             `Reconciliation triggered for user ${winning.winner_id}`,
           );
         } else {
@@ -420,7 +420,7 @@ export class AdminService {
       }
 
       result.data = 'Successfully updated winnings';
-      this.logger.info(
+      this.logger.log(
         `updateWinnings completed for winningsId=${winningsId}: ${result.data}`,
       );
     } catch (error) {

@@ -76,11 +76,11 @@ export class TaxFormHandler {
       });
 
     if (existingFormAssociation) {
-      this.logger.debug(
+      this.logger.log(
         `Found existing association id='${existingFormAssociation.id}' status='${existingFormAssociation.tax_form_status}' date_filed='${existingFormAssociation.date_filed}'`,
       );
     } else {
-      this.logger.debug('No existing tax form association found');
+      this.logger.log('No existing tax form association found');
     }
 
     const taxFormStatus = this.getTaxFormStatus(
