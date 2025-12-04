@@ -96,6 +96,29 @@ export class TopcoderM2MService {
     const response = await fetch(url, finalOptions);
 
     if (!response.ok) {
+      let responseBody: unknown;
+      try {
+        const text = await response.text();
+        try {
+          responseBody = JSON.parse(text);
+        } catch {
+          responseBody = text;
+        }
+      } catch (e) {
+        responseBody = `Failed to read response body: ${e?.message ?? e}`;
+      }
+
+      this.logger.error(
+        'M2M fetch failed',
+        {
+          url: String(url),
+          method: (finalOptions.method ?? 'GET'),
+          status: response.status,
+          statusText: response.statusText,
+          requestBody: (finalOptions as any).body,
+          responseBody,
+        },
+      );
       // Optional: You could throw a custom error here
       throw new Error(`HTTP error! Status: ${response.status}`);
     }

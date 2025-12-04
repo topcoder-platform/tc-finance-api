@@ -470,10 +470,14 @@ export class ChallengesService {
 
   async generateChallengePayments(challengeId: string, userId: string) {
     const challenge = await this.getChallenge(challengeId);
+    this.logger.log(`Fetched challenge ${challengeId}`);
 
     if (!challenge) {
+      this.logger.error(`Challenge not found: ${challengeId}`);
       throw new Error('Challenge not found!');
     }
+
+    this.logger.log(`Challenge ${challenge.id} - "${challenge.name}" with status "${challenge.status}" retrieved`);
 
     const allowedStatuses = [
       ChallengeStatuses.Completed.toLowerCase(),
@@ -481,14 +485,19 @@ export class ChallengesService {
     ];
 
     if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
+      this.logger.error(
+        `Challenge ${challenge.id} isn't in a payable status: ${challenge.status}`,
+      );
       throw new Error("Challenge isn't in a payable status!");
     }
 
     // need to read for update (LOCK the rows)
+    this.logger.log(`Attempting to acquire lock for challenge ${challenge.id}`);
     try {
       await this.prisma.challenge_lock.create({
         data: { external_id: challenge.id },
       });
+      this.logger.log(`Lock acquired for challenge ${challenge.id}`);
     } catch (err: any) {
       if (err.code === 'P2002') {
         this.logger.log(`Challenge Lock already acquired for ${challenge.id}`);
@@ -497,13 +506,28 @@ export class ChallengesService {
           `Challenge Lock already acquired for ${challenge.id}`,
         );
       }
+      this.logger.error(
+        `Failed to acquire lock for challenge ${challenge.id}`,
+        err.message ?? err,
+      );
       throw err;
     }
 
     try {
+      this.logger.log(`Starting payment creation for challenge ${challenge.id}`);
       await this.createPayments(challenge, userId);
+      this.logger.log(`Payment creation completed for challenge ${challenge.id}`);
     } catch (error) {
-      if (error.message.includes('Lock already acquired')) {
+      this.logger.error(
+        `Error while creating payments for challenge ${challenge.id}`,
+        error.message ?? error,
+      );
+      if (
+        error &&
+        (typeof error.message === 'string') &&
+        error.message.includes('Lock already acquired')
+      ) {
+        this.logger.log(`Conflict detected while creating payments for ${challenge.id}`);
         throw new ConflictException(
           'Another payment operation is in progress.',
         );
@@ -511,13 +535,20 @@ export class ChallengesService {
         throw error;
       }
     } finally {
-      await this.prisma.challenge_lock
-        .deleteMany({
+      try {
+        const result = await this.prisma.challenge_lock.deleteMany({
           where: { external_id: challenge.id },
-        })
-        .catch(() => {
-          // swallow errors if lock was already released
         });
+        this.logger.log(
+          `Released lock for challenge ${challenge.id}. Rows deleted: ${result.count}`,
+        );
+      } catch (releaseErr) {
+        // swallow errors if lock was already released but log for observability
+        this.logger.error(
+          `Failed to release lock for challenge ${challenge.id}`,
+          releaseErr.message ?? releaseErr,
+        );
+      }
     }
   }
 }
