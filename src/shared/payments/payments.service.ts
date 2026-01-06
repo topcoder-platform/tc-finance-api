@@ -3,9 +3,12 @@ import { JsonObject } from '@prisma/client/runtime/library';
 import { PrismaService } from '../global/prisma.service';
 import { payment_status, Prisma } from '@prisma/client';
 import { uniq } from 'lodash';
+import { Logger } from 'src/shared/global';
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -23,14 +26,24 @@ export class PaymentsService {
    * @throws Will throw an error if the database query fails.
    */
   private async getUsersPayoutStatus(userIds: string[]) {
-    const usersPayoutStatus = await this.prisma.$queryRaw<
+    let usersPayoutStatus: {
+      userId: string;
+      setupComplete: boolean;
+    }[] = [];
+
+    if (userIds.length > 0) {
+      const ids = uniq(userIds);
+      usersPayoutStatus = await this.prisma.$queryRaw<
       {
         userId: string;
         setupComplete: boolean;
       }[]
-    >`
+      >`
+      WITH u(user_id) AS (
+        VALUES ${Prisma.join(ids.map((id) => Prisma.sql`(${id})`))}
+      )
       SELECT
-        upm.user_id as "userId",
+        u.user_id as "userId",
         CASE
         WHEN utx.tax_form_status = 'ACTIVE'
           AND upm.status = 'CONNECTED'
@@ -38,11 +51,12 @@ export class PaymentsService {
         THEN TRUE
         ELSE FALSE
         END as "setupComplete"
-      FROM user_payment_methods upm
-      LEFT JOIN user_tax_form_associations utx ON upm.user_id = utx.user_id AND utx.tax_form_status = 'ACTIVE'
-      LEFT JOIN user_identity_verification_associations uiv ON upm.user_id = uiv.user_id
-      WHERE upm.user_id IN (${Prisma.join(uniq(userIds))})
+      FROM u
+      LEFT JOIN user_payment_methods upm ON u.user_id = upm.user_id
+      LEFT JOIN user_tax_form_associations utx ON u.user_id = utx.user_id AND utx.tax_form_status = 'ACTIVE'
+      LEFT JOIN user_identity_verification_associations uiv ON u.user_id = uiv.user_id
       `;
+    }
 
     const setupStatusMap = {
       complete: [] as string[],
@@ -95,14 +109,59 @@ export class PaymentsService {
    * This ensures that the payment statuses are accurately reflected in the system.
    */
   async reconcileUserPayments(...userIds: string[]) {
-    const usersPayoutStatus = await this.getUsersPayoutStatus(userIds);
+    try {
+      const usersPayoutStatus = await this.getUsersPayoutStatus(userIds);
+      this.logger.debug(
+        `Reconciling payments for userIds=${JSON.stringify(
+          userIds,
+        )}; complete=${usersPayoutStatus.complete.length}; inProgress=${usersPayoutStatus.inProgress.length}`,
+      );
 
-    if (usersPayoutStatus.complete.length) {
-      await this.toggleUserPaymentsStatus(usersPayoutStatus.complete, false);
-    }
+      if (usersPayoutStatus.complete.length) {
+        this.logger.info(
+          `Setting payments to OWED for users: ${usersPayoutStatus.complete.join(
+            ',',
+          )}`,
+        );
+        await this.toggleUserPaymentsStatus(usersPayoutStatus.complete, false);
+        this.logger.debug(
+          `Payments set to OWED for users: ${usersPayoutStatus.complete.join(
+            ',',
+          )}`,
+        );
+      }
 
-    if (usersPayoutStatus.inProgress.length) {
-      await this.toggleUserPaymentsStatus(usersPayoutStatus.inProgress, true);
+      if (usersPayoutStatus.inProgress.length) {
+        this.logger.info(
+          `Setting payments to ON_HOLD for users: ${usersPayoutStatus.inProgress.join(
+            ',',
+          )}`,
+        );
+        await this.toggleUserPaymentsStatus(usersPayoutStatus.inProgress, true);
+        this.logger.debug(
+          `Payments set to ON_HOLD for users: ${usersPayoutStatus.inProgress.join(
+            ',',
+          )}`,
+        );
+      }
+
+      if (
+        usersPayoutStatus.complete.length === 0 &&
+        usersPayoutStatus.inProgress.length === 0
+      ) {
+        this.logger.debug(
+          `No payment status changes required for userIds=${JSON.stringify(
+            userIds,
+          )}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to reconcile payments for userIds=${JSON.stringify(
+          userIds,
+        )}: ${error?.message ?? error}`,
+      );
+      throw error;
     }
   }
 
