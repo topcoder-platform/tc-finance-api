@@ -174,6 +174,12 @@ export class ChallengesService {
       return [];
     }
 
+    if (checkpointPrizes.length < checkpointWinners.length) {
+      throw new Error(
+        'Task has incorrect number of checkpoint prizes! There are more checkpoint winners than prizes!',
+      );
+    }
+
     return this.generateWinnersPayments(
       challenge,
       checkpointWinners,
