@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
@@ -29,6 +29,7 @@ interface ReleasableWinningRow {
   status: payment_status;
   releaseDate: Date;
   datePaid: Date;
+  currency: string;
 }
 
 @Injectable()
@@ -58,10 +59,14 @@ export class WithdrawalService {
     winningsIds: string[],
   ) {
     const winnings = await this.prisma.$queryRaw<ReleasableWinningRow[]>`
-      SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid"
-      FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
-      AND p.installment_number = 1
-      WHERE p.winnings_id = ANY(${winningsIds}::uuid[]) AND w.winner_id = ${userId}
+      SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid", p.currency as "currency"
+      FROM payment p
+      INNER JOIN winnings w on p.winnings_id = w.winning_id AND p.installment_number = 1
+      WHERE
+        p.winnings_id = ANY(${winningsIds}::uuid[])
+        AND w.winner_id = ${userId}
+        AND p.currency = "USD"
+        AND w.type = "PAYMENT"
       FOR UPDATE NOWAIT
     `;
 
@@ -231,6 +236,11 @@ export class WithdrawalService {
       userId,
       winningsIds,
     );
+
+    // only USD payments can be withdrawn
+    if (winnings.some((w) => (w.currency || 'USD') !== 'USD')) {
+      throw new BadRequestException('Withdrawal supports USD payments only.');
+    }
 
     if (!otpCode) {
       const otpError = await this.otpService.generateOtpCode(

@@ -224,6 +224,7 @@ enum payment_status {
   CANCELLED
   FAILED
   RETURNED
+  CREDITED
 }
 
 enum reference_type {
@@ -322,9 +323,11 @@ enum winnings_category {
   TASK_PAYMENT
   TASK_REVIEW_PAYMENT
   TASK_COPILOT_PAYMENT
+  POINTS_AWARD
 }
 
 enum winnings_type {
   PAYMENT
   REWARD
+  POINTS
 }

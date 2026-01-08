@@ -8,7 +8,7 @@ import {
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import { WinningCreateRequestDto } from 'src/dto/winning.dto';
+import { WinningCreateRequestDto, WinningsCategory, WinningsType } from 'src/dto/winning.dto';
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { OriginRepository } from '../repository/origin.repo';
@@ -224,6 +224,10 @@ export class WinningsService {
           );
           paymentModel.payment_status = PaymentStatus.PAID;
           await this.setPayrollPaymentMethod(body.winnerId, tx);
+        }
+
+        if (body.category === WinningsCategory.POINTS_AWARD) {
+          paymentModel.payment_status = payment_status.CREDITED;
         }
 
         winningModel.payment.create.push(paymentModel);
