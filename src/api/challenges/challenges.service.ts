@@ -155,7 +155,7 @@ export class ChallengesService {
   }
 
   generateCheckpointWinnersPayments(challenge: Challenge): PaymentPayload[] {
-    const { prizeSets, checkpointWinners } = challenge;
+    const { prizeSets, checkpointWinners = [] } = challenge;
 
     // generate placement payments
     const checkpointPrizes = orderBy(
@@ -183,7 +183,7 @@ export class ChallengesService {
   }
 
   generatePlacementWinnersPayments(challenge: Challenge): PaymentPayload[] {
-    const { prizeSets, winners } = challenge;
+    const { prizeSets, winners = [] } = challenge;
 
     // generate placement payments
     const placementPrizes = orderBy(
