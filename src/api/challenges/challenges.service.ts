@@ -224,6 +224,18 @@ export class ChallengesService {
       return [];
     }
 
+    const placementPrizes = orderBy(
+      find(challenge.prizeSets, { type: 'PLACEMENT' })?.prizes,
+      'value',
+      'desc',
+    );
+
+    if (placementPrizes[0].type !== 'USD') {
+      const prizeType = placementPrizes[0].type;
+      this.logger.log(`Skipping copilot payments generation for challenge ${challenge.id} with "${prizeType}" winning prize!`);
+      return [];
+    }
+
     if (!copilots?.length) {
       throw new Error('Task has a copilot prize but no copilot assigned!');
     }
@@ -250,6 +262,12 @@ export class ChallengesService {
       'value',
       'desc',
     );
+
+    if (placementPrizes[0].type !== 'USD') {
+      const prizeType = placementPrizes[0].type;
+      this.logger.log(`Skipping reviewers payments generation for challenge ${challenge.id} with "${prizeType}" winning prize!`);
+      return [];
+    }
 
     // generate reviewer payments
     const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
