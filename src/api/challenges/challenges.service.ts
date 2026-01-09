@@ -507,6 +507,11 @@ export class ChallengesService {
       }),
     );
 
+    if (paymentTypes.some(type => type !== 'USD')) {
+      this.logger.log(`Task Completed. Skipping BA validation & consume for non-usd payments: ${paymentTypes.join(', ')}`);
+      return;
+    }
+
     this.logger.log('Task Completed. locking consumed budget', baValidation);
     await this.baService.lockConsumeAmount(baValidation);
   }
