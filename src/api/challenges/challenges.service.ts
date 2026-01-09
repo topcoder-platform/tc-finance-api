@@ -16,6 +16,7 @@ import {
   ChallengeResource,
   ChallengeReview,
   Prize,
+  PrizeType,
   ResourceRole,
   Winner,
 } from './models';
@@ -141,7 +142,7 @@ export class ChallengesService {
 
     return winners.map((winner) => {
       const currency = prizes[winner.placement - 1].type;
-      const winType = currency === 'USD' ? (
+      const winType = currency === PrizeType.USD ? (
           type ??
           (challenge.task.isTask
             ? WinningsCategory.TASK_PAYMENT
@@ -230,7 +231,7 @@ export class ChallengesService {
       'desc',
     );
 
-    if (placementPrizes[0].type !== 'USD') {
+    if (placementPrizes[0]?.type !== PrizeType.USD) {
       const prizeType = placementPrizes[0].type;
       this.logger.log(`Skipping copilot payments generation for challenge ${challenge.id} with "${prizeType}" winning prize!`);
       return [];
@@ -242,7 +243,7 @@ export class ChallengesService {
 
     const copilotPrize = copilotPrizes[0];
     const currency = copilotPrize.type;
-    const winType = currency === 'USD' ? WinningsCategory.COPILOT_PAYMENT : WinningsCategory.POINTS_AWARD;
+    const winType = currency === PrizeType.USD ? WinningsCategory.COPILOT_PAYMENT : WinningsCategory.POINTS_AWARD;
     return copilots.map((copilot) => ({
       handle: copilot.memberHandle,
       amount: copilotPrizes[0].value,
@@ -263,7 +264,7 @@ export class ChallengesService {
       'desc',
     );
 
-    if (placementPrizes[0].type !== 'USD') {
+    if (placementPrizes[0]?.type !== PrizeType.USD) {
       const prizeType = placementPrizes[0].type;
       this.logger.log(`Skipping reviewers payments generation for challenge ${challenge.id} with "${prizeType}" winning prize!`);
       return [];
@@ -334,7 +335,7 @@ export class ChallengesService {
 
             const placementPrize = placementPrizes?.[0];
             const currency = placementPrize?.type;
-            const winType = currency === 'USD' ? WinningsCategory.REVIEW_BOARD_PAYMENT : WinningsCategory.POINTS_AWARD;
+            const winType = currency === PrizeType.USD ? WinningsCategory.REVIEW_BOARD_PAYMENT : WinningsCategory.POINTS_AWARD;
 
             return {
               handle: reviewer.memberHandle,
@@ -347,7 +348,7 @@ export class ChallengesService {
                     phaseReviews.length,
               ),
               type: winType,
-              currency: placementPrizes?.[0]?.type ?? 'USD',
+              currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
               description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
             };
           },
@@ -406,13 +407,13 @@ export class ChallengesService {
     ];
 
     const totalUsdAmount = payments.reduce(
-      (sum, payment) => sum + (payment.currency === 'USD' ? payment.amount : 0),
+      (sum, payment) => sum + (payment.currency === PrizeType.USD ? payment.amount : 0),
       0,
     );
 
     return payments.map((payment) => ({
       winnerId: payment.userId.toString(),
-      type: payment.currency === 'USD' ? WinningsType.PAYMENT : WinningsType.POINTS,
+      type: payment.currency === PrizeType.USD ? WinningsType.PAYMENT : WinningsType.POINTS,
       origin: 'Topcoder',
       category: payment.type,
       title: challenge.name,
@@ -423,7 +424,7 @@ export class ChallengesService {
           totalAmount: payment.amount,
           grossAmount: payment.amount,
           installmentNumber: 1,
-          currency: payment.currency || 'USD',
+          currency: payment.currency || PrizeType.USD,
           billingAccount: `${challenge.billing.billingAccountId}`,
           challengeFee: totalUsdAmount * challenge.billing.markup,
         },
@@ -464,7 +465,7 @@ export class ChallengesService {
 
     // treat POINT as supported (persisted) payment type; other non-USD/POINT types are rewards
     const isSupportedPayment = paymentTypes.some(
-      (type) => type === 'USD' || type === 'POINT',
+      (type) => type === PrizeType.USD || type === PrizeType.POINT,
     );
 
     if (!isSupportedPayment) {
@@ -478,7 +479,7 @@ export class ChallengesService {
     // compute USD totals for BA validation/locking (POINT payments are persisted but not billed)
     const totalUsdAmount = payments.reduce(
       (sum, payment) =>
-        sum + (payment.details[0].currency === 'USD' ? payment.details[0].totalAmount : 0),
+        sum + (payment.details[0].currency === PrizeType.USD ? payment.details[0].totalAmount : 0),
       0,
     );
 
@@ -506,11 +507,6 @@ export class ChallengesService {
         }
       }),
     );
-
-    if (paymentTypes.some(type => type !== 'USD')) {
-      this.logger.log(`Task Completed. Skipping BA validation & consume for non-usd payments: ${paymentTypes.join(', ')}`);
-      return;
-    }
 
     this.logger.log('Task Completed. locking consumed budget', baValidation);
     await this.baService.lockConsumeAmount(baValidation);

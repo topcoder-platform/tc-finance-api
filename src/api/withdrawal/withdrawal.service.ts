@@ -16,6 +16,7 @@ import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
 import { OtpService } from 'src/shared/global/otp.service';
+import { PrizeType } from '../challenges/models';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -65,8 +66,8 @@ export class WithdrawalService {
       WHERE
         p.winnings_id = ANY(${winningsIds}::uuid[])
         AND w.winner_id = ${userId}
-        AND p.currency = "USD"
-        AND w.type = "PAYMENT"
+        AND p.currency = 'USD'
+        AND w.type = 'PAYMENT'
       FOR UPDATE NOWAIT
     `;
 
@@ -238,7 +239,7 @@ export class WithdrawalService {
     );
 
     // only USD payments can be withdrawn
-    if (winnings.some((w) => (w.currency || 'USD') !== 'USD')) {
+    if (winnings.some((w) => w.currency !== PrizeType.USD)) {
       throw new BadRequestException('Withdrawal supports USD payments only.');
     }
 
