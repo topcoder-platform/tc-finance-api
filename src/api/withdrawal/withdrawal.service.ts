@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
@@ -8,6 +8,7 @@ import {
   payment_releases,
   payment_status,
   reference_type,
+  winnings_type,
 } from '@prisma/client';
 import { TrolleyService } from 'src/shared/global/trolley.service';
 import { PaymentsService } from 'src/shared/payments';
@@ -16,6 +17,7 @@ import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
 import { OtpService } from 'src/shared/global/otp.service';
+import { PrizeType } from '../challenges/models';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -27,8 +29,10 @@ interface ReleasableWinningRow {
   title: string;
   externalId: string | undefined;
   status: payment_status;
+  type: winnings_type;
   releaseDate: Date;
   datePaid: Date;
+  currency: string;
 }
 
 @Injectable()
@@ -58,10 +62,12 @@ export class WithdrawalService {
     winningsIds: string[],
   ) {
     const winnings = await this.prisma.$queryRaw<ReleasableWinningRow[]>`
-      SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid"
-      FROM payment p INNER JOIN winnings w on p.winnings_id = w.winning_id
-      AND p.installment_number = 1
-      WHERE p.winnings_id = ANY(${winningsIds}::uuid[]) AND w.winner_id = ${userId}
+      SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid", p.currency as "currency", w.type as "type"
+      FROM payment p
+      INNER JOIN winnings w on p.winnings_id = w.winning_id AND p.installment_number = 1
+      WHERE
+        p.winnings_id = ANY(${winningsIds}::uuid[])
+        AND w.winner_id = ${userId}
       FOR UPDATE NOWAIT
     `;
 
@@ -85,6 +91,11 @@ export class WithdrawalService {
       throw new Error(
         'Some or all of the winnings you requested to process are not released yet (release date).',
       );
+    }
+
+    // only USD payments can be withdrawn
+    if (winnings.some((w) => w.type !== winnings_type.PAYMENT || w.currency !== PrizeType.USD)) {
+      throw new BadRequestException('Withdrawal supports USD payments only.');
     }
 
     return winnings;

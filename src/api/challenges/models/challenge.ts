@@ -74,8 +74,13 @@ export interface PrizeSet {
   prizes: Prize[];
 }
 
+export enum PrizeType {
+  USD = 'USD',
+  POINT = 'POINT',
+}
+
 export interface Prize {
-  type: string;
+  type: PrizeType;
   value: number;
 }
 

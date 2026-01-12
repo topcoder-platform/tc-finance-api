@@ -20,6 +20,7 @@ import {
 
 export enum WinningsType {
   PAYMENT = 'PAYMENT',
+  POINTS = 'POINTS',
 }
 
 export enum WinningsCategory {
@@ -95,6 +96,7 @@ export enum WinningsCategory {
   TASK_PAYMENT = 'TASK_PAYMENT',
   TASK_REVIEW_PAYMENT = 'TASK_REVIEW_PAYMENT',
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
+  POINTS_AWARD = 'POINTS_AWARD',
 }
 
 export class PayoutStatus {

@@ -4,11 +4,13 @@ import {
   payment,
   payment_method_status,
   payment_status,
+  winnings_category,
+  winnings_type,
 } from '@prisma/client';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import { WinningCreateRequestDto } from 'src/dto/winning.dto';
+import { WinningCreateRequestDto, WinningsCategory } from 'src/dto/winning.dto';
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { OriginRepository } from '../repository/origin.repo';
@@ -166,16 +168,27 @@ export class WinningsService {
 
       const winningModel = {
         winner_id: body.winnerId,
-        type: body.type,
+        type: winnings_type[body.type],
         origin_id: originId,
-        category: body.category,
+        category: winnings_category[body.category],
         title: body.title,
         description: body.description,
         external_id: body.externalId,
         attributes: body.attributes,
         created_by: userId,
         payment: {
-          create: [] as Partial<payment>[],
+          create: [] as Pick<
+            payment,
+            'gross_amount' |
+            'total_amount' |
+            'installment_number' |
+            'currency' |
+            'net_amount' |
+            'payment_status' |
+            'created_by' |
+            'billing_account' |
+            'challenge_fee'
+          >[],
         },
       };
 
@@ -224,6 +237,8 @@ export class WinningsService {
           );
           paymentModel.payment_status = PaymentStatus.PAID;
           await this.setPayrollPaymentMethod(body.winnerId, tx);
+        } else if (body.category === WinningsCategory.POINTS_AWARD) {
+          paymentModel.payment_status = payment_status.CREDITED;
         }
 
         winningModel.payment.create.push(paymentModel);
@@ -234,7 +249,7 @@ export class WinningsService {
 
       this.logger.debug('Attempting to create winning with nested payments.');
       const createdWinning = await tx.winnings.create({
-        data: winningModel as any,
+        data: winningModel,
       });
 
       if (!createdWinning) {
