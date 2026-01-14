@@ -89,7 +89,7 @@ export class WalletService {
                 winnings.find((it) => it.payment_type === 'POINTS')
                   ?.total_owed ?? 0,
               ),
-              unit: 'currency',
+              unit: 'credits',
             },
           ],
         },
