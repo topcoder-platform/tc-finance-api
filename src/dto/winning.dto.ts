@@ -255,7 +255,7 @@ export class WinningCreateRequestDto {
         totalAmount: 12.3,
         grossAmount: 15.0,
         installmentNumber: 1,
-        currency: 'string',
+        currency: 'USD',
         billingAccount: '1234',
       },
     ],

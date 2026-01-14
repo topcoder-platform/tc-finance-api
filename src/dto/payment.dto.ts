@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, Min, IsInt, IsString, IsNotEmpty } from 'class-validator';
+import { IsNumber, Min, IsInt, IsString, IsNotEmpty, isEnum, IsEnum } from 'class-validator';
+import { PrizeType } from 'src/api/challenges/models';
 
 export enum PaymentStatus {
   PAID = 'PAID',
@@ -53,9 +54,9 @@ export class PaymentCreateRequestDto {
 
   @ApiProperty({
     description: 'The currency of the payment',
-    example: 12.3,
+    example: 'USD',
   })
-  @IsString()
+  @IsEnum(PrizeType)
   @IsNotEmpty()
   currency: string;
 
