@@ -171,7 +171,7 @@ export class WinningsService {
         return result;
       }
 
-      // check if any or type, category or currency is points
+      // check if any of: type, category or currency is using POINTS system
       // if so, and the others are not matching the expectation, throw error
       if (
         (body.type === WinningsType.POINTS ||
