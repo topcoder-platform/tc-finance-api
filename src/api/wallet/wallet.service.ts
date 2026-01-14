@@ -83,6 +83,14 @@ export class WalletService {
               ),
               unit: 'currency',
             },
+            {
+              type: WinningsType.POINTS,
+              amount: Number(
+                winnings.find((it) => it.payment_type === 'POINTS')
+                  ?.total_owed ?? 0,
+              ),
+              unit: 'currency',
+            },
           ],
         },
         withdrawalMethod: {
@@ -112,7 +120,7 @@ export class WalletService {
 
   getWinningsTotalsByWinnerID(winnerId: string) {
     return this.prisma.$queryRaw<
-      { payment_type: 'PAYMENT'; total_owed: number }[]
+      { payment_type: 'PAYMENT' | 'POINTS'; total_owed: number }[]
     >`
       WITH latest_payment_version AS (
         SELECT

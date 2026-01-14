@@ -25,7 +25,7 @@ export class ChallengesController {
   @M2M()
   @AllowedM2mScope(M2mScope.CreatePayments)
   @ApiOperation({
-    summary: 'Create winning with payments.',
+    summary: 'Create all winnings with payments for a challenge.',
     description: 'User must have "create:payments" scope to access.',
   })
   @ApiParam({
