@@ -75,6 +75,15 @@ export class WithdrawalService {
       throw new Error('Some winnings were not found!');
     }
 
+    // only USD payments can be withdrawn
+    if (
+      winnings.some(
+        (w) => w.type !== winnings_type.PAYMENT || w.currency !== PrizeType.USD,
+      )
+    ) {
+      throw new BadRequestException('Withdrawal supports USD payments only.');
+    }
+
     if (winnings.some((w) => w.status !== payment_status.OWED)) {
       throw new Error(
         'Some or all of the winnings you requested to process are either on hold or already paid.',
@@ -91,11 +100,6 @@ export class WithdrawalService {
       throw new Error(
         'Some or all of the winnings you requested to process are not released yet (release date).',
       );
-    }
-
-    // only USD payments can be withdrawn
-    if (winnings.some((w) => w.type !== winnings_type.PAYMENT || w.currency !== PrizeType.USD)) {
-      throw new BadRequestException('Withdrawal supports USD payments only.');
     }
 
     return winnings;

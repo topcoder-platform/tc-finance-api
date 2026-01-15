@@ -13,7 +13,6 @@ import { WinningsRepository } from './repository/winnings.repo';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PaymentProvidersModule } from './payment-providers/payment-providers.module';
 import { AdminModule } from './admin/admin.module';
-import { WinningsModule } from './winnings/winnings.module';
 import { UserModule } from './user/user.module';
 import { WalletModule } from './wallet/wallet.module';
 import { WithdrawalModule } from './withdrawal/withdrawal.module';
@@ -27,7 +26,6 @@ import { ChallengePaymentsModule } from './challenge-payments/challenge-payments
     PaymentProvidersModule,
     WebhooksModule,
     AdminModule,
-    WinningsModule,
     ChallengePaymentsModule,
     UserModule,
     WalletModule,
