@@ -19,8 +19,6 @@ import { IdentityVerificationRepository } from '../repository/identity-verificat
     PaymentMethodRepository,
     IdentityVerificationRepository,
   ],
-  exports: [
-    WinningsService,
-  ]
+  exports: [WinningsService],
 })
 export class WinningsModule {}

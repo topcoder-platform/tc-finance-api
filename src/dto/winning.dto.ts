@@ -21,6 +21,7 @@ import {
 export enum WinningsType {
   PAYMENT = 'PAYMENT',
   ENGAGEMENT = 'ENGAGEMENT',
+  POINTS = 'POINTS',
 }
 
 export enum WinningsCategory {
@@ -97,6 +98,7 @@ export enum WinningsCategory {
   TASK_PAYMENT = 'TASK_PAYMENT',
   TASK_REVIEW_PAYMENT = 'TASK_REVIEW_PAYMENT',
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
+  POINTS_AWARD = 'POINTS_AWARD',
 }
 
 export class PayoutStatus {
@@ -255,7 +257,7 @@ export class WinningCreateRequestDto {
         totalAmount: 12.3,
         grossAmount: 15.0,
         installmentNumber: 1,
-        currency: 'string',
+        currency: 'USD',
         billingAccount: '1234',
       },
     ],
