@@ -11,6 +11,7 @@ export enum PaymentStatus {
   CANCELLED = 'CANCELLED',
   FAILED = 'FAILED',
   RETURNED = 'RETURNED',
+  CREDITED = 'CREDITED',
 }
 
 export class PaymentDetailDto {
