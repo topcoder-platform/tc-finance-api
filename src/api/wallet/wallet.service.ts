@@ -135,13 +135,13 @@ export class WalletService {
         w.type AS payment_type,
         CASE
           WHEN w.type = 'PAYMENT' THEN SUM(p.total_amount)
+          WHEN w.type = 'POINTS' THEN SUM(p.total_amount)
           ELSE 0
         END AS total_owed
       FROM
         winnings w
         LEFT JOIN payment p ON w.winning_id = p.winnings_id
-        AND w.type = 'PAYMENT'
-        AND p.payment_status IN ('OWED', 'ON_HOLD')
+        AND p.payment_status IN ('OWED', 'ON_HOLD', 'CREDITED')
         AND p.installment_number = 1
         INNER JOIN latest_payment_version lpv ON p.winnings_id = lpv.winnings_id
         AND p.version = lpv.max_version
