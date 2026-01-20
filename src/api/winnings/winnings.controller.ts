@@ -34,12 +34,13 @@ export class WinningsController {
     Role.PaymentAdmin,
     Role.PaymentEditor,
     Role.TaskManager,
+    Role.TalentManager,
     Role.ProjectManager,
   )
   @ApiOperation({
     summary: 'Create winning with payments.',
     description:
-      'User must have "create:payments" scope or Payment Admin, Payment Editor, Project Manager, or Task Manager role to access.',
+      'User must have "create:payments" scope or Payment Admin, Payment Editor, Project Manager, Task Manager, or Talent Manager role to access.',
   })
   @ApiBody({
     description: 'Winning request body',
