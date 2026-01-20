@@ -30,11 +30,16 @@ export class WinningsController {
 
   @Post()
   @AllowedM2mScope(M2mScope.CreatePayments)
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.TaskManager)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentEditor,
+    Role.TaskManager,
+    Role.ProjectManager,
+  )
   @ApiOperation({
     summary: 'Create winning with payments.',
     description:
-      'User must have "create:payments" scope or Payment Admin, Payment Editor, or Task Manager role to access.',
+      'User must have "create:payments" scope or Payment Admin, Payment Editor, Project Manager, or Task Manager role to access.',
   })
   @ApiBody({
     description: 'Winning request body',
