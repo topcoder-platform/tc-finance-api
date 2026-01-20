@@ -3,7 +3,7 @@ import { IsNotEmpty, IsOptional, IsString, IsEnum } from 'class-validator';
 import { DateFilterType } from 'src/dto/date-filter.type';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { SortPagination } from 'src/dto/sort-pagination.dto';
-import { WinningsCategory } from 'src/dto/winning.dto';
+import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
 
 export class UserWinningRequestDto extends SortPagination {
   @ApiProperty({
@@ -15,13 +15,22 @@ export class UserWinningRequestDto extends SortPagination {
   winnerId: string;
 
   @ApiProperty({
-    description: 'The type of winnings category',
+    description: 'The winnings category',
     example: WinningsCategory.ALGORITHM_CONTEST_PAYMENT,
     enum: WinningsCategory,
   })
   @IsOptional()
   @IsEnum(WinningsCategory)
-  type: WinningsCategory;
+  category: WinningsCategory;
+
+  @ApiProperty({
+    description: 'The type of winnings',
+    enum: WinningsType,
+    example: WinningsType.PAYMENT,
+  })
+  @IsOptional()
+  @IsEnum(WinningsType)
+  type?: WinningsType;
 
   @ApiProperty({
     description: 'The payment status',

@@ -4,6 +4,7 @@ import {
   Prisma,
   winnings,
   winnings_category,
+  winnings_type,
 } from '@prisma/client';
 import { uniq } from 'lodash';
 import { ResponseDto } from 'src/dto/api-response.dto';
@@ -55,6 +56,7 @@ export class WinningsRepository {
 
   private getWinningsQueryFilters(
     type?: string,
+    category?: string,
     status?: string,
     winnerIds?: string[],
     externalIds?: string[],
@@ -71,9 +73,14 @@ export class WinningsRepository {
             in: externalIds,
           }
         : undefined,
-      category: type
+      category: category
         ? {
-            equals: type as winnings_category,
+            equals: category as winnings_category,
+          }
+        : undefined,
+      type: type
+        ? {
+            equals: type as winnings_type,
           }
         : undefined,
       payment: status
@@ -168,6 +175,7 @@ export class WinningsRepository {
 
       const queryWhere = this.getWinningsQueryFilters(
         searchProps.type,
+        searchProps.category,
         searchProps.status,
         winnerIds,
         externalIds,
