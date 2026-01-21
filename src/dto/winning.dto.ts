@@ -156,13 +156,22 @@ export class WinningRequestDto extends SortPagination {
   externalIds?: string[];
 
   @ApiProperty({
-    description: 'The type of winnings category',
+    description: 'The winnings category',
     enum: WinningsCategory,
     example: WinningsCategory.ALGORITHM_CONTEST_PAYMENT,
   })
   @IsOptional()
   @IsEnum(WinningsCategory)
-  type?: WinningsCategory;
+  category?: WinningsCategory;
+
+  @ApiProperty({
+    description: 'The type of winnings',
+    enum: WinningsType,
+    example: WinningsType.PAYMENT,
+  })
+  @IsOptional()
+  @IsEnum(WinningsType)
+  type?: WinningsType;
 
   @ApiProperty({
     description: 'The payment status',
