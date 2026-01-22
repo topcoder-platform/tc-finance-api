@@ -1,0 +1,41 @@
+{
+  "name": "@topcoder/finance-prisma-client",
+  "version": "1.0.0",
+  "description": "Prisma client for TopCoder Finance API database",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "prisma generate && tsc",
+    "prepublishOnly": "npm run build",
+    "postinstall": "prisma generate"
+  },
+  "keywords": [
+    "prisma",
+    "finance",
+    "topcoder"
+  ],
+  "author": "TopCoder",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@prisma/client": "^6.18.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.18.0",
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist",
+    "prisma",
+    "package.json",
+    "README.md"
+  ],
+  "prisma": {
+    "schema": "./prisma/schema.prisma"
+  }
+}
