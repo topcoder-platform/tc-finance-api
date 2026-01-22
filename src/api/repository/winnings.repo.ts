@@ -13,6 +13,7 @@ import {
   WinningRequestDto,
   SearchWinningResult,
   WinningsCategory,
+  WinningDto,
 } from 'src/dto/winning.dto';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { Logger } from 'src/shared/global';
@@ -248,6 +249,88 @@ export class WinningsRepository {
     } catch (error) {
       this.logger.error('Searching winnings failed', error);
       const message = 'Searching winnings failed. ' + error;
+      result.error = {
+        code: HttpStatus.INTERNAL_SERVER_ERROR,
+        message,
+      };
+    }
+
+    return result;
+  }
+
+  async getWinningsByExternalId(
+    externalId: string,
+  ): Promise<ResponseDto<WinningDto[]>> {
+    const result = new ResponseDto<WinningDto[]>();
+
+    try {
+      const queryWhere = this.getWinningsQueryFilters(
+        undefined,
+        undefined,
+        undefined,
+        [externalId],
+        undefined,
+      );
+
+      const winnings = await this.prisma.winnings.findMany({
+        where: queryWhere,
+        include: {
+          payment: {
+            where: {
+              installment_number: 1,
+            },
+            orderBy: [
+              {
+                created_at: 'desc',
+              },
+            ],
+          },
+          origin: true,
+        },
+        orderBy: [
+          {
+            created_at: 'desc',
+          },
+        ],
+      });
+
+      const usersPayoutStatusMap = winnings?.length
+        ? await this.getUsersPayoutStatusForWinnings(winnings)
+        : ({} as { [key: string]: payment_status });
+
+      result.data = winnings.map((item) => ({
+        id: item.winning_id,
+        type: item.type,
+        winnerId: item.winner_id,
+        origin: item.origin?.origin_name,
+        category: (item.category ?? '') as WinningsCategory,
+        title: item.title as string,
+        description: item.description as string,
+        externalId: item.external_id as string,
+        attributes: (item.attributes ?? {}) as object,
+        details: item.payment?.map((paymentItem) => ({
+          id: paymentItem.payment_id,
+          netAmount: Number(paymentItem.net_amount),
+          grossAmount: Number(paymentItem.gross_amount),
+          totalAmount: Number(paymentItem.total_amount),
+          installmentNumber: paymentItem.installment_number as number,
+          datePaid: (paymentItem.date_paid ?? undefined) as Date,
+          status: paymentItem.payment_status as PaymentStatus,
+          currency: paymentItem.currency as string,
+          releaseDate: paymentItem.release_date as Date,
+          category: item.category as string,
+          billingAccount: paymentItem.billing_account,
+        })),
+        createdAt: item.created_at as Date,
+        updatedAt: (item.payment?.[0].date_paid ??
+          item.payment?.[0].updated_at ??
+          undefined) as Date,
+        releaseDate: item.payment?.[0]?.release_date as Date,
+        paymentStatus: usersPayoutStatusMap[item.winner_id],
+      }));
+    } catch (error) {
+      this.logger.error('Getting winnings by external ID failed', error);
+      const message = 'Getting winnings by external ID failed. ' + error;
       result.error = {
         code: HttpStatus.INTERNAL_SERVER_ERROR,
         message,

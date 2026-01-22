@@ -1,4 +1,5 @@
 export enum Role {
+  Administrator = 'Administrator',
   PaymentAdmin = 'Payment Admin',
   PaymentEditor = 'Payment Editor',
   PaymentViewer = 'Payment Viewer',
