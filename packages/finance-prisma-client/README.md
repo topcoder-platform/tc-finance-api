@@ -43,30 +43,6 @@ const prisma = createFinancePrismaClient(
 );
 ```
 
-### Using Types
-
-```typescript
-import { 
-  createFinancePrismaClient,
-  Prisma,
-  payment_status,
-  winnings
-} from '@topcoder/finance-prisma-client';
-
-const prisma = createFinancePrismaClient(connectionString);
-
-// Use Prisma types
-const payment: Prisma.paymentCreateInput = {
-  // ...
-};
-
-// Use enum types
-const status: payment_status = 'PAID';
-
-// Use model types
-const winning: winnings = await prisma.winnings.findFirst();
-```
-
 ## Building
 
 Before using this package, you need to build it:
@@ -78,17 +54,3 @@ npm run build
 This will:
 1. Generate the Prisma client from the schema
 2. Compile TypeScript to JavaScript
-
-## Development
-
-When installing this package in development mode (e.g., via `npm install file:../path`), the `postinstall` script will automatically generate the Prisma client.
-
-## Requirements
-
-- Node.js >= 16
-- Prisma >= 6.18.0
-- PostgreSQL database
-
-## License
-
-UNLICENSED
