@@ -1,8 +1,11 @@
 export enum Role {
+  Administrator = 'Administrator',
   PaymentAdmin = 'Payment Admin',
   PaymentEditor = 'Payment Editor',
   PaymentViewer = 'Payment Viewer',
   TaskManager = 'Task Manager',
+  TalentManager = 'Talent Manager',
+  ProjectManager = 'Project Manager',
   User = 'Topcoder User',
 }
 

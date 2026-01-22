@@ -312,6 +312,7 @@ The API uses role-based access control with the following roles:
 - `PaymentAdmin` - Full administrative access
 - `PaymentEditor` - Edit payments and winnings
 - `TaskManager` - Create and manage engagement winnings
+- `TalentManager` - Create and manage engagement winnings
 - `PaymentViewer` - Read-only access to payment data
 - `M2M` - Machine-to-machine service access
 

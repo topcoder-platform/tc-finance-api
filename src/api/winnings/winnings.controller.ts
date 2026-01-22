@@ -1,10 +1,19 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get,
+  Param,
+} from '@nestjs/common';
 import {
   ApiOperation,
   ApiTags,
   ApiResponse,
   ApiBody,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 
 import { M2mScope, Role } from 'src/core/auth/auth.constants';
@@ -30,11 +39,17 @@ export class WinningsController {
 
   @Post()
   @AllowedM2mScope(M2mScope.CreatePayments)
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.TaskManager)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentEditor,
+    Role.TaskManager,
+    Role.TalentManager,
+    Role.ProjectManager,
+  )
   @ApiOperation({
     summary: 'Create winning with payments.',
     description:
-      'User must have "create:payments" scope or Payment Admin, Payment Editor, or Task Manager role to access.',
+      'User must have "create:payments" scope or Payment Admin, Payment Editor, Project Manager, Task Manager, or Talent Manager role to access.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -93,6 +108,46 @@ export class WinningsController {
     return {
       ...result,
       data: result.data.winnings,
+    };
+  }
+
+  @Get('/by-external-id/:externalId')
+  @AllowedM2mScope(M2mScope.ReadPayments)
+  @Roles(
+    Role.Administrator,
+    Role.TalentManager,
+    Role.ProjectManager,
+    Role.PaymentAdmin,
+  )
+  @ApiOperation({
+    summary: 'Get winnings by external ID',
+    description:
+      "User must have 'read:payments' scope or Administrator, Talent Manager, Project Manager, or Payment Admin role to access.",
+  })
+  @ApiParam({
+    name: 'externalId',
+    description: 'The external ID to filter winnings',
+    example: 'assignment-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Retrieved winnings successfully.',
+    type: ResponseDto<WinningDto[]>,
+  })
+  @HttpCode(HttpStatus.OK)
+  async getWinningsByExternalId(
+    @Param('externalId') externalId: string,
+  ): Promise<ResponseDto<WinningDto[]>> {
+    const result = await this.winningsRepo.getWinningsByExternalId(externalId);
+
+    result.status = ResponseStatusType.SUCCESS;
+    if (result.error) {
+      result.status = ResponseStatusType.ERROR;
+    }
+
+    return {
+      ...result,
+      data: result.data,
     };
   }
 }
