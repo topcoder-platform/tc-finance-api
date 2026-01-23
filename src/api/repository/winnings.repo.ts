@@ -276,6 +276,7 @@ export class WinningsRepository {
         undefined,
         undefined,
         undefined,
+        undefined,
         [externalId],
         undefined,
       );
@@ -301,7 +302,6 @@ export class WinningsRepository {
           },
         ],
       });
-
       const usersPayoutStatusMap = winnings?.length
         ? await this.getUsersPayoutStatusForWinnings(winnings)
         : ({} as { [key: string]: payment_status });
