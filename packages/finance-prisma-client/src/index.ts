@@ -1,16 +1,32 @@
 import { PrismaClient, Prisma } from '../prisma/generated/client';
 
 /**
- * Creates a Prisma client instance for the finance database
+ * Write operations that should be blocked on the readonly client
+ */
+const BLOCKED_WRITE_OPERATIONS = [
+  'create',
+  'createMany',
+  'update',
+  'updateMany',
+  'upsert',
+  'delete',
+  'deleteMany',
+] as const;
+
+/**
+ * Creates a read-only Prisma client instance for the finance database.
+ * This client only allows read operations (findMany, findFirst, findUnique, count, aggregate, etc.).
+ * Write operations (create, update, delete, etc.) will throw an error.
+ * 
  * @param connectionString - Database connection string
  * @param options - Optional Prisma client options (logging, transaction timeout, etc.)
- * @returns Configured PrismaClient instance
+ * @returns Configured read-only PrismaClient instance
  */
 export function createFinancePrismaClient(
   connectionString: string,
   options?: Omit<Prisma.PrismaClientOptions, 'datasources'>
 ): PrismaClient {
-  return new PrismaClient({
+  const client = new PrismaClient({
     ...options,
     datasources: {
       db: {
@@ -18,6 +34,23 @@ export function createFinancePrismaClient(
       },
     },
   });
+
+  // Use Prisma middleware to block write operations
+  // Type assertion needed because $use may not be in the type definition
+  (client as any).$use(async (params: any, next: any) => {
+    // Check if this is a write operation
+    if (BLOCKED_WRITE_OPERATIONS.includes(params.action)) {
+      throw new Error(
+        `Write operation '${params.model}.${params.action}' is not allowed on read-only finance Prisma client. ` +
+        'This client only supports read operations (findMany, findFirst, findUnique, count, aggregate, groupBy, etc.).'
+      );
+    }
+
+    // Allow read operations and other allowed operations
+    return next(params);
+  });
+
+  return client;
 }
 
 // Re-export Prisma types and enums for use in consuming applications
