@@ -27,5 +27,3 @@ main
 .env
 node_modules
 dist
-
-packages/finance-prisma-client/prisma/generated
