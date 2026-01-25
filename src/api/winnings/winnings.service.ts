@@ -212,9 +212,26 @@ export class WinningsService {
         return result;
       }
 
+      const isEngagementPayment =
+        body.category === WinningsCategory.ENGAGEMENT_PAYMENT;
+      const resolvedType = isEngagementPayment
+        ? WinningsType.PAYMENT
+        : body.type;
+
+      if (isEngagementPayment && body.type !== WinningsType.PAYMENT) {
+        this.logger.warn(
+          'Engagement payment type overridden to PAYMENT.',
+          {
+            winnerId: body.winnerId,
+            externalId: body.externalId,
+            requestedType: body.type,
+          },
+        );
+      }
+
       const winningModel = {
         winner_id: body.winnerId,
-        type: winnings_type[body.type],
+        type: winnings_type[resolvedType],
         origin_id: originId,
         category: winnings_category[body.category],
         title: body.title,

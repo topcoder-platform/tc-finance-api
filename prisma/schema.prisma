@@ -330,6 +330,5 @@ enum winnings_category {
 enum winnings_type {
   PAYMENT
   REWARD
-  ENGAGEMENT
   POINTS
 }

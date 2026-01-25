@@ -63,6 +63,12 @@ export class WinningsRepository {
     externalIds?: string[],
     date?: DateFilterType,
   ): Prisma.winningsFindManyArgs['where'] {
+    const typeFilter = type
+      ? {
+          equals: type as winnings_type,
+        }
+      : undefined;
+
     return {
       winner_id: winnerIds
         ? {
@@ -79,11 +85,7 @@ export class WinningsRepository {
             equals: category as winnings_category,
           }
         : undefined,
-      type: type
-        ? {
-            equals: type as winnings_type,
-          }
-        : undefined,
+      type: typeFilter,
       payment: status
         ? {
             some: {
