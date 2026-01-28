@@ -189,6 +189,17 @@ export class WinningRequestDto extends SortPagination {
   @IsOptional()
   @IsEnum(DateFilterType)
   date?: DateFilterType;
+
+  @ApiProperty({
+    description: 'The array of billing account ids',
+    example: ['1234'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  billingAccounts?: string[];
 }
 
 export class WinningCreateRequestDto {
