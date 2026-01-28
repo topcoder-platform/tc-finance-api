@@ -10,20 +10,22 @@ const clientOptions = {
     { level: 'query', emit: 'event' },
     { level: 'info', emit: 'event' },
     { level: 'warn', emit: 'event' },
-    { level: 'error', emit: 'event' }
-  ] as PrismaClientOptions['log']
-}
+    { level: 'error', emit: 'event' },
+  ] as PrismaClientOptions['log'],
+};
 
-let baClient;
+let baPrismaClient: BaPrismaClient;
 export const getBaClient = () => {
-  if (!baClient) {
+  if (!baPrismaClient) {
     if (!ENV_CONFIG.BILLING_ACCOUNTS_DB_URL) {
-      throw new Error('CHALLENGES_DB_URL must be set for challenges Prisma client')
+      throw new Error(
+        'BILLING_ACCOUNTS_DB_URL must be set for challenges Prisma client',
+      );
     }
-    baClient = new BaPrismaClient({
+    baPrismaClient = new BaPrismaClient({
       ...clientOptions,
-      datasources: { db: { url: ENV_CONFIG.BILLING_ACCOUNTS_DB_URL } }
-    })
+      datasources: { db: { url: ENV_CONFIG.BILLING_ACCOUNTS_DB_URL } },
+    });
   }
-  return baClient
-}
+  return baPrismaClient;
+};
