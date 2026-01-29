@@ -62,7 +62,7 @@ export class WinningsRepository {
     winnerIds?: string[],
     externalIds?: string[],
     date?: DateFilterType,
-  ): Prisma.winningsFindManyArgs['where'] {
+  ): Prisma.winningsWhereInput {
     const typeFilter = type
       ? {
           equals: type as winnings_type,
@@ -184,6 +184,17 @@ export class WinningsRepository {
         externalIds,
         searchProps.date,
       );
+
+      if (searchProps.billingAccounts) {
+        // override payment filter to include billing account constraint
+        // while preserving status/installment constraints
+        (queryWhere as any).payment.some = {
+          ...queryWhere.payment!.some,
+          billing_account: {
+            in: searchProps.billingAccounts,
+          },
+        };
+      }
 
       const orderBy = this.getOrderByWithWinnerId(
         searchProps.sortBy,
