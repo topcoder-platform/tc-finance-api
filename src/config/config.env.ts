@@ -115,4 +115,7 @@ export class ConfigEnv {
 
   @IsInt({ each: true })
   TGBillingAccounts = [80000062, 80002800];
+
+  @IsString()
+  BILLING_ACCOUNTS_DB_URL!: string;
 }

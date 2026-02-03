@@ -90,6 +90,7 @@ export class RolesGuard implements CanActivate {
       id: userId,
       handle: userHandle,
       email: request.email,
+      roles: userRoles,
     };
 
     return true;

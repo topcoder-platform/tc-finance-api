@@ -14,7 +14,8 @@ import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
-import { Logger } from 'src/shared/global';
+import { Logger, getBaClient } from 'src/shared/global';
+import { WinningRequestDto } from 'src/dto/winning.dto';
 
 function formatDate(date = new Date()) {
   const pad = (n, z = 2) => String(n).padStart(z, '0');
@@ -43,6 +44,32 @@ export class AdminService {
     private readonly tcChallengesService: TopcoderChallengesService,
   ) {}
 
+  async getBillingAccountsForUser(userId: string): Promise<string[]> {
+    const baPrisma = getBaClient();
+    const baRows = await baPrisma.billingAccountAccess.findMany({
+      where: {
+        userId,
+      }
+    });
+
+    return baRows.map(r => `${r.billingAccountId}`);
+  }
+
+  async applyBaAdminUserFilters(
+    userId: string,
+    isBaAdmin?: boolean,
+    filters: WinningRequestDto = {},
+  ) {
+    if (!isBaAdmin) {
+      return filters;
+    }
+
+    return {
+      ...filters,
+      billingAccounts: await this.getBillingAccountsForUser(userId),
+    };
+  }
+
   private getWinningById(winningId: string) {
     return this.prisma.winnings.findFirst({ where: { winning_id: winningId } });
   }
@@ -66,6 +93,47 @@ export class AdminService {
   }
 
   /**
+   * Verify that a BA admin user has access to the billing account(s)
+   * associated with the given winningsId. Throws BadRequestException when
+   * access is not allowed.
+   */
+  async verifyBaAdminAccessToWinning(
+    winningsId: string,
+    userId: string,
+  ): Promise<void> {
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        winnings_id: {
+          equals: winningsId,
+        },
+      },
+      select: {
+        billing_account: true,
+      }
+    });;
+
+    if (!payments || payments.length === 0) {
+      // nothing to check
+      return;
+    }
+
+    const allowedBAs = await this.getBillingAccountsForUser(userId);
+    const paymentBAs = payments
+      .map((p) => p.billing_account)
+      .filter((b) => b !== null && b !== undefined);
+
+    const unauthorized = paymentBAs.some((ba) => !allowedBAs.includes(`${ba}`));
+    if (unauthorized) {
+      this.logger.warn(
+        `BA admin ${userId} attempted to access winnings ${winningsId} for unauthorized billing account(s)`,
+      );
+      throw new BadRequestException(
+        'BA admin user does not have access to the billing account for this winnings',
+      );
+    }
+  }
+
+  /**
    * Update winnings with parameters
    * @param body the request body
    * @param userId the request user id
@@ -74,6 +142,7 @@ export class AdminService {
   async updateWinnings(
     body: WinningUpdateRequestDto,
     userId: string,
+    isBaAdmin?: boolean,
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
 
@@ -83,6 +152,10 @@ export class AdminService {
       `updateWinnings called by ${userId} for winningsId=${winningsId}`,
     );
     this.logger.log(`updateWinnings payload: ${JSON.stringify(body)}`);
+
+    if (isBaAdmin) {
+      await this.verifyBaAdminAccessToWinning(body.winningsId, userId);
+    }
 
     try {
       const payments = await this.getPaymentsByWinningsId(
@@ -99,6 +172,8 @@ export class AdminService {
         );
         throw new NotFoundException('failed to get current payments');
       }
+
+
 
       let releaseDate;
       if (body.paymentStatus) {
