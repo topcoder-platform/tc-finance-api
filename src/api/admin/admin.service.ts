@@ -385,7 +385,9 @@ export class AdminService {
       // Run all transaction tasks in a single prisma transaction
       await this.prisma.$transaction(async (tx) => {
         for (let i = 0; i < transactions.length; i++) {
-          this.logger.log(`Executing transaction ${i + 1}/${transactions.length}`);
+          this.logger.log(
+            `Executing transaction ${i + 1}/${transactions.length}`,
+          );
           await transactions[i](tx);
         }
       });

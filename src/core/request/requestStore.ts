@@ -6,7 +6,6 @@ import { nanoid } from 'nanoid';
 export class RequestMetadata {
   requestId: string;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-object-type
   constructor(params: { requestId?: string }) {
     this.requestId = params.requestId ?? nanoid(11);
   }

@@ -1,4 +1,11 @@
-import { Controller, Post, Param, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Param,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+} from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import {
   ApiOperation,
@@ -17,9 +24,7 @@ import { ChallengesService } from './challenges.service';
 @Controller('/challenges')
 @ApiBearerAuth()
 export class ChallengesController {
-  constructor(
-    private readonly challengesService: ChallengesService,
-  ) {}
+  constructor(private readonly challengesService: ChallengesService) {}
 
   @Post('/:challengeId')
   @M2M()
@@ -44,7 +49,9 @@ export class ChallengesController {
     @User() user: UserInfo,
   ): Promise<ResponseDto<string>> {
     if (!isUUID(challengeId)) {
-      throw new BadRequestException('Invalid challengeId provided! Uuid expected!');
+      throw new BadRequestException(
+        'Invalid challengeId provided! Uuid expected!',
+      );
     }
 
     const result = new ResponseDto<string>();

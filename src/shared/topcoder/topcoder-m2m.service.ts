@@ -70,14 +70,11 @@ export class TopcoderM2MService {
     try {
       m2mToken = await this.getToken();
     } catch (e) {
-      this.logger.error(
-        'Failed to fetch m2m token!',
-        e.message ?? e,
-      );
+      this.logger.error('Failed to fetch m2m token!', e.message ?? e);
     }
 
     if (!m2mToken) {
-      throw new Error('Failed to fetch m2m token for m2m call!')
+      throw new Error('Failed to fetch m2m token for m2m call!');
     }
 
     // Initialize headers, ensuring Authorization is added
@@ -108,17 +105,14 @@ export class TopcoderM2MService {
         responseBody = `Failed to read response body: ${e?.message ?? e}`;
       }
 
-      this.logger.error(
-        'M2M fetch failed',
-        {
-          url: String(url),
-          method: (finalOptions.method ?? 'GET'),
-          status: response.status,
-          statusText: response.statusText,
-          requestBody: (finalOptions as any).body,
-          responseBody,
-        },
-      );
+      this.logger.error('M2M fetch failed', {
+        url: String(url),
+        method: finalOptions.method ?? 'GET',
+        status: response.status,
+        statusText: response.statusText,
+        requestBody: (finalOptions as any).body,
+        responseBody,
+      });
       // Optional: You could throw a custom error here
       throw new Error(`HTTP error! Status: ${response.status}`);
     }

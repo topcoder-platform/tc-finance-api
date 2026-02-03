@@ -219,14 +219,11 @@ export class WinningsService {
         : body.type;
 
       if (isEngagementPayment && body.type !== WinningsType.PAYMENT) {
-        this.logger.warn(
-          'Engagement payment type overridden to PAYMENT.',
-          {
-            winnerId: body.winnerId,
-            externalId: body.externalId,
-            requestedType: body.type,
-          },
-        );
+        this.logger.warn('Engagement payment type overridden to PAYMENT.', {
+          winnerId: body.winnerId,
+          externalId: body.externalId,
+          requestedType: body.type,
+        });
       }
 
       const winningModel = {
@@ -259,6 +256,7 @@ export class WinningsService {
 
       const payrollPayment = (body.attributes || {})['payroll'] === true;
       const isPointsAward = body.category === WinningsCategory.POINTS_AWARD;
+      const requestedStatus = body.status as payment_status | undefined;
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
         body.winnerId,
@@ -290,20 +288,35 @@ export class WinningsService {
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
-        paymentModel.payment_status =
-          hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
-            ? PaymentStatus.OWED
-            : PaymentStatus.ON_HOLD;
+        let resolvedStatus: payment_status;
+        if (requestedStatus) {
+          resolvedStatus = requestedStatus;
+        } else {
+          resolvedStatus =
+            hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
+              ? PaymentStatus.OWED
+              : PaymentStatus.ON_HOLD;
+
+          if (payrollPayment) {
+            this.logger.debug(
+              `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
+            );
+            resolvedStatus = PaymentStatus.PAID;
+          } else if (body.category === WinningsCategory.POINTS_AWARD) {
+            resolvedStatus = payment_status.CREDITED;
+          }
+        }
 
         if (payrollPayment) {
-          this.logger.debug(
-            `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
-          );
-          paymentModel.payment_status = PaymentStatus.PAID;
+          if (requestedStatus) {
+            this.logger.debug(
+              `Payroll payment detected. Preserving requested payment status ${requestedStatus} for user ${body.winnerId}`,
+            );
+          }
           await this.setPayrollPaymentMethod(body.winnerId, tx);
-        } else if (body.category === WinningsCategory.POINTS_AWARD) {
-          paymentModel.payment_status = payment_status.CREDITED;
         }
+
+        paymentModel.payment_status = resolvedStatus;
 
         winningModel.payment.create.push(paymentModel);
         this.logger.debug('Added payment model to winning model', {

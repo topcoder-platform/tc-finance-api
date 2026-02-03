@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, Min, IsInt, IsString, IsNotEmpty, isEnum, IsEnum } from 'class-validator';
+import {
+  IsNumber,
+  Min,
+  IsInt,
+  IsString,
+  IsNotEmpty,
+  isEnum,
+  IsEnum,
+} from 'class-validator';
 import { PrizeType } from 'src/api/challenges/models';
 
 export enum PaymentStatus {

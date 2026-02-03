@@ -8,9 +8,6 @@ import { WinningsRepository } from '../repository/winnings.repo';
 @Module({
   imports: [TopcoderModule, WinningsModule],
   controllers: [ChallengesController],
-  providers: [
-    ChallengesService,
-    WinningsRepository,
-  ],
+  providers: [ChallengesService, WinningsRepository],
 })
 export class ChallengesModule {}

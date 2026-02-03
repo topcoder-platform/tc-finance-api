@@ -258,6 +258,16 @@ export class WinningCreateRequestDto {
   attributes: object;
 
   @ApiProperty({
+    description: 'Optional payment status to apply to created payments',
+    enum: PaymentStatus,
+    example: PaymentStatus.OWED,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  status?: PaymentStatus;
+
+  @ApiProperty({
     description: 'The payment details',
     type: [PaymentCreateRequestDto],
     example: [
