@@ -6,6 +6,11 @@ export const walletDetailResponseExample = {
         amount: 1000,
         unit: 'currency',
       },
+      {
+        type: 'POINTS',
+        amount: 50000,
+        unit: 'credits',
+      },
     ],
   },
   withdrawalMethod: {

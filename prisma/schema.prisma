@@ -3,6 +3,11 @@ generator client {
   previewFeatures = ["extendedIndexes"]
   binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
 }
+generator externalClient {
+  provider = "prisma-client-js"
+  output   = "../packages/finance-prisma-client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
 
 datasource db {
   provider = "postgresql"
@@ -224,6 +229,7 @@ enum payment_status {
   CANCELLED
   FAILED
   RETURNED
+  CREDITED
 }
 
 enum reference_type {
@@ -311,6 +317,7 @@ enum winnings_category {
   CONTENT_CREATION_PAYMENT
   DIGITAL_RUN_V2_PAYMENT_TAXABLE
   DIGITAL_RUN_V2_TOP_PERFORMERS_PAYMENT_TAXABLE
+  ENGAGEMENT_PAYMENT
   CONTEST_CHECKPOINT_PAYMENT
   CONTEST_PAYMENT
   MARATHON_MATCH_NON_TAXABLE_PAYMENT
@@ -322,9 +329,11 @@ enum winnings_category {
   TASK_PAYMENT
   TASK_REVIEW_PAYMENT
   TASK_COPILOT_PAYMENT
+  POINTS_AWARD
 }
 
 enum winnings_type {
   PAYMENT
   REWARD
+  POINTS
 }

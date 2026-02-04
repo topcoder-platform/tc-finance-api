@@ -13,18 +13,9 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
-import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 import { Logger } from 'src/shared/global';
-
-function formatDate(date = new Date()) {
-  const pad = (n, z = 2) => String(n).padStart(z, '0');
-
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
-    `${pad(date.getMilliseconds(), 3)}`
-  );
-}
+import { WinningRequestDto } from 'src/dto/winning.dto';
+import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 
 /**
  * The admin winning service.
@@ -40,8 +31,23 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
-    private readonly tcChallengesService: TopcoderChallengesService,
+    private readonly baService: BillingAccountsService,
   ) {}
+
+  async applyBaAdminUserFilters(
+    userId: string,
+    isBaAdmin?: boolean,
+    filters: WinningRequestDto = {},
+  ) {
+    if (!isBaAdmin) {
+      return filters;
+    }
+
+    return {
+      ...filters,
+      billingAccounts: await this.baService.getBillingAccountsForUser(userId),
+    };
+  }
 
   private getWinningById(winningId: string) {
     return this.prisma.winnings.findFirst({ where: { winning_id: winningId } });
@@ -66,6 +72,47 @@ export class AdminService {
   }
 
   /**
+   * Verify that a BA admin user has access to the billing account(s)
+   * associated with the given winningsId. Throws BadRequestException when
+   * access is not allowed.
+   */
+  async verifyBaAdminAccessToWinning(
+    winningsId: string,
+    userId: string,
+  ): Promise<void> {
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        winnings_id: {
+          equals: winningsId,
+        },
+      },
+      select: {
+        billing_account: true,
+      },
+    });
+
+    if (!payments || payments.length === 0) {
+      // nothing to check
+      return;
+    }
+
+    const allowedBAs = await this.baService.getBillingAccountsForUser(userId);
+    const paymentBAs = payments
+      .map((p) => p.billing_account)
+      .filter((b) => b !== null && b !== undefined);
+
+    const unauthorized = paymentBAs.some((ba) => !allowedBAs.includes(`${ba}`));
+    if (unauthorized) {
+      this.logger.warn(
+        `BA admin ${userId} attempted to access winnings ${winningsId} for unauthorized billing account(s)`,
+      );
+      throw new BadRequestException(
+        'BA admin user does not have access to the billing account for this winnings',
+      );
+    }
+  }
+
+  /**
    * Update winnings with parameters
    * @param body the request body
    * @param userId the request user id
@@ -74,6 +121,7 @@ export class AdminService {
   async updateWinnings(
     body: WinningUpdateRequestDto,
     userId: string,
+    isBaAdmin?: boolean,
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
 
@@ -83,6 +131,10 @@ export class AdminService {
       `updateWinnings called by ${userId} for winningsId=${winningsId}`,
     );
     this.logger.log(`updateWinnings payload: ${JSON.stringify(body)}`);
+
+    if (isBaAdmin) {
+      await this.verifyBaAdminAccessToWinning(body.winningsId, userId);
+    }
 
     try {
       const payments = await this.getPaymentsByWinningsId(
@@ -385,7 +437,9 @@ export class AdminService {
       // Run all transaction tasks in a single prisma transaction
       await this.prisma.$transaction(async (tx) => {
         for (let i = 0; i < transactions.length; i++) {
-          this.logger.log(`Executing transaction ${i + 1}/${transactions.length}`);
+          this.logger.log(
+            `Executing transaction ${i + 1}/${transactions.length}`,
+          );
           await transactions[i](tx);
         }
       });

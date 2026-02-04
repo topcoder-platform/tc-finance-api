@@ -20,6 +20,7 @@ import {
 
 export enum WinningsType {
   PAYMENT = 'PAYMENT',
+  POINTS = 'POINTS',
 }
 
 export enum WinningsCategory {
@@ -84,6 +85,7 @@ export enum WinningsCategory {
   CONTENT_CREATION_PAYMENT = 'CONTENT_CREATION_PAYMENT',
   DIGITAL_RUN_V2_PAYMENT_TAXABLE = 'DIGITAL_RUN_V2_PAYMENT_TAXABLE',
   DIGITAL_RUN_V2_TOP_PERFORMERS_PAYMENT_TAXABLE = 'DIGITAL_RUN_V2_TOP_PERFORMERS_PAYMENT_TAXABLE',
+  ENGAGEMENT_PAYMENT = 'ENGAGEMENT_PAYMENT',
   CONTEST_CHECKPOINT_PAYMENT = 'CONTEST_CHECKPOINT_PAYMENT',
   CONTEST_PAYMENT = 'CONTEST_PAYMENT',
   MARATHON_MATCH_NON_TAXABLE_PAYMENT = 'MARATHON_MATCH_NON_TAXABLE_PAYMENT',
@@ -95,6 +97,7 @@ export enum WinningsCategory {
   TASK_PAYMENT = 'TASK_PAYMENT',
   TASK_REVIEW_PAYMENT = 'TASK_REVIEW_PAYMENT',
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
+  POINTS_AWARD = 'POINTS_AWARD',
 }
 
 export class PayoutStatus {
@@ -152,13 +155,22 @@ export class WinningRequestDto extends SortPagination {
   externalIds?: string[];
 
   @ApiProperty({
-    description: 'The type of winnings category',
+    description: 'The winnings category',
     enum: WinningsCategory,
     example: WinningsCategory.ALGORITHM_CONTEST_PAYMENT,
   })
   @IsOptional()
   @IsEnum(WinningsCategory)
-  type?: WinningsCategory;
+  category?: WinningsCategory;
+
+  @ApiProperty({
+    description: 'The type of winnings',
+    enum: WinningsType,
+    example: WinningsType.PAYMENT,
+  })
+  @IsOptional()
+  @IsEnum(WinningsType)
+  type?: WinningsType;
 
   @ApiProperty({
     description: 'The payment status',
@@ -177,6 +189,17 @@ export class WinningRequestDto extends SortPagination {
   @IsOptional()
   @IsEnum(DateFilterType)
   date?: DateFilterType;
+
+  @ApiProperty({
+    description: 'The array of billing account ids',
+    example: ['1234'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  billingAccounts?: string[];
 }
 
 export class WinningCreateRequestDto {
@@ -246,6 +269,16 @@ export class WinningCreateRequestDto {
   attributes: object;
 
   @ApiProperty({
+    description: 'Optional payment status to apply to created payments',
+    enum: PaymentStatus,
+    example: PaymentStatus.OWED,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  status?: PaymentStatus;
+
+  @ApiProperty({
     description: 'The payment details',
     type: [PaymentCreateRequestDto],
     example: [
@@ -253,7 +286,7 @@ export class WinningCreateRequestDto {
         totalAmount: 12.3,
         grossAmount: 15.0,
         installmentNumber: 1,
-        currency: 'string',
+        currency: 'USD',
         billingAccount: '1234',
       },
     ],

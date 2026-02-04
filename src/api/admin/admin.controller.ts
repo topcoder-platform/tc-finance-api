@@ -44,8 +44,21 @@ export class AdminController {
     private readonly tcMembersService: TopcoderMembersService,
   ) {}
 
+  private isBaAdmin(user?: { roles?: string[] }) {
+    return (user?.roles || []).some(
+      (r) =>
+        r &&
+        r.trim().toLowerCase() === Role.PaymentBaAdmin.trim().toLowerCase(),
+    );
+  }
+
   @Post('/winnings/search')
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentBaAdmin,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+  )
   @ApiOperation({
     summary: 'Search winnings with parameters',
     description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
@@ -62,8 +75,16 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   async searchWinnings(
     @Body() body: WinningRequestDto,
+    @User() user: any,
   ): Promise<ResponseDto<SearchWinningResult>> {
-    const result = await this.winningsRepo.searchWinnings(body);
+    const result = await this.winningsRepo.searchWinnings(
+      await this.adminService.applyBaAdminUserFilters(
+        user.id,
+        this.isBaAdmin(user),
+        body,
+      ),
+    );
+
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
     }
@@ -74,7 +95,12 @@ export class AdminController {
   }
 
   @Post('/winnings/export')
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentBaAdmin,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+  )
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
     description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
@@ -91,11 +117,17 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   @Header('Content-Type', 'text/csv')
   @Header('Content-Disposition', 'attachment; filename="winnings.csv"')
-  async exportWinnings(@Body() body: WinningRequestDto) {
-    const result = await this.winningsRepo.searchWinnings({
-      ...body,
-      limit: 999,
-    });
+  async exportWinnings(@Body() body: WinningRequestDto, @User() user: any) {
+    const result = await this.winningsRepo.searchWinnings(
+      await this.adminService.applyBaAdminUserFilters(
+        user.id,
+        this.isBaAdmin(user),
+        {
+          ...body,
+          limit: 999,
+        },
+      ),
+    );
 
     const handles = await this.tcMembersService.getHandlesByUserIds(
       result.data.winnings.map((d) => d.winnerId),
@@ -149,7 +181,7 @@ export class AdminController {
   }
 
   @Patch('/winnings')
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor)
+  @Roles(Role.PaymentAdmin, Role.PaymentBaAdmin, Role.PaymentEditor)
   @ApiOperation({
     summary: 'Update winnings with given parameter',
     description:
@@ -175,7 +207,11 @@ export class AdminController {
       );
     }
 
-    const result = await this.adminService.updateWinnings(body, user.id);
+    const result = await this.adminService.updateWinnings(
+      body,
+      user.id,
+      this.isBaAdmin(user),
+    );
 
     result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
@@ -186,7 +222,12 @@ export class AdminController {
   }
 
   @Get('/winnings/:winningID/audit')
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentBaAdmin,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+  )
   @ApiOperation({
     summary: 'List winning audit logs with given winning id',
     description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
@@ -203,7 +244,12 @@ export class AdminController {
   })
   async getWinningAudit(
     @Param('winningID') winningId: string,
+    @User() user: any,
   ): Promise<ResponseDto<WinningAuditDto[]>> {
+    if (this.isBaAdmin(user)) {
+      await this.adminService.verifyBaAdminAccessToWinning(winningId, user.id);
+    }
+
     const result = await this.adminService.getWinningAudit(winningId);
 
     result.status = ResponseStatusType.SUCCESS;
@@ -215,7 +261,12 @@ export class AdminController {
   }
 
   @Get('/winnings/:winningID/audit-payout')
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentBaAdmin,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+  )
   @ApiOperation({
     summary: 'Fetch winnings payout audit logs with given winning id.',
     description:
@@ -233,7 +284,12 @@ export class AdminController {
   })
   async getWinningAuditPayout(
     @Param('winningID') winningId: string,
+    @User() user: any,
   ): Promise<ResponseDto<AuditPayoutDto[]>> {
+    if (this.isBaAdmin(user)) {
+      await this.adminService.verifyBaAdminAccessToWinning(winningId, user.id);
+    }
+
     const result = await this.adminService.getWinningAuditPayout(winningId);
 
     result.status = ResponseStatusType.SUCCESS;

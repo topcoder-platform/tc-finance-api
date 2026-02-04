@@ -1,12 +1,12 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { Logger } from 'src/shared/global';
 import { ENV_CONFIG } from 'src/config';
-import { ChallengeResource, ResourceRole } from '../challenges/models/challenge';
+import {
+  ChallengeResource,
+  ResourceRole,
+} from '../challenges/models/challenge';
 import { Prisma, winnings, payment } from '@prisma/client';
 
 type Auth0User = Record<string, unknown>;
@@ -74,7 +74,9 @@ export class ChallengePaymentsService {
     private readonly topcoderM2M: TopcoderM2MService,
   ) {}
 
-  async listChallengePayments(params: ListPaymentsParams): Promise<PaginatedResponse> {
+  async listChallengePayments(
+    params: ListPaymentsParams,
+  ): Promise<PaginatedResponse> {
     const {
       challengeId,
       requestUserId,
@@ -84,10 +86,13 @@ export class ChallengePaymentsService {
     } = params;
 
     if (!isMachineToken && !requestUserId) {
-      throw new UnauthorizedException('Authenticated user is missing required identifier');
+      throw new UnauthorizedException(
+        'Authenticated user is missing required identifier',
+      );
     }
 
-    let allowAllForChallenge = isMachineToken || this.hasPrivilegedRole(auth0User);
+    let allowAllForChallenge =
+      isMachineToken || this.hasPrivilegedRole(auth0User);
     let winnerFilter: string | undefined;
 
     if (!allowAllForChallenge && requestUserId) {
@@ -96,7 +101,10 @@ export class ChallengePaymentsService {
       }
 
       try {
-        const isCopilot = await this.isCopilotForChallenge(challengeId, requestUserId);
+        const isCopilot = await this.isCopilotForChallenge(
+          challengeId,
+          requestUserId,
+        );
         if (isCopilot) {
           allowAllForChallenge = true;
         }
@@ -112,7 +120,10 @@ export class ChallengePaymentsService {
       }
     }
 
-    const winnings = await this.fetchWinnings(challengeId, allowAllForChallenge ? undefined : winnerFilter);
+    const winnings = await this.fetchWinnings(
+      challengeId,
+      allowAllForChallenge ? undefined : winnerFilter,
+    );
     return this.serializeResponse(challengeId, winnings);
   }
 
@@ -146,9 +157,7 @@ export class ChallengePaymentsService {
 
     const claimRoles = auth0User['roles'];
     if (Array.isArray(claimRoles)) {
-      claimRoles
-        .filter(Boolean)
-        .forEach((role) => roles.push(String(role)));
+      claimRoles.filter(Boolean).forEach((role) => roles.push(String(role)));
     } else if (typeof claimRoles === 'string') {
       roles.push(claimRoles);
     }
@@ -184,9 +193,7 @@ export class ChallengePaymentsService {
       return false;
     }
 
-    return resources.some((resource) =>
-      copilotRoleIds.has(resource.roleId),
-    );
+    return resources.some((resource) => copilotRoleIds.has(resource.roleId));
   }
 
   private async fetchWinnings(
@@ -195,7 +202,7 @@ export class ChallengePaymentsService {
   ): Promise<(winnings & { payment: payment[] })[]> {
     const where: Prisma.winningsWhereInput = {
       external_id: challengeId,
-      type: 'PAYMENT',
+      type: { in: ['PAYMENT', 'POINTS'] },
     };
 
     if (winnerId) {
@@ -206,10 +213,7 @@ export class ChallengePaymentsService {
       where,
       include: {
         payment: {
-          orderBy: [
-            { installment_number: 'asc' },
-            { created_at: 'asc' },
-          ],
+          orderBy: [{ installment_number: 'asc' }, { created_at: 'asc' }],
         },
       },
       orderBy: [{ created_at: 'desc' }],
@@ -228,7 +232,7 @@ export class ChallengePaymentsService {
 
       return {
         id: winning.winning_id,
-        type: 'PAYMENT',
+        type: winning.type,
         handle: '',
         winnerId: winning.winner_id,
         origin: '',
@@ -240,13 +244,11 @@ export class ChallengePaymentsService {
         details,
         createdAt:
           this.toIsoString(winning.created_at) ??
-          this.toIsoString(new Date()),
+          (this.toIsoString(new Date()) as string),
         releaseDate:
           this.toIsoString(firstPayment?.release_date ?? null) ??
-          this.toIsoString(new Date()),
-        datePaid: this.toIsoString(
-          (firstPayment?.date_paid as Date | null) ?? null,
-        ),
+          (this.toIsoString(new Date()) as string),
+        datePaid: this.toIsoString(firstPayment?.date_paid ?? null),
       };
     });
 

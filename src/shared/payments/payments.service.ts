@@ -34,10 +34,10 @@ export class PaymentsService {
     if (userIds.length > 0) {
       const ids = uniq(userIds);
       usersPayoutStatus = await this.prisma.$queryRaw<
-      {
-        userId: string;
-        setupComplete: boolean;
-      }[]
+        {
+          userId: string;
+          setupComplete: boolean;
+        }[]
       >`
       WITH u(user_id) AS (
         VALUES ${Prisma.join(ids.map((id) => Prisma.sql`(${id})`))}

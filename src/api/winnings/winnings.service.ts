@@ -4,11 +4,17 @@ import {
   payment,
   payment_method_status,
   payment_status,
+  winnings_category,
+  winnings_type,
 } from '@prisma/client';
 
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import { WinningCreateRequestDto } from 'src/dto/winning.dto';
+import {
+  WinningCreateRequestDto,
+  WinningsCategory,
+  WinningsType,
+} from 'src/dto/winning.dto';
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { OriginRepository } from '../repository/origin.repo';
@@ -20,6 +26,7 @@ import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 import { TopcoderEmailService } from 'src/shared/topcoder/tc-email.service';
 import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
+import { PrizeType } from '../challenges/models';
 
 /**
  * The winning service.
@@ -164,24 +171,92 @@ export class WinningsService {
         return result;
       }
 
+      // check if any of: type, category or currency is using POINTS system
+      // if so, and the others are not matching the expectation, throw error
+      if (
+        (body.type === WinningsType.POINTS ||
+          body.category === winnings_category.POINTS_AWARD ||
+          body.details.some((p) => p.currency === PrizeType.POINT)) &&
+        (body.type !== WinningsType.POINTS ||
+          body.category !== winnings_category.POINTS_AWARD ||
+          !body.details.some((p) => p.currency === PrizeType.POINT))
+      ) {
+        const isTypePoints = body.type === WinningsType.POINTS;
+        const isCategoryPoints =
+          body.category === winnings_category.POINTS_AWARD;
+        const hasPointsCurrency = body.details.some(
+          (p) => p.currency === PrizeType.POINT,
+        );
+
+        const mismatches: string[] = [];
+        if (!isTypePoints) mismatches.push(`type (got: ${body.type})`);
+        if (!isCategoryPoints)
+          mismatches.push(`category (got: ${body.category})`);
+        if (!hasPointsCurrency)
+          mismatches.push(
+            `currency (currencies: ${body.details
+              .map((d) => d.currency)
+              .join(', ')})`,
+          );
+
+        this.logger.warn(
+          `Inconsistent POINTS winning: ${mismatches.join(', ')}`,
+          { body },
+        );
+        result.error = {
+          code: HttpStatus.BAD_REQUEST,
+          message: `Invalid winning: POINTS mismatch for ${mismatches.join(
+            ', ',
+          )}`,
+        };
+        return result;
+      }
+
+      const isEngagementPayment =
+        body.category === WinningsCategory.ENGAGEMENT_PAYMENT;
+      const resolvedType = isEngagementPayment
+        ? WinningsType.PAYMENT
+        : body.type;
+
+      if (isEngagementPayment && body.type !== WinningsType.PAYMENT) {
+        this.logger.warn('Engagement payment type overridden to PAYMENT.', {
+          winnerId: body.winnerId,
+          externalId: body.externalId,
+          requestedType: body.type,
+        });
+      }
+
       const winningModel = {
         winner_id: body.winnerId,
-        type: body.type,
+        type: winnings_type[resolvedType],
         origin_id: originId,
-        category: body.category,
+        category: winnings_category[body.category],
         title: body.title,
         description: body.description,
         external_id: body.externalId,
         attributes: body.attributes,
         created_by: userId,
         payment: {
-          create: [] as Partial<payment>[],
+          create: [] as Pick<
+            payment,
+            | 'gross_amount'
+            | 'total_amount'
+            | 'installment_number'
+            | 'currency'
+            | 'net_amount'
+            | 'payment_status'
+            | 'created_by'
+            | 'billing_account'
+            | 'challenge_fee'
+          >[],
         },
       };
 
       this.logger.debug('Constructed winning model', { winningModel });
 
       const payrollPayment = (body.attributes || {})['payroll'] === true;
+      const isPointsAward = body.category === WinningsCategory.POINTS_AWARD;
+      const requestedStatus = body.status as payment_status | undefined;
 
       const hasActiveTaxForm = await this.taxFormRepo.hasActiveTaxForm(
         body.winnerId,
@@ -204,7 +279,7 @@ export class WinningsService {
           gross_amount: Prisma.Decimal(detail.grossAmount),
           total_amount: Prisma.Decimal(detail.totalAmount),
           installment_number: detail.installmentNumber,
-          currency: detail.currency,
+          currency: PrizeType[detail.currency],
           net_amount: Prisma.Decimal(0),
           payment_status: '' as payment_status,
           created_by: userId,
@@ -213,18 +288,35 @@ export class WinningsService {
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
-        paymentModel.payment_status =
-          hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
-            ? PaymentStatus.OWED
-            : PaymentStatus.ON_HOLD;
+        let resolvedStatus: payment_status;
+        if (requestedStatus) {
+          resolvedStatus = requestedStatus;
+        } else {
+          resolvedStatus =
+            hasConnectedPaymentMethod && hasActiveTaxForm && isIdentityVerified
+              ? PaymentStatus.OWED
+              : PaymentStatus.ON_HOLD;
+
+          if (payrollPayment) {
+            this.logger.debug(
+              `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
+            );
+            resolvedStatus = PaymentStatus.PAID;
+          } else if (body.category === WinningsCategory.POINTS_AWARD) {
+            resolvedStatus = payment_status.CREDITED;
+          }
+        }
 
         if (payrollPayment) {
-          this.logger.debug(
-            `Payroll payment detected. Setting payment status to PAID for user ${body.winnerId}`,
-          );
-          paymentModel.payment_status = PaymentStatus.PAID;
+          if (requestedStatus) {
+            this.logger.debug(
+              `Payroll payment detected. Preserving requested payment status ${requestedStatus} for user ${body.winnerId}`,
+            );
+          }
           await this.setPayrollPaymentMethod(body.winnerId, tx);
         }
+
+        paymentModel.payment_status = resolvedStatus;
 
         winningModel.payment.create.push(paymentModel);
         this.logger.debug('Added payment model to winning model', {
@@ -234,7 +326,7 @@ export class WinningsService {
 
       this.logger.debug('Attempting to create winning with nested payments.');
       const createdWinning = await tx.winnings.create({
-        data: winningModel as any,
+        data: winningModel,
       });
 
       if (!createdWinning) {
@@ -248,6 +340,7 @@ export class WinningsService {
       }
 
       if (
+        !isPointsAward &&
         !payrollPayment &&
         (!hasConnectedPaymentMethod || !hasActiveTaxForm)
       ) {

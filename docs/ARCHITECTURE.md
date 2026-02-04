@@ -107,7 +107,7 @@ Controllers handle HTTP requests and route them to appropriate services:
 
 - User winnings CRUD operations
 - View personal winnings history
-- Requires: `User` role
+- Requires: `User` role for member endpoints; create winnings requires `PaymentAdmin`, `PaymentEditor`, `TaskManager`, or `TalentManager` roles
 
 **WithdrawalController** (`/v5/finance/withdraw`)
 
@@ -217,6 +217,7 @@ Controllers handle HTTP requests and route them to appropriate services:
 - `RolesGuard` - Role-based access control
 - `TokenValidatorMiddleware` - Token parsing and extraction
 - Supports both user JWT and M2M tokens
+- Roles include `User`, `PaymentAdmin`, `PaymentEditor`, `PaymentViewer`, `TaskManager`, and `TalentManager`
 
 **Request Context**
 

@@ -7,7 +7,11 @@ import {
   orderBy,
   uniqBy,
 } from 'lodash';
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
@@ -16,6 +20,7 @@ import {
   ChallengeResource,
   ChallengeReview,
   Prize,
+  PrizeType,
   ResourceRole,
   Winner,
 } from './models';
@@ -36,6 +41,7 @@ interface PaymentPayload {
   amount: number;
   userId: string;
   type: WinningsCategory;
+  currency: string;
   description?: string;
 }
 
@@ -63,7 +69,9 @@ export class ChallengesService {
 
   async getChallenge(challengeId: string) {
     if (!isUUID(challengeId)) {
-      throw new BadRequestException('Invalid challengeId provided! Uuid expected!');
+      throw new BadRequestException(
+        'Invalid challengeId provided! Uuid expected!',
+      );
     }
 
     const requestUrl = `${TC_API_BASE}/challenges/${challengeId}`;
@@ -138,24 +146,32 @@ export class ChallengesService {
       return [];
     }
 
-    return winners.map((winner) => ({
-      handle: winner.handle,
-      amount: prizes[winner.placement - 1].value,
-      userId: winner.userId.toString(),
-      type:
-        type ??
-        (challenge.task.isTask
-          ? WinningsCategory.TASK_PAYMENT
-          : WinningsCategory.CONTEST_PAYMENT),
-      description:
-        challenge.type === 'Task'
-          ? challenge.name
-          : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
-    }));
+    return winners.map((winner) => {
+      const currency = prizes[winner.placement - 1].type;
+      const winType =
+        currency === PrizeType.USD
+          ? (type ??
+            (challenge.task.isTask
+              ? WinningsCategory.TASK_PAYMENT
+              : WinningsCategory.CONTEST_PAYMENT))
+          : WinningsCategory.POINTS_AWARD;
+
+      return {
+        handle: winner.handle,
+        amount: prizes[winner.placement - 1].value,
+        userId: winner.userId.toString(),
+        type: winType,
+        currency,
+        description:
+          challenge.type === 'Task'
+            ? challenge.name
+            : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
+      };
+    });
   }
 
   generateCheckpointWinnersPayments(challenge: Challenge): PaymentPayload[] {
-    const { prizeSets, checkpointWinners } = challenge;
+    const { prizeSets, checkpointWinners = [] } = challenge;
 
     // generate placement payments
     const checkpointPrizes = orderBy(
@@ -174,6 +190,12 @@ export class ChallengesService {
       return [];
     }
 
+    if (checkpointPrizes.length < checkpointWinners.length) {
+      throw new Error(
+        'Task has incorrect number of checkpoint prizes! There are more checkpoint winners than prizes!',
+      );
+    }
+
     return this.generateWinnersPayments(
       challenge,
       checkpointWinners,
@@ -183,7 +205,7 @@ export class ChallengesService {
   }
 
   generatePlacementWinnersPayments(challenge: Challenge): PaymentPayload[] {
-    const { prizeSets, winners } = challenge;
+    const { prizeSets, winners = [] } = challenge;
 
     // generate placement payments
     const placementPrizes = orderBy(
@@ -216,15 +238,36 @@ export class ChallengesService {
       return [];
     }
 
+    const placementPrizes = orderBy(
+      find(challenge.prizeSets, { type: 'PLACEMENT' })?.prizes,
+      'value',
+      'desc',
+    );
+
+    if (placementPrizes[0]?.type !== PrizeType.USD) {
+      const prizeType = placementPrizes[0].type;
+      this.logger.log(
+        `Skipping copilot payments generation for challenge ${challenge.id} with "${prizeType}" winning prize!`,
+      );
+      return [];
+    }
+
     if (!copilots?.length) {
       throw new Error('Task has a copilot prize but no copilot assigned!');
     }
 
+    const copilotPrize = copilotPrizes[0];
+    const currency = copilotPrize.type;
+    const winType =
+      currency === PrizeType.USD
+        ? WinningsCategory.COPILOT_PAYMENT
+        : WinningsCategory.POINTS_AWARD;
     return copilots.map((copilot) => ({
       handle: copilot.memberHandle,
       amount: copilotPrizes[0].value,
       userId: copilot.memberId.toString(),
-      type: WinningsCategory.COPILOT_PAYMENT,
+      type: winType,
+      currency,
       description: `${challenge.name} - Copilot payment`,
     }));
   }
@@ -238,6 +281,14 @@ export class ChallengesService {
       'value',
       'desc',
     );
+
+    if (placementPrizes[0]?.type !== PrizeType.USD) {
+      const prizeType = placementPrizes[0].type;
+      this.logger.log(
+        `Skipping reviewers payments generation for challenge ${challenge.id} with "${prizeType}" winning prize!`,
+      );
+      return [];
+    }
 
     // generate reviewer payments
     const firstPlacePrize = placementPrizes?.[0]?.value ?? 0;
@@ -301,6 +352,13 @@ export class ChallengesService {
               );
             }
 
+            const placementPrize = placementPrizes?.[0];
+            const currency = placementPrize?.type;
+            const winType =
+              currency === PrizeType.USD
+                ? WinningsCategory.REVIEW_BOARD_PAYMENT
+                : WinningsCategory.POINTS_AWARD;
+
             return {
               handle: reviewer.memberHandle,
               userId: reviewer.memberId.toString(),
@@ -311,7 +369,8 @@ export class ChallengesService {
                     firstPlacePrize *
                     phaseReviews.length,
               ),
-              type: WinningsCategory.REVIEW_BOARD_PAYMENT,
+              type: winType,
+              currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
               description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
             };
           },
@@ -369,13 +428,18 @@ export class ChallengesService {
       ...reviewersPayments,
     ];
 
-    const totalAmount = payments.reduce(
-      (sum, payment) => sum + payment.amount,
+    const totalUsdAmount = payments.reduce(
+      (sum, payment) =>
+        sum + (payment.currency === PrizeType.USD ? payment.amount : 0),
       0,
     );
+
     return payments.map((payment) => ({
       winnerId: payment.userId.toString(),
-      type: WinningsType.PAYMENT,
+      type:
+        payment.currency === PrizeType.USD
+          ? WinningsType.PAYMENT
+          : WinningsType.POINTS,
       origin: 'Topcoder',
       category: payment.type,
       title: challenge.name,
@@ -386,9 +450,9 @@ export class ChallengesService {
           totalAmount: payment.amount,
           grossAmount: payment.amount,
           installmentNumber: 1,
-          currency: 'USD',
+          currency: payment.currency || PrizeType.USD,
           billingAccount: `${challenge.billing.billingAccountId}`,
-          challengeFee: totalAmount * challenge.billing.markup,
+          challengeFee: totalUsdAmount * challenge.billing.markup,
         },
       ],
       attributes: {
@@ -424,18 +488,27 @@ export class ChallengesService {
           .flat(),
       ),
     ];
-    const isRewardsPayment = paymentTypes.some((type) => type !== 'USD');
 
-    if (isRewardsPayment) {
+    // treat POINT as supported (persisted) payment type; other non-USD/POINT types are rewards
+    const isSupportedPayment = paymentTypes.some(
+      (type) => type === PrizeType.USD || type === PrizeType.POINT,
+    );
+
+    if (!isSupportedPayment) {
       this.logger.log(
-        `Rewards system detected: ${paymentTypes.join(', ')}. Skipping payments generation for challenge ${challenge.name} (${challenge.id}).`,
+        `Detected not supported payment type: ${paymentTypes.join(', ')}. Skipping payments generation for challenge ${challenge.name} (${challenge.id}).`,
       );
       return;
     }
 
     const payments = await this.getChallengePayments(challenge);
-    const totalAmount = payments.reduce(
-      (sum, payment) => sum + payment.details[0].totalAmount,
+    // compute USD totals for BA validation/locking (POINT payments are persisted but not billed)
+    const totalUsdAmount = payments.reduce(
+      (sum, payment) =>
+        sum +
+        (payment.details[0].currency === PrizeType.USD
+          ? payment.details[0].totalAmount
+          : 0),
       0,
     );
 
@@ -444,7 +517,7 @@ export class ChallengesService {
       billingAccountId: +challenge.billing.billingAccountId,
       markup: challenge.billing.markup,
       status: challenge.status,
-      totalPrizesInCents: totalAmount * 100,
+      totalPrizesInCents: totalUsdAmount * 100,
     };
 
     if (challenge.billing?.clientBillingRate != null) {
@@ -477,7 +550,9 @@ export class ChallengesService {
       throw new Error('Challenge not found!');
     }
 
-    this.logger.log(`Challenge ${challenge.id} - "${challenge.name}" with status "${challenge.status}" retrieved`);
+    this.logger.log(
+      `Challenge ${challenge.id} - "${challenge.name}" with status "${challenge.status}" retrieved`,
+    );
 
     const allowedStatuses = [
       ChallengeStatuses.Completed.toLowerCase(),
@@ -514,9 +589,13 @@ export class ChallengesService {
     }
 
     try {
-      this.logger.log(`Starting payment creation for challenge ${challenge.id}`);
+      this.logger.log(
+        `Starting payment creation for challenge ${challenge.id}`,
+      );
       await this.createPayments(challenge, userId);
-      this.logger.log(`Payment creation completed for challenge ${challenge.id}`);
+      this.logger.log(
+        `Payment creation completed for challenge ${challenge.id}`,
+      );
     } catch (error) {
       this.logger.error(
         `Error while creating payments for challenge ${challenge.id}`,
@@ -524,10 +603,12 @@ export class ChallengesService {
       );
       if (
         error &&
-        (typeof error.message === 'string') &&
+        typeof error.message === 'string' &&
         error.message.includes('Lock already acquired')
       ) {
-        this.logger.log(`Conflict detected while creating payments for ${challenge.id}`);
+        this.logger.log(
+          `Conflict detected while creating payments for ${challenge.id}`,
+        );
         throw new ConflictException(
           'Another payment operation is in progress.',
         );
