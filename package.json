@@ -26,7 +26,7 @@
     "@nestjs/platform-express": "^11.1.7",
     "@nestjs/swagger": "^11.2.1",
     "@prisma/client": "^6.18.0",
-    "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#develop",
+    "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#master",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "cors": "^2.8.5",
