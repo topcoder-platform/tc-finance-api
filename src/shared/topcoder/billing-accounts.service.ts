@@ -159,4 +159,23 @@ export class BillingAccountsService {
       }
     }
   }
+
+  async getBillingAccountsForUser(userId: string): Promise<string[]> {
+    this.logger.log(`Fetching billing accounts for user '${userId}'`);
+
+    try {
+      return await this.m2MService
+        .m2mFetch<
+          { tcBillingAccountId: string }[]
+        >(`${TOPCODER_API_V6_BASE_URL}/billing-accounts/users/${userId}`)
+        .then((r) => r.map((b) => `${b.tcBillingAccountId}`));
+    } catch (err: any) {
+      this.logger.error(
+        err.response?.data?.result?.content ??
+          `Failed to fetch billing accounts for user '${userId}'!`,
+        err,
+      );
+      throw new Error('Failed to fetch billing acccounts!');
+    }
+  }
 }
