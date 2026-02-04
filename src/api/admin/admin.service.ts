@@ -13,19 +13,9 @@ import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
-import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
-import { Logger, getBaClient } from 'src/shared/global';
+import { Logger } from 'src/shared/global';
 import { WinningRequestDto } from 'src/dto/winning.dto';
-
-function formatDate(date = new Date()) {
-  const pad = (n, z = 2) => String(n).padStart(z, '0');
-
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.` +
-    `${pad(date.getMilliseconds(), 3)}`
-  );
-}
+import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 
 /**
  * The admin winning service.
@@ -41,19 +31,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
-    private readonly tcChallengesService: TopcoderChallengesService,
+    private readonly baService: BillingAccountsService,
   ) {}
-
-  async getBillingAccountsForUser(userId: string): Promise<string[]> {
-    const baPrisma = getBaClient();
-    const baRows = await baPrisma.billingAccountAccess.findMany({
-      where: {
-        userId,
-      }
-    });
-
-    return baRows.map(r => `${r.billingAccountId}`);
-  }
 
   async applyBaAdminUserFilters(
     userId: string,
@@ -66,7 +45,7 @@ export class AdminService {
 
     return {
       ...filters,
-      billingAccounts: await this.getBillingAccountsForUser(userId),
+      billingAccounts: await this.baService.getBillingAccountsForUser(userId),
     };
   }
 
@@ -109,15 +88,15 @@ export class AdminService {
       },
       select: {
         billing_account: true,
-      }
-    });;
+      },
+    });
 
     if (!payments || payments.length === 0) {
       // nothing to check
       return;
     }
 
-    const allowedBAs = await this.getBillingAccountsForUser(userId);
+    const allowedBAs = await this.baService.getBillingAccountsForUser(userId);
     const paymentBAs = payments
       .map((p) => p.billing_account)
       .filter((b) => b !== null && b !== undefined);
@@ -172,8 +151,6 @@ export class AdminService {
         );
         throw new NotFoundException('failed to get current payments');
       }
-
-
 
       let releaseDate;
       if (body.paymentStatus) {
