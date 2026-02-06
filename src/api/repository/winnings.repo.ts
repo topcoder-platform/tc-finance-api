@@ -196,17 +196,6 @@ export class WinningsRepository {
         };
       }
 
-      if ((searchProps as any).paymentMethodTypes) {
-        (queryWhere as any).payment.some = {
-          ...queryWhere.payment!.some,
-          payment_method: {
-            payment_method_type: {
-              in: (searchProps as any).paymentMethodTypes,
-            },
-          },
-        };
-      }
-
       const orderBy = this.getOrderByWithWinnerId(
         searchProps.sortBy,
         searchProps.sortOrder,
