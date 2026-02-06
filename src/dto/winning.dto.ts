@@ -200,6 +200,16 @@ export class WinningRequestDto extends SortPagination {
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   billingAccounts?: string[];
+
+  @ApiProperty({
+    description: 'Filter by payment method types (e.g. taas)',
+    example: ['taas'],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  paymentMethodTypes?: string[];
 }
 
 export class WinningCreateRequestDto {

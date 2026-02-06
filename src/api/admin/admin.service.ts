@@ -3,18 +3,19 @@ import {
   HttpStatus,
   NotFoundException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { PaymentsService } from 'src/shared/payments';
+import { AccessControlService } from 'src/shared/access-control/access-control.service';
 
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { Logger } from 'src/shared/global';
-import { WinningRequestDto } from 'src/dto/winning.dto';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 
 /**
@@ -32,21 +33,19 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
     private readonly baService: BillingAccountsService,
+    private readonly accessControlService: AccessControlService,
   ) {}
 
-  async applyBaAdminUserFilters(
+  async verifyUserAccessToWinning(
+    winningsId: string,
     userId: string,
-    isBaAdmin?: boolean,
-    filters: WinningRequestDto = {},
-  ) {
-    if (!isBaAdmin) {
-      return filters;
+    roles: string[] = [],
+  ): Promise<void> {
+    try {
+      await this.accessControlService.verifyAccess(winningsId, userId, roles);
+    } catch (err) {
+      throw new UnauthorizedException(err?.message ?? 'access denied');
     }
-
-    return {
-      ...filters,
-      billingAccounts: await this.baService.getBillingAccountsForUser(userId),
-    };
   }
 
   private getWinningById(winningId: string) {
@@ -121,7 +120,7 @@ export class AdminService {
   async updateWinnings(
     body: WinningUpdateRequestDto,
     userId: string,
-    isBaAdmin?: boolean,
+    roles: string[] = [],
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
 
@@ -132,9 +131,7 @@ export class AdminService {
     );
     this.logger.log(`updateWinnings payload: ${JSON.stringify(body)}`);
 
-    if (isBaAdmin) {
-      await this.verifyBaAdminAccessToWinning(body.winningsId, userId);
-    }
+    await this.verifyUserAccessToWinning(body.winningsId, userId, roles);
 
     try {
       const payments = await this.getPaymentsByWinningsId(
