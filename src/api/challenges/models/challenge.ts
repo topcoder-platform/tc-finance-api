@@ -28,8 +28,8 @@ export interface Challenge {
   terms: any[]; // Replace with type if available
   skills: Skill[];
   attachments: any[]; // Replace with type if available
-  track: string;
-  type: string;
+  track: { name: string };
+  type: { name: string };
   legacy: Legacy;
   billing: Billing;
   task: Task;
