@@ -49,10 +49,10 @@ export class AdminService {
     const baRows = await baPrisma.billingAccountAccess.findMany({
       where: {
         userId,
-      }
+      },
     });
 
-    return baRows.map(r => `${r.billingAccountId}`);
+    return baRows.map((r) => `${r.billingAccountId}`);
   }
 
   async applyBaAdminUserFilters(
@@ -109,8 +109,8 @@ export class AdminService {
       },
       select: {
         billing_account: true,
-      }
-    });;
+      },
+    });
 
     if (!payments || payments.length === 0) {
       // nothing to check
@@ -172,8 +172,6 @@ export class AdminService {
         );
         throw new NotFoundException('failed to get current payments');
       }
-
-
 
       let releaseDate;
       if (body.paymentStatus) {

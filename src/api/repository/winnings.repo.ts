@@ -21,6 +21,11 @@ import { Logger } from 'src/shared/global';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
+interface SearchWinningsOptions {
+  includeCount?: boolean;
+  includePayoutStatus?: boolean;
+}
+
 @Injectable()
 export class WinningsRepository {
   private readonly logger = new Logger(WinningsRepository.name);
@@ -162,8 +167,11 @@ export class WinningsRepository {
    */
   async searchWinnings(
     searchProps: WinningRequestDto,
+    options: SearchWinningsOptions = {},
   ): Promise<ResponseDto<SearchWinningResult>> {
     const result = new ResponseDto<SearchWinningResult>();
+    const includeCount = options.includeCount ?? true;
+    const includePayoutStatus = options.includePayoutStatus ?? true;
 
     try {
       let winnerIds: string[] | undefined;
@@ -202,7 +210,9 @@ export class WinningsRepository {
         !winnerIds && !!externalIds?.length,
       );
 
-      const winnings = await this.prisma.winnings.findMany({
+      const limit = searchProps.limit ?? 10;
+      const offset = searchProps.offset ?? 0;
+      const winningsPromise = this.prisma.winnings.findMany({
         where: queryWhere,
         include: {
           payment: {
@@ -218,15 +228,22 @@ export class WinningsRepository {
           origin: true,
         },
         orderBy,
-        skip: searchProps.offset,
-        take: searchProps.limit,
+        skip: offset,
+        take: limit,
       });
 
-      const count = await this.prisma.winnings.count({ where: queryWhere });
+      const [winnings, count] = includeCount
+        ? await Promise.all([
+            winningsPromise,
+            this.prisma.winnings.count({ where: queryWhere }),
+          ])
+        : [await winningsPromise, 0];
 
-      const usersPayoutStatusMap = winnings?.length
-        ? await this.getUsersPayoutStatusForWinnings(winnings)
-        : ({} as { [key: string]: payment_status });
+      const usersPayoutStatusMap: Record<string, unknown> =
+        includePayoutStatus && winnings?.length
+          ? await this.getUsersPayoutStatusForWinnings(winnings)
+          : {};
+      const totalItems = includeCount ? count : winnings.length;
 
       result.data = {
         winnings: winnings.map((item) => ({
@@ -257,13 +274,15 @@ export class WinningsRepository {
             item.payment?.[0].updated_at ??
             undefined) as Date,
           releaseDate: item.payment?.[0]?.release_date as Date,
-          paymentStatus: usersPayoutStatusMap[item.winner_id],
+          paymentStatus: usersPayoutStatusMap[
+            item.winner_id
+          ] as WinningDto['paymentStatus'],
         })),
         pagination: {
-          totalItems: count,
-          totalPages: Math.ceil(count / searchProps.limit),
-          pageSize: searchProps.limit,
-          currentPage: Math.ceil(searchProps.offset / searchProps.limit) + 1,
+          totalItems,
+          totalPages: Math.ceil(totalItems / limit),
+          pageSize: limit,
+          currentPage: Math.ceil(offset / limit) + 1,
         },
       };
       // response.data = winnings as any

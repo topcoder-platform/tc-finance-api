@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -38,6 +39,8 @@ import { WinningUpdateRequestDto } from './dto/winnings.dto';
 @Controller('/admin')
 @ApiBearerAuth()
 export class AdminController {
+  private static readonly EXPORT_BATCH_SIZE = 1000;
+
   constructor(
     private readonly adminService: AdminService,
     private readonly winningsRepo: WinningsRepository,
@@ -118,22 +121,52 @@ export class AdminController {
   @Header('Content-Type', 'text/csv')
   @Header('Content-Disposition', 'attachment; filename="winnings.csv"')
   async exportWinnings(@Body() body: WinningRequestDto, @User() user: any) {
-    const result = await this.winningsRepo.searchWinnings(
-      await this.adminService.applyBaAdminUserFilters(
-        user.id,
-        this.isBaAdmin(user),
-        {
-          ...body,
-          limit: 999,
-        },
-      ),
+    const baseFilters = await this.adminService.applyBaAdminUserFilters(
+      user.id,
+      this.isBaAdmin(user),
+      {
+        ...body,
+        limit: undefined,
+        offset: undefined,
+      },
     );
+
+    const winnings: SearchWinningResult['winnings'] = [];
+    let offset = 0;
+
+    while (true) {
+      const result = await this.winningsRepo.searchWinnings(
+        {
+          ...baseFilters,
+          limit: AdminController.EXPORT_BATCH_SIZE,
+          offset,
+        },
+        {
+          includeCount: false,
+          includePayoutStatus: false,
+        },
+      );
+
+      if (result.error || !result.data) {
+        throw new InternalServerErrorException(
+          result.error?.message ?? 'Export winnings failed',
+        );
+      }
+
+      winnings.push(...result.data.winnings);
+
+      if (result.data.winnings.length < AdminController.EXPORT_BATCH_SIZE) {
+        break;
+      }
+
+      offset += AdminController.EXPORT_BATCH_SIZE;
+    }
 
     const handles = await this.tcMembersService.getHandlesByUserIds(
-      result.data.winnings.map((d) => d.winnerId),
+      winnings.map((d) => d.winnerId),
     );
 
-    const csvRes = result.data.winnings.map((item) => {
+    const csvRes = winnings.map((item) => {
       const payment =
         item.details && item.details.length > 0 ? item.details[0] : null;
 
