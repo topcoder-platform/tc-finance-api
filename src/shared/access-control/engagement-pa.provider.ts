@@ -30,7 +30,7 @@ export class EngagementPaymentApproverProvider implements RoleAccessProvider {
     );
     if (unauthorized.length > 0) {
       throw new Error(
-        `${Role.EngagementPaymentApprover} user is trying to access winning with category='${unauthorized.map(w => w.category).join(', ')}'`,
+        `${Role.EngagementPaymentApprover} user is trying to access winning with category='${unauthorized.map((w) => w.category).join(', ')}'`,
       );
     }
   }
