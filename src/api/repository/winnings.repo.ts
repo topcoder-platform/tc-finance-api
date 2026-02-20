@@ -24,6 +24,7 @@ const ONE_DAY = 24 * 60 * 60 * 1000;
 interface SearchWinningsOptions {
   includeCount?: boolean;
   includePayoutStatus?: boolean;
+  latestPaymentOnly?: boolean;
 }
 
 @Injectable()
@@ -172,6 +173,7 @@ export class WinningsRepository {
     const result = new ResponseDto<SearchWinningResult>();
     const includeCount = options.includeCount ?? true;
     const includePayoutStatus = options.includePayoutStatus ?? true;
+    const latestPaymentOnly = options.latestPaymentOnly ?? false;
 
     try {
       let winnerIds: string[] | undefined;
@@ -224,6 +226,7 @@ export class WinningsRepository {
                 created_at: 'desc',
               },
             ],
+            take: latestPaymentOnly ? 1 : undefined,
           },
           origin: true,
         },

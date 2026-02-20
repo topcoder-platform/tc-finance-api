@@ -140,6 +140,7 @@ export class AdminController {
         {
           includeCount: false,
           includePayoutStatus: false,
+          latestPaymentOnly: true,
         },
       );
 
