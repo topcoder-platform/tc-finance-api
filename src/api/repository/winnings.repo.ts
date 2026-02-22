@@ -36,6 +36,7 @@ export class WinningsRepository {
   private generateFilterDate(date?: DateFilterType) {
     let filterDate: object | undefined;
     const currentDay = new Date(new Date().setHours(0, 0, 0, 0));
+    const currentDayEnd = new Date(currentDay.getTime() + ONE_DAY - 1);
 
     switch (date) {
       case DateFilterType.LAST7DAYS:
@@ -43,6 +44,7 @@ export class WinningsRepository {
         const last7days = new Date(currentDay.getTime() - 6 * ONE_DAY);
         filterDate = {
           gte: last7days,
+          lte: currentDayEnd,
         };
         break;
       case DateFilterType.LAST30DAYS:
@@ -50,6 +52,7 @@ export class WinningsRepository {
         const last30days = new Date(currentDay.getTime() - 29 * ONE_DAY);
         filterDate = {
           gte: last30days,
+          lte: currentDayEnd,
         };
         break;
       case DateFilterType.ALL:
