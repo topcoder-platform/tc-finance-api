@@ -116,7 +116,7 @@ export class WinningsRepository {
 
   private getOrderByWithWinnerId(
     sortBy: string | undefined,
-    sortOrder: 'asc' | 'desc',
+    sortOrder: 'asc' | 'desc' | undefined,
     externalIds?: boolean,
   ) {
     const orderBy: object = [

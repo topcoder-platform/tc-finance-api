@@ -9,6 +9,7 @@ export interface Challenge {
   timelineTemplateId: string;
   currentPhaseNames: string[];
   wiproAllowed: boolean;
+  funChallenge?: boolean;
   tags: string[];
   groups: string[];
   submissionStartDate: string;

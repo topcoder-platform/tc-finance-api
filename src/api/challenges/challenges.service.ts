@@ -41,7 +41,7 @@ interface PaymentPayload {
   amount: number;
   userId: string;
   type: WinningsCategory;
-  currency: string;
+  currency: PrizeType;
   description?: string;
 }
 
@@ -564,6 +564,13 @@ export class ChallengesService {
         `Challenge ${challenge.id} isn't in a payable status: ${challenge.status}`,
       );
       throw new Error("Challenge isn't in a payable status!");
+    }
+
+    if (challenge.funChallenge === true) {
+      this.logger.log(
+        `Skipping payment generation for fun challenge ${challenge.id} (${challenge.name}).`,
+      );
+      return;
     }
 
     // need to read for update (LOCK the rows)
