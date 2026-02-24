@@ -148,6 +148,7 @@ export interface ChallengeResource {
 export interface ResourceRole {
   id: string;
   name: string;
+  fullWriteAccess?: boolean;
 }
 
 export interface ChallengeReview {
