@@ -647,6 +647,7 @@ export class AdminService {
         version: currentVersion,
         payment_status: {
           in: [
+            PaymentStatus.CREDITED,
             PaymentStatus.OWED,
             PaymentStatus.ON_HOLD,
             PaymentStatus.ON_HOLD_ADMIN,
