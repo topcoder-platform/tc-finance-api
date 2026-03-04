@@ -368,7 +368,8 @@ export class AdminService {
         // Update payment amount if requested
         if (
           body.paymentAmount !== undefined &&
-          (payment.payment_status === PaymentStatus.OWED ||
+          (payment.payment_status === PaymentStatus.CREDITED ||
+            payment.payment_status === PaymentStatus.OWED ||
             payment.payment_status === PaymentStatus.ON_HOLD ||
             payment.payment_status === PaymentStatus.ON_HOLD_ADMIN)
         ) {
