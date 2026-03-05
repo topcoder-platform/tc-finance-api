@@ -147,6 +147,7 @@ model winnings {
 
   @@index([category, created_at(sort: Desc)], map: "idx_winnings_category_created_at")
   @@index([created_at(sort: Desc)], map: "idx_winnings_created_at")
+  @@index([type, created_at(sort: Desc)], map: "idx_winnings_type_created_at")
   @@index([winner_id, created_at(sort: Desc)], map: "idx_winnings_winner_created_at")
   @@index([winner_id, winning_id], map: "idx_winnings_winner_id_only")
 }

@@ -24,6 +24,7 @@ const ONE_DAY = 24 * 60 * 60 * 1000;
 interface SearchWinningsOptions {
   includeCount?: boolean;
   includePayoutStatus?: boolean;
+  latestPaymentOnly?: boolean;
 }
 
 @Injectable()
@@ -35,6 +36,7 @@ export class WinningsRepository {
   private generateFilterDate(date?: DateFilterType) {
     let filterDate: object | undefined;
     const currentDay = new Date(new Date().setHours(0, 0, 0, 0));
+    const currentDayEnd = new Date(currentDay.getTime() + ONE_DAY - 1);
 
     switch (date) {
       case DateFilterType.LAST7DAYS:
@@ -42,6 +44,7 @@ export class WinningsRepository {
         const last7days = new Date(currentDay.getTime() - 6 * ONE_DAY);
         filterDate = {
           gte: last7days,
+          lte: currentDayEnd,
         };
         break;
       case DateFilterType.LAST30DAYS:
@@ -49,6 +52,7 @@ export class WinningsRepository {
         const last30days = new Date(currentDay.getTime() - 29 * ONE_DAY);
         filterDate = {
           gte: last30days,
+          lte: currentDayEnd,
         };
         break;
       case DateFilterType.ALL:
@@ -115,7 +119,7 @@ export class WinningsRepository {
 
   private getOrderByWithWinnerId(
     sortBy: string | undefined,
-    sortOrder: 'asc' | 'desc',
+    sortOrder: 'asc' | 'desc' | undefined,
     externalIds?: boolean,
   ) {
     const orderBy: object = [
@@ -172,6 +176,7 @@ export class WinningsRepository {
     const result = new ResponseDto<SearchWinningResult>();
     const includeCount = options.includeCount ?? true;
     const includePayoutStatus = options.includePayoutStatus ?? true;
+    const latestPaymentOnly = options.latestPaymentOnly ?? false;
 
     try {
       let winnerIds: string[] | undefined;
@@ -224,6 +229,7 @@ export class WinningsRepository {
                 created_at: 'desc',
               },
             ],
+            take: latestPaymentOnly ? 1 : undefined,
           },
           origin: true,
         },

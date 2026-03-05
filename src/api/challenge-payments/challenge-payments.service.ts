@@ -101,16 +101,17 @@ export class ChallengePaymentsService {
       }
 
       try {
-        const isCopilot = await this.isCopilotForChallenge(
-          challengeId,
-          requestUserId,
-        );
-        if (isCopilot) {
+        const hasChallengeWideAccess =
+          await this.hasChallengeWideAccessForChallenge(
+            challengeId,
+            requestUserId,
+          );
+        if (hasChallengeWideAccess) {
           allowAllForChallenge = true;
         }
       } catch (error) {
         this.logger.warn(
-          `Failed to verify copilot status for user ${requestUserId} on challenge ${challengeId}`,
+          `Failed to verify challenge-wide payment access for user ${requestUserId} on challenge ${challengeId}`,
           error instanceof Error ? error.message : error,
         );
       }
@@ -150,7 +151,11 @@ export class ChallengePaymentsService {
             roles.push(String(role));
           }
         });
-      } else if (value) {
+      } else if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
         roles.push(String(value));
       }
     });
@@ -165,7 +170,7 @@ export class ChallengePaymentsService {
     return roles;
   }
 
-  private async isCopilotForChallenge(
+  private async hasChallengeWideAccessForChallenge(
     challengeId: string,
     userId: string,
   ): Promise<boolean> {
@@ -181,19 +186,26 @@ export class ChallengePaymentsService {
       return false;
     }
 
-    const copilotRoleIds = new Set(
+    const challengeWideRoleIds = new Set(
       resourceRoles
-        ?.filter((role) =>
-          role?.name ? role.name.toLowerCase().includes('copilot') : false,
+        ?.filter(
+          (role) =>
+            role?.fullWriteAccess === true ||
+            (role?.name
+              ? role.name.toLowerCase().includes('copilot') ||
+                role.name.toLowerCase().includes('manager')
+              : false),
         )
         .map((role) => role.id),
     );
 
-    if (copilotRoleIds.size === 0) {
+    if (challengeWideRoleIds.size === 0) {
       return false;
     }
 
-    return resources.some((resource) => copilotRoleIds.has(resource.roleId));
+    return resources.some((resource) =>
+      challengeWideRoleIds.has(resource.roleId),
+    );
   }
 
   private async fetchWinnings(

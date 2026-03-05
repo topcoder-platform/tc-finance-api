@@ -9,6 +9,7 @@ export interface Challenge {
   timelineTemplateId: string;
   currentPhaseNames: string[];
   wiproAllowed: boolean;
+  funChallenge?: boolean;
   tags: string[];
   groups: string[];
   submissionStartDate: string;
@@ -147,6 +148,7 @@ export interface ChallengeResource {
 export interface ResourceRole {
   id: string;
   name: string;
+  fullWriteAccess?: boolean;
 }
 
 export interface ChallengeReview {

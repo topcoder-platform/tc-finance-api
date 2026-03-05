@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { isNumber, includes } from 'lodash';
 import { ENV_CONFIG } from 'src/config';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
+import { Logger } from 'src/shared/global';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 
 const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
