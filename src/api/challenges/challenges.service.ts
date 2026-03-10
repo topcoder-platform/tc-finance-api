@@ -276,6 +276,14 @@ export class ChallengesService {
     challenge: Challenge,
     reviewers: ChallengeResource[],
   ): Promise<PaymentPayload[]> {
+    // skip reviewers payment for Marathon Match challenges
+    if (
+      challenge.track.name.toLowerCase() === 'data science'
+      && challenge.type.name.toLowerCase() === 'marathon match'
+    ) {
+      return [];
+    }
+
     const placementPrizes = orderBy(
       find(challenge.prizeSets, { type: 'PLACEMENT' })?.prizes,
       'value',
