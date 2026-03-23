@@ -33,6 +33,33 @@ export class WinningsRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Extracts the optional hours-worked value from winning attributes.
+   * @param attributes Winning attributes payload retrieved from the database.
+   * @returns Parsed hours-worked value, or `undefined` when absent/invalid.
+   */
+  private getHoursWorked(
+    attributes: Prisma.JsonValue | null,
+  ): number | undefined {
+    if (
+      !attributes ||
+      typeof attributes !== 'object' ||
+      Array.isArray(attributes)
+    ) {
+      return undefined;
+    }
+
+    const value = (attributes as Record<string, unknown>).hoursWorked;
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    const parsedValue = Number(value);
+    return Number.isFinite(parsedValue) && parsedValue > 0
+      ? parsedValue
+      : undefined;
+  }
+
   private generateFilterDate(date?: DateFilterType) {
     let filterDate: object | undefined;
     const currentDay = new Date(new Date().setHours(0, 0, 0, 0));
@@ -252,38 +279,43 @@ export class WinningsRepository {
       const totalItems = includeCount ? count : winnings.length;
 
       result.data = {
-        winnings: winnings.map((item) => ({
-          id: item.winning_id,
-          type: item.type,
-          winnerId: item.winner_id,
-          origin: item.origin?.origin_name,
-          category: (item.category ?? '') as WinningsCategory,
-          title: item.title as string,
-          description: item.description as string,
-          externalId: item.external_id as string,
-          attributes: (item.attributes ?? {}) as object,
-          details: item.payment?.map((paymentItem) => ({
-            id: paymentItem.payment_id,
-            netAmount: Number(paymentItem.net_amount),
-            grossAmount: Number(paymentItem.gross_amount),
-            totalAmount: Number(paymentItem.total_amount),
-            installmentNumber: paymentItem.installment_number as number,
-            datePaid: (paymentItem.date_paid ?? undefined) as Date,
-            status: paymentItem.payment_status as PaymentStatus,
-            currency: paymentItem.currency as string,
-            releaseDate: paymentItem.release_date as Date,
-            category: item.category as string,
-            billingAccount: paymentItem.billing_account,
-          })),
-          createdAt: item.created_at as Date,
-          updatedAt: (item.payment?.[0].date_paid ??
-            item.payment?.[0].updated_at ??
-            undefined) as Date,
-          releaseDate: item.payment?.[0]?.release_date as Date,
-          paymentStatus: usersPayoutStatusMap[
-            item.winner_id
-          ] as WinningDto['paymentStatus'],
-        })),
+        winnings: winnings.map((item) => {
+          const attributes = (item.attributes ?? {}) as object;
+
+          return {
+            id: item.winning_id,
+            type: item.type,
+            winnerId: item.winner_id,
+            origin: item.origin?.origin_name,
+            category: (item.category ?? '') as WinningsCategory,
+            title: item.title as string,
+            description: item.description as string,
+            externalId: item.external_id as string,
+            attributes,
+            hoursWorked: this.getHoursWorked(item.attributes),
+            details: item.payment?.map((paymentItem) => ({
+              id: paymentItem.payment_id,
+              netAmount: Number(paymentItem.net_amount),
+              grossAmount: Number(paymentItem.gross_amount),
+              totalAmount: Number(paymentItem.total_amount),
+              installmentNumber: paymentItem.installment_number as number,
+              datePaid: (paymentItem.date_paid ?? undefined) as Date,
+              status: paymentItem.payment_status as PaymentStatus,
+              currency: paymentItem.currency as string,
+              releaseDate: paymentItem.release_date as Date,
+              category: item.category as string,
+              billingAccount: paymentItem.billing_account,
+            })),
+            createdAt: item.created_at as Date,
+            updatedAt: (item.payment?.[0].date_paid ??
+              item.payment?.[0].updated_at ??
+              undefined) as Date,
+            releaseDate: item.payment?.[0]?.release_date as Date,
+            paymentStatus: usersPayoutStatusMap[
+              item.winner_id
+            ] as WinningDto['paymentStatus'],
+          };
+        }),
         pagination: {
           totalItems,
           totalPages: Math.ceil(totalItems / limit),
@@ -344,36 +376,41 @@ export class WinningsRepository {
         ? await this.getUsersPayoutStatusForWinnings(winnings)
         : ({} as { [key: string]: payment_status });
 
-      result.data = winnings.map((item) => ({
-        id: item.winning_id,
-        type: item.type,
-        winnerId: item.winner_id,
-        origin: item.origin?.origin_name,
-        category: (item.category ?? '') as WinningsCategory,
-        title: item.title as string,
-        description: item.description as string,
-        externalId: item.external_id as string,
-        attributes: (item.attributes ?? {}) as object,
-        details: item.payment?.map((paymentItem) => ({
-          id: paymentItem.payment_id,
-          netAmount: Number(paymentItem.net_amount),
-          grossAmount: Number(paymentItem.gross_amount),
-          totalAmount: Number(paymentItem.total_amount),
-          installmentNumber: paymentItem.installment_number as number,
-          datePaid: (paymentItem.date_paid ?? undefined) as Date,
-          status: paymentItem.payment_status as PaymentStatus,
-          currency: paymentItem.currency as string,
-          releaseDate: paymentItem.release_date as Date,
-          category: item.category as string,
-          billingAccount: paymentItem.billing_account,
-        })),
-        createdAt: item.created_at as Date,
-        updatedAt: (item.payment?.[0].date_paid ??
-          item.payment?.[0].updated_at ??
-          undefined) as Date,
-        releaseDate: item.payment?.[0]?.release_date as Date,
-        paymentStatus: usersPayoutStatusMap[item.winner_id],
-      }));
+      result.data = winnings.map((item) => {
+        const attributes = (item.attributes ?? {}) as object;
+
+        return {
+          id: item.winning_id,
+          type: item.type,
+          winnerId: item.winner_id,
+          origin: item.origin?.origin_name,
+          category: (item.category ?? '') as WinningsCategory,
+          title: item.title as string,
+          description: item.description as string,
+          externalId: item.external_id as string,
+          attributes,
+          hoursWorked: this.getHoursWorked(item.attributes),
+          details: item.payment?.map((paymentItem) => ({
+            id: paymentItem.payment_id,
+            netAmount: Number(paymentItem.net_amount),
+            grossAmount: Number(paymentItem.gross_amount),
+            totalAmount: Number(paymentItem.total_amount),
+            installmentNumber: paymentItem.installment_number as number,
+            datePaid: (paymentItem.date_paid ?? undefined) as Date,
+            status: paymentItem.payment_status as PaymentStatus,
+            currency: paymentItem.currency as string,
+            releaseDate: paymentItem.release_date as Date,
+            category: item.category as string,
+            billingAccount: paymentItem.billing_account,
+          })),
+          createdAt: item.created_at as Date,
+          updatedAt: (item.payment?.[0].date_paid ??
+            item.payment?.[0].updated_at ??
+            undefined) as Date,
+          releaseDate: item.payment?.[0]?.release_date as Date,
+          paymentStatus: usersPayoutStatusMap[item.winner_id],
+        };
+      });
     } catch (error) {
       this.logger.error('Getting winnings by external ID failed', error);
       const message = 'Getting winnings by external ID failed. ' + error;

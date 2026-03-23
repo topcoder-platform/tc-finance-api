@@ -8,6 +8,8 @@ import {
   IsEnum,
   IsObject,
   ValidateNested,
+  IsNumber,
+  Min,
 } from 'class-validator';
 import { PaginationInfo, SortPagination } from './sort-pagination.dto';
 import { DateFilterType } from './date-filter.type';
@@ -115,6 +117,7 @@ export class WinningDto {
   description: string;
   externalId: string;
   attributes: object;
+  hoursWorked?: number;
   details: PaymentDetailDto[];
   paymentStatus: PayoutStatus;
   createdAt: Date;
@@ -267,6 +270,17 @@ export class WinningCreateRequestDto {
   @IsOptional()
   @IsObject()
   attributes: object;
+
+  @ApiProperty({
+    description:
+      'Optional engagement-payment hours worked value. When provided, it is stored with the winning attributes and returned in payment history.',
+    example: 37.5,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  hoursWorked?: number;
 
   @ApiProperty({
     description: 'Optional payment status to apply to created payments',

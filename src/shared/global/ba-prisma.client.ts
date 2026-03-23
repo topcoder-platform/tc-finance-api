@@ -15,7 +15,7 @@ const clientOptions = {
 };
 
 let baPrismaClient: BaPrismaClient;
-export const getBaClient = () => {
+export const getBaClient = (): BaPrismaClient => {
   if (!baPrismaClient) {
     if (!ENV_CONFIG.BILLING_ACCOUNTS_DB_URL) {
       throw new Error(

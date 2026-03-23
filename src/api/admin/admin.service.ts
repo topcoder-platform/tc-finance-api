@@ -168,10 +168,7 @@ export class AdminService {
           `Processing payment ${payment.payment_id} (installment ${payment.installment_number}) with current status=${payment.payment_status}`,
         );
 
-        if (
-          payment.payment_status &&
-          payment.payment_status === PaymentStatus.CANCELLED
-        ) {
+        if (payment.payment_status && payment.payment_status === 'CANCELLED') {
           this.logger.warn(
             `Attempt to update cancelled payment ${payment.payment_id} — rejecting`,
           );
