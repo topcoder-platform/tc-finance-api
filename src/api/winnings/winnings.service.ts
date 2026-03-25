@@ -49,6 +49,28 @@ export class WinningsService {
     private readonly tcEmailService: TopcoderEmailService,
   ) {}
 
+  /**
+   * Builds the persisted winning attributes object.
+   * @param attributes Arbitrary attributes supplied by the client.
+   * @param hoursWorked Optional engagement-payment hours to persist.
+   * @returns The normalized attributes object, or `null` when empty.
+   */
+  private buildWinningAttributes(
+    attributes: object | undefined,
+    hoursWorked?: number,
+  ): Record<string, unknown> | null {
+    const normalizedAttributes =
+      attributes && typeof attributes === 'object' ? { ...attributes } : {};
+
+    if (hoursWorked !== undefined) {
+      normalizedAttributes.hoursWorked = hoursWorked;
+    }
+
+    return Object.keys(normalizedAttributes).length
+      ? normalizedAttributes
+      : null;
+  }
+
   private async sendSetupEmailNotification(userId: string, amount: number) {
     this.logger.debug(`Fetching member info for user handle: ${userId}`);
     const member = await this.tcMembersService.getMemberInfoByUserId(userId, {
@@ -175,17 +197,17 @@ export class WinningsService {
       // if so, and the others are not matching the expectation, throw error
       if (
         (body.type === WinningsType.POINTS ||
-          body.category === winnings_category.POINTS_AWARD ||
-          body.details.some((p) => p.currency === PrizeType.POINT)) &&
+          body.category === WinningsCategory.POINTS_AWARD ||
+          body.details.some((p) => String(p.currency) === 'POINT')) &&
         (body.type !== WinningsType.POINTS ||
-          body.category !== winnings_category.POINTS_AWARD ||
-          !body.details.some((p) => p.currency === PrizeType.POINT))
+          body.category !== WinningsCategory.POINTS_AWARD ||
+          !body.details.some((p) => String(p.currency) === 'POINT'))
       ) {
         const isTypePoints = body.type === WinningsType.POINTS;
         const isCategoryPoints =
-          body.category === winnings_category.POINTS_AWARD;
+          body.category === WinningsCategory.POINTS_AWARD;
         const hasPointsCurrency = body.details.some(
-          (p) => p.currency === PrizeType.POINT,
+          (p) => String(p.currency) === 'POINT',
         );
 
         const mismatches: string[] = [];
@@ -234,7 +256,10 @@ export class WinningsService {
         title: body.title,
         description: body.description,
         external_id: body.externalId,
-        attributes: body.attributes,
+        attributes: this.buildWinningAttributes(
+          body.attributes,
+          body.hoursWorked,
+        ),
         created_by: userId,
         payment: {
           create: [] as Pick<

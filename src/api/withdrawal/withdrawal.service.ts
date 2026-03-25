@@ -17,7 +17,6 @@ import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
 import { OtpService } from 'src/shared/global/otp.service';
-import { PrizeType } from '../challenges/models';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -78,7 +77,9 @@ export class WithdrawalService {
     // only USD payments can be withdrawn
     if (
       winnings.some(
-        (w) => w.type !== winnings_type.PAYMENT || w.currency !== PrizeType.USD,
+        (w) =>
+          String(w.type) !== winnings_type.PAYMENT ||
+          String(w.currency) !== 'USD',
       )
     ) {
       throw new BadRequestException('Withdrawal supports USD payments only.');

@@ -5,7 +5,6 @@ import {
   IsInt,
   IsString,
   IsNotEmpty,
-  isEnum,
   IsEnum,
 } from 'class-validator';
 import { PrizeType } from 'src/api/challenges/models';
