@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Role } from 'src/core/auth/auth.constants';
 import { RoleAccessProvider } from './role-access.interface';
 
 @Injectable()
@@ -9,14 +10,39 @@ export class AccessControlService {
     this.providers.set(provider.roleName.trim().toLowerCase(), provider);
   }
 
+  private normalizeRoles(roles: string[] = []): Set<string> {
+    return new Set(
+      (roles || []).map((role) => role?.trim().toLowerCase()).filter(Boolean),
+    );
+  }
+
+  private shouldSkipProvider(
+    providerRole: string,
+    normalizedRoles: Set<string>,
+  ): boolean {
+    return (
+      providerRole === Role.EngagementPaymentApprover.trim().toLowerCase() &&
+      normalizedRoles.has(Role.PaymentAdmin.trim().toLowerCase())
+    );
+  }
+
   async applyFilters<T>(
     userId: string,
     roles: string[] = [],
     req: any,
   ): Promise<T> {
     let out = { ...req };
+    const normalizedRoles = this.normalizeRoles(roles);
     for (const r of roles || []) {
-      const p = this.providers.get(r?.trim().toLowerCase());
+      const normalizedRole = r?.trim().toLowerCase();
+      if (
+        !normalizedRole ||
+        this.shouldSkipProvider(normalizedRole, normalizedRoles)
+      ) {
+        continue;
+      }
+
+      const p = this.providers.get(normalizedRole);
       if (p?.applyFilter) {
         out = await p.applyFilter(userId, out);
       }
@@ -25,8 +51,17 @@ export class AccessControlService {
   }
 
   async verifyAccess(resourceId: string, userId: string, roles: string[] = []) {
+    const normalizedRoles = this.normalizeRoles(roles);
     for (const r of roles || []) {
-      const p = this.providers.get(r?.trim().toLowerCase());
+      const normalizedRole = r?.trim().toLowerCase();
+      if (
+        !normalizedRole ||
+        this.shouldSkipProvider(normalizedRole, normalizedRoles)
+      ) {
+        continue;
+      }
+
+      const p = this.providers.get(normalizedRole);
       if (p?.verifyAccessToResource) {
         await p.verifyAccessToResource(resourceId, userId);
       }
