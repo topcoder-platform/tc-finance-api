@@ -17,6 +17,8 @@ import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { Logger } from 'src/shared/global';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
+import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.service';
+import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 
 /**
  * The admin winning service.
@@ -34,6 +36,7 @@ export class AdminService {
     private readonly paymentsService: PaymentsService,
     private readonly baService: BillingAccountsService,
     private readonly accessControlService: AccessControlService,
+    private readonly topcoderEngagementsService: TopcoderEngagementsService,
   ) {}
 
   async verifyUserAccessToWinning(
@@ -50,6 +53,58 @@ export class AdminService {
 
   private getWinningById(winningId: string) {
     return this.prisma.winnings.findFirst({ where: { winning_id: winningId } });
+  }
+
+  private getStringAttribute(
+    attributes: Prisma.JsonValue | null,
+    attributeName: string,
+  ): string | undefined {
+    if (
+      !attributes ||
+      typeof attributes !== 'object' ||
+      Array.isArray(attributes)
+    ) {
+      return undefined;
+    }
+
+    const value = (attributes as Record<string, unknown>)[attributeName];
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalizedValue = value.trim();
+    return normalizedValue || undefined;
+  }
+
+  private getNumericAttribute(
+    attributes: Prisma.JsonValue | null,
+    attributeName: string,
+  ): number | undefined {
+    if (
+      !attributes ||
+      typeof attributes !== 'object' ||
+      Array.isArray(attributes)
+    ) {
+      return undefined;
+    }
+
+    const value = (attributes as Record<string, unknown>)[attributeName];
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    const parsedValue = Number(value);
+    return Number.isFinite(parsedValue) ? parsedValue : undefined;
+  }
+
+  private getWinningAssignmentId(
+    winning: Awaited<ReturnType<AdminService['getWinningById']>>,
+  ): string | undefined {
+    return (
+      this.getStringAttribute(winning?.attributes ?? null, 'assignmentId') ??
+      winning?.external_id ??
+      undefined
+    );
   }
 
   private getPaymentsByWinningsId(winningsId: string, paymentId?: string) {
@@ -488,6 +543,67 @@ export class AdminService {
         code: HttpStatus.INTERNAL_SERVER_ERROR,
         message,
       };
+    }
+
+    return result;
+  }
+
+  async getWinningPaymentDetails(
+    winningsId: string,
+    userId: string,
+    roles: string[] = [],
+  ): Promise<ResponseDto<WinningPaymentDetailsDto>> {
+    const result = new ResponseDto<WinningPaymentDetailsDto>();
+
+    await this.verifyUserAccessToWinning(winningsId, userId, roles);
+
+    const winning = await this.getWinningById(winningsId);
+    if (!winning) {
+      throw new NotFoundException('Winning not found');
+    }
+
+    const workLog = {
+      hoursWorked: this.getNumericAttribute(winning.attributes, 'hoursWorked'),
+      remarks: this.getStringAttribute(winning.attributes, 'remarks'),
+    };
+
+    result.data = {
+      workLog,
+    };
+
+    const assignmentId = this.getWinningAssignmentId(winning);
+    const isEngagementPayment = winning.category === 'ENGAGEMENT_PAYMENT';
+
+    if (!isEngagementPayment || !assignmentId) {
+      return result;
+    }
+
+    try {
+      const assignmentContext =
+        await this.topcoderEngagementsService.getAssignmentContextById(
+          assignmentId,
+        );
+
+      result.data.engagementDetails = {
+        assignmentId: assignmentContext.assignmentId,
+        engagementId: assignmentContext.engagementId,
+        projectId: assignmentContext.projectId,
+        projectName: assignmentContext.projectName ?? undefined,
+        engagementTitle: assignmentContext.engagementTitle,
+        billingStartDate: assignmentContext.startDate
+          ? new Date(assignmentContext.startDate)
+          : undefined,
+        durationMonths: assignmentContext.durationMonths ?? undefined,
+        ratePerHour: assignmentContext.ratePerHour ?? undefined,
+        standardHoursPerWeek:
+          assignmentContext.standardHoursPerWeek ?? undefined,
+        otherRemarks: assignmentContext.otherRemarks ?? undefined,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to enrich winning ${winningsId} with engagement context`,
+        error instanceof Error ? error.message : error,
+      );
     }
 
     return result;

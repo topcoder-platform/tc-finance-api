@@ -32,6 +32,7 @@ import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningRequestDto, SearchWinningResult } from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
+import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 import { AccessControlService } from 'src/shared/access-control';
 
 @ApiTags('AdminWinnings')
@@ -87,6 +88,48 @@ export class AdminController {
     }
 
     result.status = ResponseStatusType.SUCCESS;
+
+    return result;
+  }
+
+  @Get('/winnings/:winningID/payment-details')
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentBaAdmin,
+    Role.EngagementPaymentApprover,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+  )
+  @ApiOperation({
+    summary: 'Get payment details for wallet-admin',
+    description:
+      'Returns manager-entered work-log values and engagement assignment context for a wallet-admin payment details modal.',
+  })
+  @ApiParam({
+    description: 'The winning identifier',
+    example: '2ccba36d-8db7-49da-94c9-b6c5b7bf47fb',
+    name: 'winningID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Retrieved payment details successfully.',
+    type: ResponseDto<WinningPaymentDetailsDto>,
+  })
+  @HttpCode(HttpStatus.OK)
+  async getWinningPaymentDetails(
+    @Param('winningID') winningID: string,
+    @User() user: any,
+  ): Promise<ResponseDto<WinningPaymentDetailsDto>> {
+    const result = await this.adminService.getWinningPaymentDetails(
+      winningID,
+      user.id,
+      user.roles,
+    );
+
+    result.status = ResponseStatusType.SUCCESS;
+    if (result.error) {
+      result.status = ResponseStatusType.ERROR;
+    }
 
     return result;
   }
