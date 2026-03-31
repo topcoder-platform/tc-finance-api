@@ -27,3 +27,5 @@ main
 .env
 node_modules
 dist
+package-lock.json
+packages/finance-prisma-client/
