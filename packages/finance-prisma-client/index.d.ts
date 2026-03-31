@@ -249,6 +249,7 @@ export const winnings_category: {
   PROJECT_COPILOT_PAYMENT: 'PROJECT_COPILOT_PAYMENT',
   PROJECT_DEPLOYMENT_TASK_PAYMENT: 'PROJECT_DEPLOYMENT_TASK_PAYMENT',
   PROJECT_ENHANCEMENTS_PAYMENT: 'PROJECT_ENHANCEMENTS_PAYMENT',
+  TAAS_PAYMENT: 'TAAS_PAYMENT',
   TASK_PAYMENT: 'TASK_PAYMENT',
   TASK_REVIEW_PAYMENT: 'TASK_REVIEW_PAYMENT',
   TASK_COPILOT_PAYMENT: 'TASK_COPILOT_PAYMENT',
@@ -261,7 +262,6 @@ export type winnings_category = (typeof winnings_category)[keyof typeof winnings
 export const winnings_type: {
   PAYMENT: 'PAYMENT',
   REWARD: 'REWARD',
-  ENGAGEMENT: 'ENGAGEMENT',
   POINTS: 'POINTS'
 };
 
@@ -634,8 +634,8 @@ export namespace Prisma {
   export import Exact = $Public.Exact
 
   /**
-   * Prisma Client JS version: 6.18.0
-   * Query Engine version: 34b5a692b7bd79939a9a2c3ef97d816e749cda2f
+   * Prisma Client JS version: 6.19.2
+   * Query Engine version: c2990dca591cba766e3b7ef5d9e8a84796e47ab7
    */
   export type PrismaVersion = {
     client: string

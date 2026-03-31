@@ -165,11 +165,13 @@ export class ChallengesService {
       return [];
     }
 
+    const defaultCategory = this.getDefaultWinnerCategory(challenge);
+
     return winners.map((winner) => {
       const currency = prizes[winner.placement - 1].type;
       const winType =
         currency === PrizeType.USD
-          ? (type ?? this.getDefaultWinnerCategory(challenge))
+          ? (type ?? defaultCategory)
           : WinningsCategory.POINTS_AWARD;
 
       return {
