@@ -53,22 +53,24 @@ export class WinningsService {
    * Builds the persisted winning attributes object.
    * @param attributes Arbitrary attributes supplied by the client.
    * @param hoursWorked Optional engagement-payment hours to persist.
-   * @returns The normalized attributes object, or `null` when empty.
+   * @returns The normalized attributes object, or `undefined` when empty.
    */
   private buildWinningAttributes(
-    attributes: object | undefined,
+    attributes: Record<string, unknown> | undefined,
     hoursWorked?: number,
-  ): Record<string, unknown> | null {
-    const normalizedAttributes =
-      attributes && typeof attributes === 'object' ? { ...attributes } : {};
+  ): Prisma.InputJsonValue | undefined {
+    const normalizedAttributes: Record<string, unknown> =
+      attributes && typeof attributes === 'object' && !Array.isArray(attributes)
+        ? { ...attributes }
+        : {};
 
     if (hoursWorked !== undefined) {
       normalizedAttributes.hoursWorked = hoursWorked;
     }
 
     return Object.keys(normalizedAttributes).length
-      ? normalizedAttributes
-      : null;
+      ? (normalizedAttributes as Prisma.InputJsonObject)
+      : undefined;
   }
 
   private async sendSetupEmailNotification(userId: string, amount: number) {
@@ -257,7 +259,7 @@ export class WinningsService {
         description: body.description,
         external_id: body.externalId,
         attributes: this.buildWinningAttributes(
-          body.attributes,
+          body.attributes as Record<string, unknown> | undefined,
           body.hoursWorked,
         ),
         created_by: userId,
@@ -279,7 +281,10 @@ export class WinningsService {
 
       this.logger.debug('Constructed winning model', { winningModel });
 
-      const payrollPayment = (body.attributes || {})['payroll'] === true;
+      const requestAttributes = body.attributes as
+        | Record<string, unknown>
+        | undefined;
+      const payrollPayment = requestAttributes?.payroll === true;
       const isPointsAward = body.category === WinningsCategory.POINTS_AWARD;
       const requestedStatus = body.status as payment_status | undefined;
 
