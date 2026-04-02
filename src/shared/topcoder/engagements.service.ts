@@ -24,6 +24,32 @@ export interface TopcoderAssignmentContext {
   status: string;
 }
 
+export interface TopcoderEngagementAssignment {
+  agreementRate?: string | null;
+  durationMonths?: number | string | null;
+  endDate?: string | null;
+  engagementId?: string | number | null;
+  id: string | number;
+  memberHandle?: string | null;
+  memberId?: string | number | null;
+  otherRemarks?: string | null;
+  ratePerHour?: string | null;
+  startDate?: string | null;
+  standardHoursPerWeek?: number | string | null;
+}
+
+export interface TopcoderEngagementDetails {
+  assignments?: TopcoderEngagementAssignment[] | null;
+  id: string | number;
+  project?: {
+    id?: string | number | null;
+    name?: string | null;
+  } | null;
+  projectId?: string | number | null;
+  projectName?: string | null;
+  title?: string | null;
+}
+
 @Injectable()
 export class TopcoderEngagementsService {
   private readonly logger = new Logger(TopcoderEngagementsService.name);
@@ -49,6 +75,33 @@ export class TopcoderEngagementsService {
     } catch (error) {
       this.logger.error(
         `Failed to fetch engagement assignment context for ${assignmentId}`,
+        error instanceof Error ? error.message : error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves an engagement record, including assignment metadata, from the
+   * engagements API.
+   *
+   * @param engagementId engagement identifier stored on the winning external ID.
+   * @returns engagement details with assignments used to hydrate wallet-admin
+   * payment details.
+   * @throws {Error} When the engagements API request fails.
+   */
+  async getEngagementById(
+    engagementId: string,
+  ): Promise<TopcoderEngagementDetails> {
+    const requestUrl = `${TC_API_BASE}/engagements/engagements/${engagementId}`;
+
+    try {
+      return await this.m2MService.m2mFetch<TopcoderEngagementDetails>(
+        requestUrl,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch engagement details for ${engagementId}`,
         error instanceof Error ? error.message : error,
       );
       throw error;
