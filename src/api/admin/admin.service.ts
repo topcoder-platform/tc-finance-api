@@ -17,7 +17,11 @@ import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { Logger } from 'src/shared/global';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
-import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.service';
+import {
+  TopcoderEngagementAssignment,
+  TopcoderEngagementDetails,
+  TopcoderEngagementsService,
+} from 'src/shared/topcoder/engagements.service';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 
 /**
@@ -100,11 +104,133 @@ export class AdminService {
   private getWinningAssignmentId(
     winning: Awaited<ReturnType<AdminService['getWinningById']>>,
   ): string | undefined {
-    return (
-      this.getStringAttribute(winning?.attributes ?? null, 'assignmentId') ??
-      winning?.external_id ??
-      undefined
-    );
+    if (
+      !winning?.attributes ||
+      typeof winning.attributes !== 'object' ||
+      Array.isArray(winning.attributes)
+    ) {
+      return undefined;
+    }
+
+    const assignmentId = (winning.attributes as Record<string, unknown>)
+      .assignmentId;
+
+    if (typeof assignmentId === 'string') {
+      const normalizedAssignmentId = assignmentId.trim();
+      return normalizedAssignmentId || undefined;
+    }
+
+    if (typeof assignmentId === 'number' && Number.isFinite(assignmentId)) {
+      return String(assignmentId);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Finds the engagement assignment that best matches the current winning.
+   *
+   * @param assignments assignments returned by the engagements API.
+   * @param winnerId Topcoder member identifier stored on the winning.
+   * @param assignmentId optional assignment identifier captured on the winning.
+   * @returns the matched assignment, or the only assignment when the engagement
+   * has a single assignee.
+   * @throws This helper does not throw.
+   */
+  private findMatchingEngagementAssignment(
+    assignments: TopcoderEngagementAssignment[] | null | undefined,
+    winnerId: string,
+    assignmentId?: string,
+  ): TopcoderEngagementAssignment | undefined {
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return undefined;
+    }
+
+    if (assignmentId) {
+      const assignmentMatch = assignments.find((item) => {
+        if (item.id === undefined || item.id === null) {
+          return false;
+        }
+
+        return String(item.id).trim() === assignmentId;
+      });
+
+      if (assignmentMatch) {
+        return assignmentMatch;
+      }
+    }
+
+    const winnerMatch = assignments.find((item) => {
+      if (item.memberId === undefined || item.memberId === null) {
+        return false;
+      }
+
+      return String(item.memberId).trim() === winnerId;
+    });
+
+    if (winnerMatch) {
+      return winnerMatch;
+    }
+
+    return assignments.length === 1 ? assignments[0] : undefined;
+  }
+
+  /**
+   * Builds wallet-admin engagement details from an engagement record.
+   *
+   * @param engagement engagement payload returned by the engagements API.
+   * @param assignment matched assignment for the winning, when available.
+   * @param assignmentId optional assignment identifier captured on the winning.
+   * @returns engagement details shaped for the payment details response.
+   * @throws This helper does not throw.
+   */
+  private buildEngagementDetailsFromEngagement(
+    engagement: TopcoderEngagementDetails,
+    assignment?: TopcoderEngagementAssignment,
+    assignmentId?: string,
+  ): WinningPaymentDetailsDto['engagementDetails'] {
+    const durationMonths =
+      assignment?.durationMonths !== undefined &&
+      assignment.durationMonths !== null
+        ? Number(assignment.durationMonths)
+        : undefined;
+    const standardHoursPerWeek =
+      assignment?.standardHoursPerWeek !== undefined &&
+      assignment.standardHoursPerWeek !== null
+        ? Number(assignment.standardHoursPerWeek)
+        : undefined;
+    const projectId = engagement.projectId ?? engagement.project?.id;
+    const projectName =
+      (engagement.projectName ?? engagement.project?.name)?.trim() ?? undefined;
+    const engagementId =
+      engagement.id !== undefined && engagement.id !== null
+        ? String(engagement.id).trim() || undefined
+        : undefined;
+
+    return {
+      assignmentId:
+        assignment?.id !== undefined && assignment.id !== null
+          ? String(assignment.id).trim() || assignmentId
+          : assignmentId,
+      engagementId,
+      projectId:
+        projectId !== undefined && projectId !== null
+          ? String(projectId).trim() || undefined
+          : undefined,
+      projectName,
+      engagementTitle: engagement.title?.trim() ?? undefined,
+      billingStartDate: assignment?.startDate
+        ? new Date(assignment.startDate)
+        : undefined,
+      durationMonths: Number.isFinite(durationMonths)
+        ? durationMonths
+        : undefined,
+      ratePerHour: assignment?.ratePerHour?.trim() ?? undefined,
+      standardHoursPerWeek: Number.isFinite(standardHoursPerWeek)
+        ? standardHoursPerWeek
+        : undefined,
+      otherRemarks: assignment?.otherRemarks?.trim() ?? undefined,
+    };
   }
 
   private getPaymentsByWinningsId(winningsId: string, paymentId?: string) {
@@ -572,36 +698,70 @@ export class AdminService {
     };
 
     const assignmentId = this.getWinningAssignmentId(winning);
+    const externalId =
+      typeof winning.external_id === 'string'
+        ? winning.external_id.trim() || undefined
+        : undefined;
+    const assignmentLookupId = assignmentId ?? externalId;
     const isEngagementPayment = winning.category === 'ENGAGEMENT_PAYMENT';
 
-    if (!isEngagementPayment || !assignmentId) {
+    if (!isEngagementPayment) {
+      return result;
+    }
+
+    if (assignmentLookupId) {
+      try {
+        const assignmentContext =
+          await this.topcoderEngagementsService.getAssignmentContextById(
+            assignmentLookupId,
+          );
+
+        result.data.engagementDetails = {
+          assignmentId: assignmentContext.assignmentId,
+          engagementId: assignmentContext.engagementId,
+          projectId: assignmentContext.projectId,
+          projectName: assignmentContext.projectName ?? undefined,
+          engagementTitle: assignmentContext.engagementTitle,
+          billingStartDate: assignmentContext.startDate
+            ? new Date(assignmentContext.startDate)
+            : undefined,
+          durationMonths: assignmentContext.durationMonths ?? undefined,
+          ratePerHour: assignmentContext.ratePerHour ?? undefined,
+          standardHoursPerWeek:
+            assignmentContext.standardHoursPerWeek ?? undefined,
+          otherRemarks: assignmentContext.otherRemarks ?? undefined,
+        };
+
+        return result;
+      } catch (error) {
+        this.logger.warn(
+          `Failed to enrich winning ${winningsId} with assignment context`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    if (!externalId) {
       return result;
     }
 
     try {
-      const assignmentContext =
-        await this.topcoderEngagementsService.getAssignmentContextById(
-          assignmentId,
-        );
+      const engagement =
+        await this.topcoderEngagementsService.getEngagementById(externalId);
+      const assignment = this.findMatchingEngagementAssignment(
+        engagement.assignments,
+        winning.winner_id,
+        assignmentId,
+      );
 
-      result.data.engagementDetails = {
-        assignmentId: assignmentContext.assignmentId,
-        engagementId: assignmentContext.engagementId,
-        projectId: assignmentContext.projectId,
-        projectName: assignmentContext.projectName ?? undefined,
-        engagementTitle: assignmentContext.engagementTitle,
-        billingStartDate: assignmentContext.startDate
-          ? new Date(assignmentContext.startDate)
-          : undefined,
-        durationMonths: assignmentContext.durationMonths ?? undefined,
-        ratePerHour: assignmentContext.ratePerHour ?? undefined,
-        standardHoursPerWeek:
-          assignmentContext.standardHoursPerWeek ?? undefined,
-        otherRemarks: assignmentContext.otherRemarks ?? undefined,
-      };
+      result.data.engagementDetails = this.buildEngagementDetailsFromEngagement(
+        engagement,
+        assignment,
+        assignmentId,
+      );
     } catch (error) {
       this.logger.warn(
-        `Failed to enrich winning ${winningsId} with engagement context`,
+        `Failed to enrich winning ${winningsId} with engagement details`,
         error instanceof Error ? error.message : error,
       );
     }
