@@ -53,12 +53,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'Search winnings with parameters',
-    description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
+    description:
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -97,6 +99,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
@@ -139,12 +142,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
-    description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
+    description:
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -258,12 +263,13 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
   )
   @ApiOperation({
     summary: 'Update winnings with given parameter',
     description:
-      'User with role "Payment Admin" or "Payment Editor" can access. \n paymentStatus, releaseDate and paymentAmount cannot be null at the same time.r',
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor. paymentStatus, releaseDate and paymentAmount cannot be null at the same time.',
   })
   @ApiResponse({
     status: 200,
@@ -304,12 +310,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'List winning audit logs with given winning id',
-    description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
+    description:
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiParam({
     name: 'winningID',
@@ -346,13 +354,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'Fetch winnings payout audit logs with given winning id.',
     description:
-      'User with role "Payment Admin", "Payment Editor" or "Payment Viewer" can access.',
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiParam({
     name: 'winningID',
