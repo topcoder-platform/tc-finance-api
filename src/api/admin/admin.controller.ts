@@ -53,6 +53,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
@@ -97,6 +98,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
@@ -139,6 +141,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
@@ -258,6 +261,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
   )
   @ApiOperation({
@@ -304,6 +308,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
@@ -346,6 +351,7 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )

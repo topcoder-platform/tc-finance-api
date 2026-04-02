@@ -85,6 +85,36 @@ describe('AccessControlService', () => {
     expect(engagementApproverApplyFilter).toHaveBeenCalledTimes(1);
   });
 
+  it('applies wipro taas admin filters when payment admin role is absent', async () => {
+    const wiproTaasAdminApplyFilter = jest
+      .fn()
+      .mockImplementation((_userId, req: Record<string, unknown>) =>
+        Promise.resolve({
+          ...req,
+          category: 'TAAS_PAYMENT',
+        }),
+      );
+    const wiproTaasAdminProvider: RoleAccessProvider<Record<string, unknown>> =
+      {
+        roleName: Role.WiproTaasAdmin,
+        applyFilter: wiproTaasAdminApplyFilter,
+      };
+
+    service.register(wiproTaasAdminProvider);
+
+    const result = await service.applyFilters<Record<string, unknown>>(
+      '88770025',
+      [Role.WiproTaasAdmin],
+      { type: 'PAYMENT' },
+    );
+
+    expect(result).toEqual({
+      category: 'TAAS_PAYMENT',
+      type: 'PAYMENT',
+    });
+    expect(wiproTaasAdminApplyFilter).toHaveBeenCalledTimes(1);
+  });
+
   it('skips engagement approver resource checks when payment admin role is also present', async () => {
     const paymentAdminVerifyAccess = jest.fn().mockResolvedValue(undefined);
     const engagementApproverVerifyAccess = jest
@@ -111,5 +141,33 @@ describe('AccessControlService', () => {
 
     expect(paymentAdminVerifyAccess).toHaveBeenCalledTimes(1);
     expect(engagementApproverVerifyAccess).not.toHaveBeenCalled();
+  });
+
+  it('skips wipro taas admin resource checks when payment admin role is also present', async () => {
+    const paymentAdminVerifyAccess = jest.fn().mockResolvedValue(undefined);
+    const wiproTaasAdminVerifyAccess = jest
+      .fn()
+      .mockRejectedValue(new Error('should not be called'));
+    const paymentAdminProvider: RoleAccessProvider = {
+      roleName: Role.PaymentAdmin,
+      verifyAccessToResource: paymentAdminVerifyAccess,
+    };
+    const wiproTaasAdminProvider: RoleAccessProvider = {
+      roleName: Role.WiproTaasAdmin,
+      verifyAccessToResource: wiproTaasAdminVerifyAccess,
+    };
+
+    service.register(paymentAdminProvider);
+    service.register(wiproTaasAdminProvider);
+
+    await expect(
+      service.verifyAccess('winning-id', '88770025', [
+        Role.PaymentAdmin,
+        Role.WiproTaasAdmin,
+      ]),
+    ).resolves.toBeUndefined();
+
+    expect(paymentAdminVerifyAccess).toHaveBeenCalledTimes(1);
+    expect(wiproTaasAdminVerifyAccess).not.toHaveBeenCalled();
   });
 });

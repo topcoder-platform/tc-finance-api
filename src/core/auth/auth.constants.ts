@@ -3,6 +3,7 @@ export enum Role {
   PaymentAdmin = 'Payment Admin',
   PaymentBaAdmin = 'Payment BA Admin',
   EngagementPaymentApprover = 'Engagement Payment Approver',
+  WiproTaasAdmin = 'Wipro TaaS Admin',
   PaymentEditor = 'Payment Editor',
   PaymentViewer = 'Payment Viewer',
   TaskManager = 'Task Manager',
