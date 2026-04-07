@@ -88,4 +88,32 @@ describe('ChallengesService', () => {
       }),
     ]);
   });
+
+  it('maps task challenges with topgear metadata to TOPGEAR_PAYMENT', () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const payments = service.generateWinnersPayments(
+      {
+        name: 'Task Mar 17',
+        status: ChallengeStatuses.Completed,
+        type: 'Task',
+        task: { isTask: true },
+        metadata: [{ name: 'payment_type', value: 'topgear' }],
+      } as any,
+      [{ handle: 'tester', placement: 1, userId: 40158994 }],
+      [{ type: PrizeType.USD, value: 500 }],
+    );
+
+    expect(payments).toEqual([
+      expect.objectContaining({
+        type: WinningsCategory.TOPGEAR_PAYMENT,
+      }),
+    ]);
+  });
 });
