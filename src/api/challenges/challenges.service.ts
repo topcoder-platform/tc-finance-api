@@ -54,7 +54,10 @@ const placeToOrdinal = (place: number) => {
 };
 
 const PAYMENT_TYPE_METADATA_NAME = 'payment_type';
-const TAAS_PAYMENT_TYPE = 'taas';
+const PAYMENT_TYPE_TO_CATEGORY: Record<string, WinningsCategory> = {
+  taas: WinningsCategory.TAAS_PAYMENT,
+  topgear: WinningsCategory.TOPGEAR_PAYMENT,
+};
 
 const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
 
@@ -71,14 +74,17 @@ export class ChallengesService {
   ) {}
 
   private getDefaultWinnerCategory(challenge: Challenge): WinningsCategory {
-    const isTaasPayment = challenge.metadata?.some(
+    const metadataPaymentCategory = challenge.metadata?.find(
       ({ name, value }) =>
         name?.toLowerCase() === PAYMENT_TYPE_METADATA_NAME &&
-        value?.toLowerCase() === TAAS_PAYMENT_TYPE,
+        value &&
+        PAYMENT_TYPE_TO_CATEGORY[value.toLowerCase()],
     );
 
-    if (isTaasPayment) {
-      return WinningsCategory.TAAS_PAYMENT;
+    if (metadataPaymentCategory?.value) {
+      return PAYMENT_TYPE_TO_CATEGORY[
+        metadataPaymentCategory.value.toLowerCase()
+      ];
     }
 
     return challenge.task.isTask
