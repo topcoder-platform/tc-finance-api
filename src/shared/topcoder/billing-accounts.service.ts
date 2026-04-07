@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { isNumber, includes } from 'lodash';
 import { ENV_CONFIG } from 'src/config';
+import { Logger } from 'src/shared/global';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { Logger } from 'src/shared/global';
 import { TopcoderM2MService } from './topcoder-m2m.service';
