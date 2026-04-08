@@ -52,6 +52,7 @@ describe('AdminService', () => {
   };
   let topcoderEngagementsService: {
     getAssignmentContextById: jest.Mock;
+    getEngagementById: jest.Mock;
   };
 
   beforeEach(() => {
@@ -67,6 +68,7 @@ describe('AdminService', () => {
     };
     topcoderEngagementsService = {
       getAssignmentContextById: jest.fn(),
+      getEngagementById: jest.fn(),
     };
 
     service = new AdminService(
@@ -161,6 +163,105 @@ describe('AdminService', () => {
         remarks: 'Weekly support work.',
       },
     });
+  });
+
+  it('falls back to the engagement lookup when external_id stores an engagement id', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      winner_id: '123456',
+      category: 'ENGAGEMENT_PAYMENT',
+      external_id: 'engagement-1',
+      attributes: {
+        hoursWorked: 10,
+        remarks: 'Covered support hours.',
+      },
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockRejectedValue(
+      new Error('assignment not found'),
+    );
+    topcoderEngagementsService.getEngagementById.mockResolvedValue({
+      assignments: [
+        {
+          durationMonths: 6,
+          id: 'assignment-1',
+          memberId: '123456',
+          otherRemarks: 'Working EST overlap.',
+          ratePerHour: '82.50',
+          standardHoursPerWeek: 35,
+          startDate: '2026-01-15T00:00:00.000Z',
+        },
+      ],
+      id: 'engagement-1',
+      projectId: 'project-1',
+      projectName: 'Platform Modernization',
+      title: 'Senior Frontend Engineer',
+    });
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(
+      topcoderEngagementsService.getAssignmentContextById,
+    ).toHaveBeenCalledWith('engagement-1');
+    expect(topcoderEngagementsService.getEngagementById).toHaveBeenCalledWith(
+      'engagement-1',
+    );
+    expect(result.data).toEqual({
+      engagementDetails: {
+        assignmentId: 'assignment-1',
+        billingStartDate: new Date('2026-01-15T00:00:00.000Z'),
+        durationMonths: 6,
+        engagementId: 'engagement-1',
+        engagementTitle: 'Senior Frontend Engineer',
+        otherRemarks: 'Working EST overlap.',
+        projectId: 'project-1',
+        projectName: 'Platform Modernization',
+        ratePerHour: '82.50',
+        standardHoursPerWeek: 35,
+      },
+      workLog: {
+        hoursWorked: 10,
+        remarks: 'Covered support hours.',
+      },
+    });
+  });
+
+  it('prefers a numeric assignmentId stored in winning attributes', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      external_id: 'engagement-1',
+      attributes: {
+        assignmentId: 98765,
+        hoursWorked: 12,
+        remarks: 'Weekly support work.',
+      },
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: '98765',
+      engagementId: 'engagement-1',
+      engagementTitle: 'Senior Frontend Engineer',
+      projectId: 'project-1',
+      projectName: 'Platform Modernization',
+      ratePerHour: '75.50',
+      standardHoursPerWeek: 40,
+      startDate: '2026-02-12T00:00:00.000Z',
+      status: 'ACTIVE',
+      memberHandle: 'tester',
+      memberId: '123456',
+    });
+
+    await service.getWinningPaymentDetails('winning-1', '123456', [
+      'Payment Admin',
+    ]);
+
+    expect(
+      topcoderEngagementsService.getAssignmentContextById,
+    ).toHaveBeenCalledWith('98765');
+    expect(topcoderEngagementsService.getEngagementById).not.toHaveBeenCalled();
   });
 
   it('throws when the winning does not exist', async () => {
