@@ -148,6 +148,7 @@ model winnings {
 
   @@index([category, created_at(sort: Desc)], map: "idx_winnings_category_created_at")
   @@index([created_at(sort: Desc)], map: "idx_winnings_created_at")
+  @@index([type, created_at(sort: Desc)], map: "idx_winnings_type_created_at")
   @@index([winner_id, created_at(sort: Desc)], map: "idx_winnings_winner_created_at")
   @@index([winner_id, winning_id], map: "idx_winnings_winner_id_only")
 }
@@ -327,6 +328,8 @@ enum winnings_category {
   PROJECT_COPILOT_PAYMENT
   PROJECT_DEPLOYMENT_TASK_PAYMENT
   PROJECT_ENHANCEMENTS_PAYMENT
+  TAAS_PAYMENT
+  TOPGEAR_PAYMENT
   TASK_PAYMENT
   TASK_REVIEW_PAYMENT
   TASK_COPILOT_PAYMENT
@@ -336,6 +339,5 @@ enum winnings_category {
 enum winnings_type {
   PAYMENT
   REWARD
-  ENGAGEMENT
   POINTS
 }
