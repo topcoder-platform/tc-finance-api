@@ -22,6 +22,7 @@ import {
   TopcoderEngagementDetails,
   TopcoderEngagementsService,
 } from 'src/shared/topcoder/engagements.service';
+import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 
 /**
@@ -41,6 +42,7 @@ export class AdminService {
     private readonly baService: BillingAccountsService,
     private readonly accessControlService: AccessControlService,
     private readonly topcoderEngagementsService: TopcoderEngagementsService,
+    private readonly tcMembersService: TopcoderMembersService,
   ) {}
 
   async verifyUserAccessToWinning(
@@ -125,6 +127,42 @@ export class AdminService {
     }
 
     return undefined;
+  }
+
+  /**
+   * Resolves the wallet-admin payment creator into a handle for display.
+   *
+   * @param createdBy raw `created_by` value stored on the winnings row.
+   * @returns The resolved Topcoder handle, or the original identifier when the
+   * handle lookup fails.
+   * @throws This helper does not throw.
+   */
+  private async getPaymentCreatorHandle(
+    createdBy: unknown,
+  ): Promise<string | undefined> {
+    if (typeof createdBy !== 'string') {
+      return undefined;
+    }
+
+    const paymentCreatorId = createdBy.trim();
+    if (!paymentCreatorId) {
+      return undefined;
+    }
+
+    try {
+      const handles = await this.tcMembersService.getHandlesByUserIds([
+        paymentCreatorId,
+      ]);
+
+      return handles[paymentCreatorId] ?? paymentCreatorId;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve payment creator handle for winnings creator ${paymentCreatorId}`,
+        error instanceof Error ? error.message : error,
+      );
+
+      return paymentCreatorId;
+    }
   }
 
   /**
@@ -692,8 +730,12 @@ export class AdminService {
       hoursWorked: this.getNumericAttribute(winning.attributes, 'hoursWorked'),
       remarks: this.getStringAttribute(winning.attributes, 'remarks'),
     };
+    const paymentCreatorHandle = await this.getPaymentCreatorHandle(
+      winning.created_by,
+    );
 
     result.data = {
+      paymentCreatorHandle,
       workLog,
     };
 

@@ -113,6 +113,7 @@ export class WinningDto {
   id: string;
   type: string;
   winnerId: string;
+  createdBy?: string;
   origin?: string;
   category: WinningsCategory;
   title: string;

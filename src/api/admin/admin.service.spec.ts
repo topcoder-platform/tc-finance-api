@@ -36,6 +36,10 @@ jest.mock('src/shared/access-control/access-control.service', () => ({
   AccessControlService: class {},
 }));
 
+jest.mock('src/shared/topcoder/members.service', () => ({
+  TopcoderMembersService: class {},
+}));
+
 import { AdminService } from './admin.service';
 
 describe('AdminService', () => {
@@ -54,6 +58,9 @@ describe('AdminService', () => {
     getAssignmentContextById: jest.Mock;
     getEngagementById: jest.Mock;
   };
+  let tcMembersService: {
+    getHandlesByUserIds: jest.Mock;
+  };
 
   beforeEach(() => {
     prisma = {
@@ -70,6 +77,11 @@ describe('AdminService', () => {
       getAssignmentContextById: jest.fn(),
       getEngagementById: jest.fn(),
     };
+    tcMembersService = {
+      getHandlesByUserIds: jest.fn().mockResolvedValue({
+        '654321': 'payment-manager',
+      }),
+    };
 
     service = new AdminService(
       prisma as any,
@@ -77,6 +89,7 @@ describe('AdminService', () => {
       baService as any,
       accessControlService as any,
       topcoderEngagementsService as any,
+      tcMembersService as any,
     );
   });
 
@@ -84,6 +97,7 @@ describe('AdminService', () => {
     prisma.winnings.findFirst.mockResolvedValue({
       winning_id: 'winning-1',
       category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
       external_id: 'assignment-1',
       attributes: {
         hoursWorked: 12.5,
@@ -117,6 +131,9 @@ describe('AdminService', () => {
     expect(
       topcoderEngagementsService.getAssignmentContextById,
     ).toHaveBeenCalledWith('assignment-1');
+    expect(tcMembersService.getHandlesByUserIds).toHaveBeenCalledWith([
+      '654321',
+    ]);
     expect(result.data).toEqual({
       engagementDetails: {
         assignmentId: 'assignment-1',
@@ -130,6 +147,7 @@ describe('AdminService', () => {
         ratePerHour: '75.50',
         standardHoursPerWeek: 40,
       },
+      paymentCreatorHandle: 'payment-manager',
       workLog: {
         hoursWorked: 12.5,
         remarks: 'Completed sprint support and bug triage.',
@@ -141,6 +159,7 @@ describe('AdminService', () => {
     prisma.winnings.findFirst.mockResolvedValue({
       winning_id: 'winning-1',
       category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
       external_id: 'assignment-1',
       attributes: {
         hoursWorked: 8,
@@ -158,6 +177,7 @@ describe('AdminService', () => {
     );
 
     expect(result.data).toEqual({
+      paymentCreatorHandle: 'payment-manager',
       workLog: {
         hoursWorked: 8,
         remarks: 'Weekly support work.',
@@ -170,6 +190,7 @@ describe('AdminService', () => {
       winning_id: 'winning-1',
       winner_id: '123456',
       category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
       external_id: 'engagement-1',
       attributes: {
         hoursWorked: 10,
@@ -222,9 +243,40 @@ describe('AdminService', () => {
         ratePerHour: '82.50',
         standardHoursPerWeek: 35,
       },
+      paymentCreatorHandle: 'payment-manager',
       workLog: {
         hoursWorked: 10,
         remarks: 'Covered support hours.',
+      },
+    });
+  });
+
+  it('falls back to the creator id when the handle lookup misses', async () => {
+    tcMembersService.getHandlesByUserIds.mockResolvedValue({});
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {
+        hoursWorked: 8,
+      },
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockRejectedValue(
+      new Error('upstream unavailable'),
+    );
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(result.data).toEqual({
+      paymentCreatorHandle: '654321',
+      workLog: {
+        hoursWorked: 8,
+        remarks: undefined,
       },
     });
   });

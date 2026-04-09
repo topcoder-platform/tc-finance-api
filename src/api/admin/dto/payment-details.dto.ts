@@ -79,6 +79,13 @@ export class PaymentWorkLogDto {
 export class WinningPaymentDetailsDto {
   @ApiPropertyOptional({
     description:
+      'The Topcoder handle of the user who created the payment record',
+    example: 'pm_admin',
+  })
+  paymentCreatorHandle?: string;
+
+  @ApiPropertyOptional({
+    description:
       'Engagement and assignment details when the winning is an engagement payment',
     type: PaymentEngagementDetailsDto,
   })
