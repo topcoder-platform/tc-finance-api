@@ -39,6 +39,11 @@ import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 import { AccessControlService } from 'src/shared/access-control';
 
+const PAYMENT_CREATOR_EXPORT_CATEGORIES = new Set<WinningsCategory>([
+  WinningsCategory.ENGAGEMENT_PAYMENT,
+  WinningsCategory.TAAS_PAYMENT,
+]);
+
 @ApiTags('AdminWinnings')
 @Controller('/admin')
 @ApiBearerAuth()
@@ -153,7 +158,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement payment exports include the Payment Creator column.',
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement and TaaS payment exports include the Payment Creator column.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -215,8 +220,8 @@ export class AdminController {
       new Set([
         ...winnings.map((item) => item.winnerId),
         ...winnings
-          .filter(
-            (item) => item.category === WinningsCategory.ENGAGEMENT_PAYMENT,
+          .filter((item) =>
+            PAYMENT_CREATOR_EXPORT_CATEGORIES.has(item.category),
           )
           .map((item) => item.createdBy?.trim())
           .filter((item): item is string => !!item),
@@ -244,12 +249,11 @@ export class AdminController {
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt?.toISOString() ?? '',
         releaseDate: item.releaseDate?.toISOString() ?? '',
-        paymentCreator:
-          item.category === WinningsCategory.ENGAGEMENT_PAYMENT
-            ? (handles[item.createdBy?.trim() ?? ''] ??
-              item.createdBy?.trim() ??
-              '')
-            : '',
+        paymentCreator: PAYMENT_CREATOR_EXPORT_CATEGORIES.has(item.category)
+          ? (handles[item.createdBy?.trim() ?? ''] ??
+            item.createdBy?.trim() ??
+            '')
+          : '',
         billingAccount: payment?.billingAccount,
       };
     });

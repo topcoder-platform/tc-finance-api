@@ -53,7 +53,7 @@ describe('AdminController', () => {
     );
   });
 
-  it('includes the payment creator column for engagement payment exports only', async () => {
+  it('includes the payment creator column for engagement-style payment exports only', async () => {
     accessControlService.applyFilters.mockResolvedValue({
       type: WinningsType.PAYMENT,
     } satisfies WinningRequestDto);
@@ -87,6 +87,28 @@ describe('AdminController', () => {
             {
               id: 'winning-2',
               winnerId: '1002',
+              createdBy: '9003',
+              origin: 'Topcoder',
+              category: WinningsCategory.TAAS_PAYMENT,
+              title: 'TaaS payment',
+              description: 'TaaS engagement payment',
+              externalId: 'assignment-2',
+              details: [
+                {
+                  status: PaymentStatus.PAID,
+                  totalAmount: 900,
+                  billingAccount: '80001064',
+                },
+              ],
+              paymentStatus: {} as any,
+              attributes: {},
+              createdAt: new Date('2026-04-08T01:02:03.000Z'),
+              updatedAt: new Date('2026-04-08T04:05:06.000Z'),
+              releaseDate: new Date('2026-04-23T07:08:09.000Z'),
+            },
+            {
+              id: 'winning-3',
+              winnerId: '1003',
               createdBy: '9002',
               origin: 'Topcoder',
               category: WinningsCategory.ONE_OFF_PAYMENT,
@@ -108,7 +130,7 @@ describe('AdminController', () => {
             },
           ],
           pagination: {
-            totalItems: 2,
+            totalItems: 3,
             totalPages: 1,
             pageSize: 1000,
             currentPage: 1,
@@ -129,7 +151,9 @@ describe('AdminController', () => {
     tcMembersService.getHandlesByUserIds.mockResolvedValue({
       '1001': 'winner-one',
       '1002': 'winner-two',
+      '1003': 'winner-three',
       '9001': 'creator-handle',
+      '9003': 'taas-manager',
     });
 
     const output = await controller.exportWinnings(
@@ -162,10 +186,12 @@ describe('AdminController', () => {
     expect(tcMembersService.getHandlesByUserIds).toHaveBeenCalledWith([
       '1001',
       '1002',
+      '1003',
       '9001',
+      '9003',
     ]);
 
-    const [headerRow, engagementRow, nonEngagementRow] = output
+    const [headerRow, engagementRow, taasRow, nonEngagementRow] = output
       .trim()
       .split(/\r?\n/)
       .map((line) => line.split(','));
@@ -189,6 +215,7 @@ describe('AdminController', () => {
       'Billing Account',
     ]);
     expect(engagementRow[14]).toBe('creator-handle');
+    expect(taasRow[14]).toBe('taas-manager');
     expect(nonEngagementRow[14]).toBe('');
   });
 });
