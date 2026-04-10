@@ -29,7 +29,11 @@ import { AdminService } from './admin.service';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 
-import { WinningRequestDto, SearchWinningResult } from 'src/dto/winning.dto';
+import {
+  WinningRequestDto,
+  SearchWinningResult,
+  WinningsCategory,
+} from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
@@ -149,7 +153,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement payment exports include the Payment Creator column.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -207,9 +211,19 @@ export class AdminController {
       offset += AdminController.EXPORT_BATCH_SIZE;
     }
 
-    const handles = await this.tcMembersService.getHandlesByUserIds(
-      winnings.map((d) => d.winnerId),
+    const memberIds = Array.from(
+      new Set([
+        ...winnings.map((item) => item.winnerId),
+        ...winnings
+          .filter(
+            (item) => item.category === WinningsCategory.ENGAGEMENT_PAYMENT,
+          )
+          .map((item) => item.createdBy?.trim())
+          .filter((item): item is string => !!item),
+      ]),
     );
+
+    const handles = await this.tcMembersService.getHandlesByUserIds(memberIds);
 
     const csvRes = winnings.map((item) => {
       const payment =
@@ -230,6 +244,12 @@ export class AdminController {
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt?.toISOString() ?? '',
         releaseDate: item.releaseDate?.toISOString() ?? '',
+        paymentCreator:
+          item.category === WinningsCategory.ENGAGEMENT_PAYMENT
+            ? (handles[item.createdBy?.trim() ?? ''] ??
+              item.createdBy?.trim() ??
+              '')
+            : '',
         billingAccount: payment?.billingAccount,
       };
     });
@@ -251,6 +271,7 @@ export class AdminController {
         { key: 'createdAt', header: 'Created At' },
         { key: 'updatedAt', header: 'Updated At' },
         { key: 'releaseDate', header: 'Release Date' },
+        { key: 'paymentCreator', header: 'Payment Creator' },
         { key: 'billingAccount', header: 'Billing Account' },
       ],
     });
