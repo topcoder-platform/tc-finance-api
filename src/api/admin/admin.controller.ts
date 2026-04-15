@@ -29,9 +29,14 @@ import { AdminService } from './admin.service';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 
-import { WinningRequestDto, SearchWinningResult } from 'src/dto/winning.dto';
+import {
+  WinningRequestDto,
+  SearchWinningResult,
+  WinningsCategory,
+} from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
+import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 import { AccessControlService } from 'src/shared/access-control';
 
 @ApiTags('AdminWinnings')
@@ -52,12 +57,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'Search winnings with parameters',
-    description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
+    description:
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -91,17 +98,62 @@ export class AdminController {
     return result;
   }
 
+  @Get('/winnings/:winningID/payment-details')
+  @Roles(
+    Role.PaymentAdmin,
+    Role.PaymentBaAdmin,
+    Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+  )
+  @ApiOperation({
+    summary: 'Get payment details for wallet-admin',
+    description:
+      'Returns manager-entered work-log values and engagement assignment context for a wallet-admin payment details modal.',
+  })
+  @ApiParam({
+    description: 'The winning identifier',
+    example: '2ccba36d-8db7-49da-94c9-b6c5b7bf47fb',
+    name: 'winningID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Retrieved payment details successfully.',
+    type: ResponseDto<WinningPaymentDetailsDto>,
+  })
+  @HttpCode(HttpStatus.OK)
+  async getWinningPaymentDetails(
+    @Param('winningID') winningID: string,
+    @User() user: any,
+  ): Promise<ResponseDto<WinningPaymentDetailsDto>> {
+    const result = await this.adminService.getWinningPaymentDetails(
+      winningID,
+      user.id,
+      user.roles,
+    );
+
+    result.status = ResponseStatusType.SUCCESS;
+    if (result.error) {
+      result.status = ResponseStatusType.ERROR;
+    }
+
+    return result;
+  }
+
   @Post('/winnings/export')
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
-    description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
+    description:
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement payment exports include the Payment Creator column.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -159,9 +211,19 @@ export class AdminController {
       offset += AdminController.EXPORT_BATCH_SIZE;
     }
 
-    const handles = await this.tcMembersService.getHandlesByUserIds(
-      winnings.map((d) => d.winnerId),
+    const memberIds = Array.from(
+      new Set([
+        ...winnings.map((item) => item.winnerId),
+        ...winnings
+          .filter(
+            (item) => item.category === WinningsCategory.ENGAGEMENT_PAYMENT,
+          )
+          .map((item) => item.createdBy?.trim())
+          .filter((item): item is string => !!item),
+      ]),
     );
+
+    const handles = await this.tcMembersService.getHandlesByUserIds(memberIds);
 
     const csvRes = winnings.map((item) => {
       const payment =
@@ -182,6 +244,12 @@ export class AdminController {
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt?.toISOString() ?? '',
         releaseDate: item.releaseDate?.toISOString() ?? '',
+        paymentCreator:
+          item.category === WinningsCategory.ENGAGEMENT_PAYMENT
+            ? (handles[item.createdBy?.trim() ?? ''] ??
+              item.createdBy?.trim() ??
+              '')
+            : '',
         billingAccount: payment?.billingAccount,
       };
     });
@@ -203,6 +271,7 @@ export class AdminController {
         { key: 'createdAt', header: 'Created At' },
         { key: 'updatedAt', header: 'Updated At' },
         { key: 'releaseDate', header: 'Release Date' },
+        { key: 'paymentCreator', header: 'Payment Creator' },
         { key: 'billingAccount', header: 'Billing Account' },
       ],
     });
@@ -215,12 +284,13 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
   )
   @ApiOperation({
     summary: 'Update winnings with given parameter',
     description:
-      'User with role "Payment Admin" or "Payment Editor" can access. \n paymentStatus, releaseDate and paymentAmount cannot be null at the same time.r',
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor. paymentStatus, releaseDate and paymentAmount cannot be null at the same time.',
   })
   @ApiResponse({
     status: 200,
@@ -261,12 +331,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'List winning audit logs with given winning id',
-    description: 'Roles: Payment Admin, Payment Editor, Payment Viewer',
+    description:
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiParam({
     name: 'winningID',
@@ -303,13 +375,14 @@ export class AdminController {
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
     Role.EngagementPaymentApprover,
+    Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
   )
   @ApiOperation({
     summary: 'Fetch winnings payout audit logs with given winning id.',
     description:
-      'User with role "Payment Admin", "Payment Editor" or "Payment Viewer" can access.',
+      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiParam({
     name: 'winningID',

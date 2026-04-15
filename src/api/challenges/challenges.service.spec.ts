@@ -22,6 +22,8 @@ jest.mock('src/shared/global', () => ({
 }));
 
 import { ChallengesService } from './challenges.service';
+import { PrizeType } from './models';
+import { WinningsCategory } from 'src/dto/winning.dto';
 
 describe('ChallengesService', () => {
   it('skips creating payments for fun challenges', async () => {
@@ -57,5 +59,61 @@ describe('ChallengesService', () => {
 
     expect(createPaymentsSpy).not.toHaveBeenCalled();
     expect(prisma.challenge_lock.create).not.toHaveBeenCalled();
+  });
+
+  it('maps task challenges with taas metadata to TAAS_PAYMENT', () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const payments = service.generateWinnersPayments(
+      {
+        name: 'Task Mar 17',
+        status: ChallengeStatuses.Completed,
+        type: 'Task',
+        task: { isTask: true },
+        metadata: [{ name: 'payment_type', value: 'taas' }],
+      } as any,
+      [{ handle: 'tester', placement: 1, userId: 40158994 }],
+      [{ type: PrizeType.USD, value: 500 }],
+    );
+
+    expect(payments).toEqual([
+      expect.objectContaining({
+        type: WinningsCategory.TAAS_PAYMENT,
+      }),
+    ]);
+  });
+
+  it('maps task challenges with topgear metadata to TOPGEAR_PAYMENT', () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const payments = service.generateWinnersPayments(
+      {
+        name: 'Task Mar 17',
+        status: ChallengeStatuses.Completed,
+        type: 'Task',
+        task: { isTask: true },
+        metadata: [{ name: 'payment_type', value: 'topgear' }],
+      } as any,
+      [{ handle: 'tester', placement: 1, userId: 40158994 }],
+      [{ type: PrizeType.USD, value: 500 }],
+    );
+
+    expect(payments).toEqual([
+      expect.objectContaining({
+        type: WinningsCategory.TOPGEAR_PAYMENT,
+      }),
+    ]);
   });
 });

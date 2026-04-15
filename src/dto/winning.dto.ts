@@ -96,6 +96,8 @@ export enum WinningsCategory {
   PROJECT_COPILOT_PAYMENT = 'PROJECT_COPILOT_PAYMENT',
   PROJECT_DEPLOYMENT_TASK_PAYMENT = 'PROJECT_DEPLOYMENT_TASK_PAYMENT',
   PROJECT_ENHANCEMENTS_PAYMENT = 'PROJECT_ENHANCEMENTS_PAYMENT',
+  TAAS_PAYMENT = 'TAAS_PAYMENT',
+  TOPGEAR_PAYMENT = 'TOPGEAR_PAYMENT',
   TASK_PAYMENT = 'TASK_PAYMENT',
   TASK_REVIEW_PAYMENT = 'TASK_REVIEW_PAYMENT',
   TASK_COPILOT_PAYMENT = 'TASK_COPILOT_PAYMENT',
@@ -111,6 +113,7 @@ export class WinningDto {
   id: string;
   type: string;
   winnerId: string;
+  createdBy?: string;
   origin?: string;
   category: WinningsCategory;
   title: string;

@@ -53,6 +53,12 @@ const placeToOrdinal = (place: number) => {
   return `${place}th`;
 };
 
+const PAYMENT_TYPE_METADATA_NAME = 'payment_type';
+const PAYMENT_TYPE_TO_CATEGORY: Record<string, WinningsCategory> = {
+  taas: WinningsCategory.TAAS_PAYMENT,
+  topgear: WinningsCategory.TOPGEAR_PAYMENT,
+};
+
 const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
 
 @Injectable()
@@ -66,6 +72,25 @@ export class ChallengesService {
     private readonly winningsService: WinningsService,
     private readonly winningsRepo: WinningsRepository,
   ) {}
+
+  private getDefaultWinnerCategory(challenge: Challenge): WinningsCategory {
+    const metadataPaymentCategory = challenge.metadata?.find(
+      ({ name, value }) =>
+        name?.toLowerCase() === PAYMENT_TYPE_METADATA_NAME &&
+        value &&
+        PAYMENT_TYPE_TO_CATEGORY[value.toLowerCase()],
+    );
+
+    if (metadataPaymentCategory?.value) {
+      return PAYMENT_TYPE_TO_CATEGORY[
+        metadataPaymentCategory.value.toLowerCase()
+      ];
+    }
+
+    return challenge.task.isTask
+      ? WinningsCategory.TASK_PAYMENT
+      : WinningsCategory.CONTEST_PAYMENT;
+  }
 
   async getChallenge(challengeId: string) {
     if (!isUUID(challengeId)) {
@@ -146,14 +171,13 @@ export class ChallengesService {
       return [];
     }
 
+    const defaultCategory = this.getDefaultWinnerCategory(challenge);
+
     return winners.map((winner) => {
       const currency = prizes[winner.placement - 1].type;
       const winType =
         currency === PrizeType.USD
-          ? (type ??
-            (challenge.task.isTask
-              ? WinningsCategory.TASK_PAYMENT
-              : WinningsCategory.CONTEST_PAYMENT))
+          ? (type ?? defaultCategory)
           : WinningsCategory.POINTS_AWARD;
 
       return {

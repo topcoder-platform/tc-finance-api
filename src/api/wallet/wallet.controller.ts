@@ -24,7 +24,13 @@ export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Get()
-  @Roles(Role.PaymentAdmin, Role.PaymentEditor, Role.PaymentViewer, Role.User)
+  @Roles(
+    Role.PaymentAdmin,
+    Role.WiproTaasAdmin,
+    Role.PaymentEditor,
+    Role.PaymentViewer,
+    Role.User,
+  )
   @ApiOperation({
     summary: 'Get wallet details. Will get user id from jwt token.',
     description: 'jwt required.',

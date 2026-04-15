@@ -75,7 +75,7 @@ workflows:
                           only:
                               - dev
                               - engagements
-                              - PM-4165_allow-editing-credited-payments
+                              - PM-4789_payment-migrations
             - 'build-prod':
                   context: org-global
                   filters:

@@ -1,0 +1,1 @@
+ALTER TYPE "winnings_category" ADD VALUE IF NOT EXISTS 'TAAS_PAYMENT';

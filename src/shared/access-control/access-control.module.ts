@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Injectable, Module } from '@nestjs/common';
 import { AccessControlService } from 'src/shared/access-control/access-control.service';
 import { PaymentBaProvider } from 'src/shared/access-control/payment-ba.provider';
 import { EngagementPaymentApproverProvider } from 'src/shared/access-control/engagement-pa.provider';
-import { Injectable } from '@nestjs/common';
+import { WiproTaasAdminProvider } from 'src/shared/access-control/wipro-taas-admin.provider';
 import { TopcoderModule } from '../topcoder/topcoder.module';
 
 @Injectable()
@@ -11,9 +11,11 @@ class AccessControlRegistrar {
     accessControlService: AccessControlService,
     paymentBaProvider: PaymentBaProvider,
     engagementPaymentApproverProvider: EngagementPaymentApproverProvider,
+    wiproTaasAdminProvider: WiproTaasAdminProvider,
   ) {
     accessControlService.register(paymentBaProvider);
     accessControlService.register(engagementPaymentApproverProvider);
+    accessControlService.register(wiproTaasAdminProvider);
   }
 }
 
@@ -24,6 +26,7 @@ class AccessControlRegistrar {
     AccessControlService,
     PaymentBaProvider,
     EngagementPaymentApproverProvider,
+    WiproTaasAdminProvider,
     AccessControlRegistrar,
   ],
   exports: [AccessControlService],
