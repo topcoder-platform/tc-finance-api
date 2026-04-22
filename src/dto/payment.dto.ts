@@ -6,6 +6,7 @@ import {
   IsString,
   IsNotEmpty,
   IsEnum,
+  IsOptional,
 } from 'class-validator';
 import { PrizeType } from 'src/api/challenges/models';
 
@@ -77,10 +78,12 @@ export class PaymentCreateRequestDto {
   billingAccount: string;
 
   @ApiProperty({
-    description: 'Challenge markup (fee) for the payment',
+    description:
+      'Optional challenge markup fee for challenge-generated payments. Engagement payments omit this field because finance computes billing-account consumption from billing-account markup.',
     example: '0.5',
+    required: false,
   })
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
-  challengeFee: number;
+  challengeFee?: number;
 }

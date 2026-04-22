@@ -1,9 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { isNumber, includes } from 'lodash';
 import { ENV_CONFIG } from 'src/config';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { Logger } from 'src/shared/global';
-import { TopcoderM2MService } from './topcoder-m2m.service';
+import {
+  TopcoderM2MHttpError,
+  TopcoderM2MService,
+} from './topcoder-m2m.service';
 
 const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
 
@@ -12,8 +15,28 @@ interface LockAmountDTO {
   amount: number;
 }
 interface ConsumeAmountDTO {
-  challengeId: string;
+  challengeId?: string;
+  externalId?: string;
+  externalType?: 'CHALLENGE' | 'ENGAGEMENT';
   amount: number;
+}
+
+interface ConsumeAmountsItemDTO extends ConsumeAmountDTO {
+  billingAccountId: number;
+}
+
+interface ConsumeAmountsDTO {
+  consumes: ConsumeAmountsItemDTO[];
+}
+
+interface BillingAccountDetailsResponse {
+  id: number | string;
+  markup: number | string;
+}
+
+export interface BillingAccountDetails {
+  id: number;
+  markup: number;
 }
 
 export interface BAValidation {
@@ -31,6 +54,169 @@ export class BillingAccountsService {
   private readonly logger = new Logger(BillingAccountsService.name);
 
   constructor(private readonly m2MService: TopcoderM2MService) {}
+
+  /**
+   * Extracts the most useful upstream error message from an M2M failure.
+   * @param err error thrown by the M2M client or fetch runtime.
+   * @param fallback message to use when the upstream body has no readable text.
+   * @returns normalized error message.
+   */
+  private getUpstreamErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof TopcoderM2MHttpError) {
+      return err.message || fallback;
+    }
+
+    const typedError = err as {
+      message?: string;
+      response?: {
+        data?: {
+          error?: string;
+          message?: string | string[];
+          result?: { content?: string };
+        };
+      };
+    };
+    const responseData = typedError?.response?.data;
+
+    if (Array.isArray(responseData?.message)) {
+      return responseData.message.join(', ');
+    }
+
+    return (
+      responseData?.message ??
+      responseData?.result?.content ??
+      responseData?.error ??
+      typedError?.message ??
+      fallback
+    );
+  }
+
+  /**
+   * Converts an upstream billing-account error into a Nest HTTP exception.
+   * @param err error thrown by the M2M client.
+   * @param fallback message to use when no upstream message is available.
+   * @returns HTTP exception preserving the upstream status and message when present.
+   */
+  private toBillingAccountHttpException(
+    err: unknown,
+    fallback: string,
+  ): HttpException | Error {
+    const status =
+      err instanceof TopcoderM2MHttpError
+        ? err.status
+        : ((err as { response?: { status?: number }; status?: number })
+            ?.response?.status ?? (err as { status?: number })?.status);
+    const message = this.getUpstreamErrorMessage(err, fallback);
+
+    if (status === 400) {
+      return new BadRequestException(message);
+    }
+
+    if (typeof status === 'number' && Number.isInteger(status)) {
+      return new HttpException(message, status);
+    }
+
+    return err instanceof Error ? err : new Error(message);
+  }
+
+  /**
+   * Normalizes legacy challenge consume calls and typed consume calls into the
+   * billing-accounts API's canonical request shape.
+   *
+   * @param dto consume request from finance callers.
+   * @returns typed consume request with `externalId`, `externalType`, and `amount`.
+   * @throws BadRequestException when the external reference is missing.
+   */
+  private normalizeConsumeAmountDto(dto: ConsumeAmountDTO): ConsumeAmountDTO {
+    const externalType = dto.externalType ?? 'CHALLENGE';
+    const externalId = dto.externalId ?? dto.challengeId;
+
+    if (!externalId) {
+      throw new BadRequestException('externalId is required');
+    }
+
+    return {
+      amount: dto.amount,
+      ...(externalType === 'CHALLENGE' && dto.challengeId
+        ? { challengeId: dto.challengeId }
+        : {}),
+      externalId,
+      externalType,
+    };
+  }
+
+  /**
+   * Normalizes one item in an atomic batch consume request.
+   *
+   * @param dto consume request with the target billing account id.
+   * @returns typed consume item accepted by billing-accounts-api-v6.
+   * @throws BadRequestException when the billing account id or external
+   * reference is invalid.
+   */
+  private normalizeConsumeAmountsItemDto(
+    dto: ConsumeAmountsItemDTO,
+  ): ConsumeAmountsItemDTO {
+    if (
+      !Number.isSafeInteger(dto.billingAccountId) ||
+      dto.billingAccountId <= 0
+    ) {
+      throw new BadRequestException(
+        'billingAccountId must be a positive integer',
+      );
+    }
+
+    return {
+      billingAccountId: dto.billingAccountId,
+      ...this.normalizeConsumeAmountDto(dto),
+    };
+  }
+
+  /**
+   * Fetches billing-account metadata needed by finance budget consumers.
+   *
+   * @param billingAccountId billing account identifier.
+   * @returns normalized billing-account id and markup.
+   * @throws Error when the upstream response cannot be normalized.
+   * @throws HttpException when the billing-accounts API rejects the request.
+   */
+  async getBillingAccountById(
+    billingAccountId: number,
+  ): Promise<BillingAccountDetails> {
+    this.logger.log('Fetching billing account details:', billingAccountId);
+
+    try {
+      const response =
+        await this.m2MService.m2mFetch<BillingAccountDetailsResponse>(
+          `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}`,
+        );
+      const normalizedId = Number(response.id);
+      const markup = Number(response.markup);
+
+      if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+        throw new Error(
+          `Billing account ${billingAccountId} returned an invalid id`,
+        );
+      }
+
+      if (!Number.isFinite(markup)) {
+        throw new Error(
+          `Billing account ${billingAccountId} returned an invalid markup`,
+        );
+      }
+
+      return {
+        id: normalizedId,
+        markup,
+      };
+    } catch (err: any) {
+      const exception = this.toBillingAccountHttpException(
+        err,
+        `Failed to fetch billing account #${billingAccountId}`,
+      );
+      this.logger.error(exception.message, err);
+      throw exception;
+    }
+  }
 
   async lockAmount(billingAccountId: number, dto: LockAmountDTO) {
     this.logger.log('BA validation lock amount:', billingAccountId, dto);
@@ -56,23 +242,65 @@ export class BillingAccountsService {
   }
 
   async consumeAmount(billingAccountId: number, dto: ConsumeAmountDTO) {
-    this.logger.log('BA validation consume amount:', billingAccountId, dto);
+    const request = this.normalizeConsumeAmountDto(dto);
+
+    this.logger.log('BA validation consume amount:', billingAccountId, request);
 
     try {
       return await this.m2MService.m2mFetch(
         `${TOPCODER_API_V6_BASE_URL}/billing-accounts/${billingAccountId}/consume-amount`,
         {
           method: 'PATCH',
-          body: JSON.stringify(dto),
+          body: JSON.stringify(request),
         },
       );
     } catch (err: any) {
-      this.logger.error(
-        err.response?.data?.result?.content ??
-          'Failed to consume challenge amount',
+      const exception = this.toBillingAccountHttpException(
         err,
+        'Failed to consume billing account amount',
       );
-      throw new Error('Failed to consume challenge amount');
+      this.logger.error(exception.message, err);
+      throw exception;
+    }
+  }
+
+  /**
+   * Sends one atomic engagement consume request to billing-accounts-api-v6.
+   *
+   * The upstream service validates all items and writes them in a single
+   * database transaction, so finance does not leave partial remote budget
+   * consumes behind when a winning request later fails.
+   *
+   * @param dto batch consume request for engagement payment details.
+   * @returns upstream batch consume response.
+   * @throws BadRequestException when the request is invalid or the billing
+   * account has insufficient funds.
+   * @throws HttpException for other upstream HTTP failures.
+   */
+  async consumeAmounts(dto: ConsumeAmountsDTO) {
+    const request = {
+      consumes: dto.consumes.map((consume) =>
+        this.normalizeConsumeAmountsItemDto(consume),
+      ),
+    };
+
+    this.logger.log('BA validation batch consume amount:', request);
+
+    try {
+      return await this.m2MService.m2mFetch(
+        `${TOPCODER_API_V6_BASE_URL}/billing-accounts/consume-amounts`,
+        {
+          method: 'POST',
+          body: JSON.stringify(request),
+        },
+      );
+    } catch (err: any) {
+      const exception = this.toBillingAccountHttpException(
+        err,
+        'Failed to consume billing account amounts',
+      );
+      this.logger.error(exception.message, err);
+      throw exception;
     }
   }
 
