@@ -116,4 +116,53 @@ describe('ChallengesService', () => {
       }),
     ]);
   });
+
+  it('maps reviewer payments to TOPGEAR_PAYMENT for topgear challenges', async () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    jest.spyOn(service, 'getChallengeReviews').mockResolvedValue([
+      {
+        phaseId: 'phase-resource-1',
+        phaseName: 'Review',
+        reviewerHandle: 'reviewer1',
+      },
+    ] as any);
+
+    const payments = await service.generateReviewersPayments(
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        name: 'Topgear Review Challenge',
+        metadata: [{ name: 'payment_type', value: 'topgear' }],
+        prizeSets: [{ type: 'PLACEMENT', prizes: [{ type: PrizeType.USD, value: 500 }] }],
+        reviewers: [
+          {
+            isMemberReview: true,
+            phaseId: 'review-phase-1',
+            fixedAmount: 10,
+            baseCoefficient: 0.1,
+            incrementalCoefficient: 0.05,
+          },
+        ],
+        phases: [{ id: 'phase-resource-1', phaseId: 'review-phase-1' }],
+      } as any,
+      [
+        {
+          memberHandle: 'reviewer1',
+          memberId: 123,
+        },
+      ] as any,
+    );
+
+    expect(payments).toEqual([
+      expect.objectContaining({
+        type: WinningsCategory.TOPGEAR_PAYMENT,
+      }),
+    ]);
+  });
 });

@@ -73,7 +73,9 @@ export class ChallengesService {
     private readonly winningsRepo: WinningsRepository,
   ) {}
 
-  private getDefaultWinnerCategory(challenge: Challenge): WinningsCategory {
+  private getMetadataPaymentCategory(
+    challenge: Challenge,
+  ): WinningsCategory | undefined {
     const metadataPaymentCategory = challenge.metadata?.find(
       ({ name, value }) =>
         name?.toLowerCase() === PAYMENT_TYPE_METADATA_NAME &&
@@ -87,9 +89,33 @@ export class ChallengesService {
       ];
     }
 
+    return undefined;
+  }
+
+  private getDefaultWinnerCategory(challenge: Challenge): WinningsCategory {
+    const metadataPaymentCategory = this.getMetadataPaymentCategory(challenge);
+
+    if (metadataPaymentCategory) {
+      return metadataPaymentCategory;
+    }
+
     return challenge.task.isTask
       ? WinningsCategory.TASK_PAYMENT
       : WinningsCategory.CONTEST_PAYMENT;
+  }
+
+  private getReviewerPaymentCategory(
+    challenge: Challenge,
+    currency?: PrizeType,
+  ): WinningsCategory {
+    if (currency !== PrizeType.USD) {
+      return WinningsCategory.POINTS_AWARD;
+    }
+
+    return this.getMetadataPaymentCategory(challenge) ===
+      WinningsCategory.TOPGEAR_PAYMENT
+      ? WinningsCategory.TOPGEAR_PAYMENT
+      : WinningsCategory.REVIEW_BOARD_PAYMENT;
   }
 
   async getChallenge(challengeId: string) {
@@ -378,10 +404,10 @@ export class ChallengesService {
 
             const placementPrize = placementPrizes?.[0];
             const currency = placementPrize?.type;
-            const winType =
-              currency === PrizeType.USD
-                ? WinningsCategory.REVIEW_BOARD_PAYMENT
-                : WinningsCategory.POINTS_AWARD;
+            const winType = this.getReviewerPaymentCategory(
+              challenge,
+              currency,
+            );
 
             return {
               handle: reviewer.memberHandle,
