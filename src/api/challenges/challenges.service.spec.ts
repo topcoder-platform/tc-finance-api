@@ -24,6 +24,7 @@ jest.mock('src/shared/global', () => ({
 import { ChallengesService } from './challenges.service';
 import { PrizeType } from './models';
 import { WinningsCategory } from 'src/dto/winning.dto';
+import { PaymentStatus } from 'src/dto/payment.dto';
 
 describe('ChallengesService', () => {
   it('skips creating payments for fun challenges', async () => {
@@ -162,6 +163,92 @@ describe('ChallengesService', () => {
     expect(payments).toEqual([
       expect.objectContaining({
         type: WinningsCategory.TOPGEAR_PAYMENT,
+      }),
+    ]);
+  });
+
+  it('defaults task challenge winnings to ON_HOLD_ADMIN status', async () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    jest
+      .spyOn(service, 'getChallengeResources')
+      .mockResolvedValue({ winner: [] } as any);
+    jest
+      .spyOn(service, 'generatePlacementWinnersPayments')
+      .mockReturnValue([
+        {
+          userId: '40158994',
+          amount: 500,
+          type: WinningsCategory.TASK_PAYMENT,
+          currency: PrizeType.USD,
+        },
+      ] as any);
+    jest
+      .spyOn(service, 'generateCheckpointWinnersPayments')
+      .mockReturnValue([]);
+    jest.spyOn(service, 'generateCopilotPayment').mockReturnValue([]);
+    jest.spyOn(service, 'generateReviewersPayments').mockResolvedValue([]);
+
+    const winnings = await service.getChallengePayments({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Task Challenge',
+      type: 'Task',
+      task: { isTask: true },
+      billing: { billingAccountId: '1234', markup: 0.2 },
+    } as any);
+
+    expect(winnings).toEqual([
+      expect.objectContaining({
+        status: PaymentStatus.ON_HOLD_ADMIN,
+      }),
+    ]);
+  });
+
+  it('does not force ON_HOLD_ADMIN status for non-task challenge winnings', async () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    jest
+      .spyOn(service, 'getChallengeResources')
+      .mockResolvedValue({ winner: [] } as any);
+    jest
+      .spyOn(service, 'generatePlacementWinnersPayments')
+      .mockReturnValue([
+        {
+          userId: '40158994',
+          amount: 500,
+          type: WinningsCategory.CONTEST_PAYMENT,
+          currency: PrizeType.USD,
+        },
+      ] as any);
+    jest
+      .spyOn(service, 'generateCheckpointWinnersPayments')
+      .mockReturnValue([]);
+    jest.spyOn(service, 'generateCopilotPayment').mockReturnValue([]);
+    jest.spyOn(service, 'generateReviewersPayments').mockResolvedValue([]);
+
+    const winnings = await service.getChallengePayments({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Marathon Match',
+      type: 'Challenge',
+      task: { isTask: false },
+      billing: { billingAccountId: '1234', markup: 0.2 },
+    } as any);
+
+    expect(winnings).toEqual([
+      expect.not.objectContaining({
+        status: PaymentStatus.ON_HOLD_ADMIN,
       }),
     ]);
   });
