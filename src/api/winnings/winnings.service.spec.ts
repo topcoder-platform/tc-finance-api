@@ -133,6 +133,9 @@ describe('WinningsService', () => {
       'creator-1',
     );
 
+    const persistedPayments =
+      tx.winnings.create.mock.calls[0][0].data.payment.create;
+
     expect(
       topcoderEngagementsService.getAssignmentContextById,
     ).toHaveBeenCalledWith('assignment-1');
@@ -165,6 +168,64 @@ describe('WinningsService', () => {
         },
       ],
     });
+    expect(
+      persistedPayments.map((payment: any) => ({
+        billingAccount: payment.billing_account,
+        challengeFee: Number(payment.challenge_fee),
+        challengeMarkup: Number(payment.challenge_markup),
+      })),
+    ).toEqual([
+      {
+        billingAccount: '123456',
+        challengeFee: 20,
+        challengeMarkup: 0.2,
+      },
+      {
+        billingAccount: '123456',
+        challengeFee: 10,
+        challengeMarkup: 0.2,
+      },
+      {
+        billingAccount: '123456',
+        challengeFee: 0.02,
+        challengeMarkup: 0.2,
+      },
+    ]);
+  });
+
+  it('rounds engagement challenge markup before persisting the payment fee', async () => {
+    billingAccountsService.getBillingAccountById.mockResolvedValue({
+      id: 123456,
+      markup: 0.236,
+    });
+
+    await service.createWinningWithPayments(
+      {
+        winnerId: 'user-1',
+        type: WinningsType.PAYMENT,
+        origin: 'Topcoder',
+        category: WinningsCategory.ENGAGEMENT_PAYMENT,
+        title: 'Engagement work',
+        description: 'Engagement payment',
+        externalId: 'assignment-1',
+        details: [
+          {
+            totalAmount: 100,
+            grossAmount: 100,
+            installmentNumber: 1,
+            currency: PrizeType.USD,
+            billingAccount: '123456',
+          },
+        ],
+      } as any,
+      'creator-1',
+    );
+
+    const persistedPayment =
+      tx.winnings.create.mock.calls[0][0].data.payment.create[0];
+
+    expect(Number(persistedPayment.challenge_markup)).toBe(0.24);
+    expect(Number(persistedPayment.challenge_fee)).toBe(24);
   });
 
   it('rejects engagement payment details that do not match the assignment billing account', async () => {
@@ -307,6 +368,10 @@ describe('WinningsService', () => {
       assignmentId: 'assignment-1',
       billingAccountId: 80000062,
     });
+    billingAccountsService.getBillingAccountById.mockResolvedValue({
+      id: 80000062,
+      markup: 0.2,
+    });
 
     await service.createWinningWithPayments(
       {
@@ -333,7 +398,17 @@ describe('WinningsService', () => {
       'creator-1',
     );
 
-    expect(billingAccountsService.getBillingAccountById).not.toHaveBeenCalled();
+    const persistedPayment =
+      tx.winnings.create.mock.calls[0][0].data.payment.create[0];
+
+    expect(billingAccountsService.getBillingAccountById).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(billingAccountsService.getBillingAccountById).toHaveBeenCalledWith(
+      80000062,
+    );
     expect(billingAccountsService.consumeAmounts).not.toHaveBeenCalled();
+    expect(Number(persistedPayment.challenge_markup)).toBe(0.2);
+    expect(Number(persistedPayment.challenge_fee)).toBe(20);
   });
 });

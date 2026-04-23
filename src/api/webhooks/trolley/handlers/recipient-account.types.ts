@@ -17,8 +17,7 @@ export interface RecipientAccountEventDataFields {
   deliveryBusinessDaysEstimate: number;
 }
 
-export interface RecipientAccountEventDataWithBankDetails
-  extends RecipientAccountEventDataFields {
+export interface RecipientAccountEventDataWithBankDetails extends RecipientAccountEventDataFields {
   country: string;
   iban: string;
   accountNum: string;
@@ -37,8 +36,7 @@ export interface RecipientAccountEventDataWithBankDetails
   recipientFees: string;
 }
 
-export interface RecipientAccountEventDataWithPaypalDetails
-  extends RecipientAccountEventDataFields {
+export interface RecipientAccountEventDataWithPaypalDetails extends RecipientAccountEventDataFields {
   emailAddress: string;
 }
 

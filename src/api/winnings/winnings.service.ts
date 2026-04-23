@@ -38,6 +38,7 @@ import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.serv
 import { TopcoderM2MHttpError } from 'src/shared/topcoder/topcoder-m2m.service';
 
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
+const PAYMENT_DECIMAL_PLACES = 2;
 
 interface EngagementBillingAccountConsume {
   amount: number;
@@ -48,6 +49,7 @@ interface EngagementBillingAccountConsume {
 interface EngagementBillingAccountConsumePlan {
   assignmentId: string;
   billingAccountId: number;
+  challengeMarkup: number;
   consumes: EngagementBillingAccountConsume[];
 }
 
@@ -288,6 +290,24 @@ export class WinningsService {
   }
 
   /**
+   * Quantizes a decimal value to the requested number of fractional digits.
+   *
+   * @param amount Decimal amount to normalize.
+   * @param decimalPlaces target number of fractional digits.
+   * @returns JavaScript number rounded to the requested scale.
+   */
+  private toScaledAmount(
+    amount: Prisma.Decimal,
+    decimalPlaces: number,
+  ): number {
+    return Number(
+      amount
+        .toDecimalPlaces(decimalPlaces, Prisma.Decimal.ROUND_HALF_UP)
+        .toFixed(decimalPlaces),
+    );
+  }
+
+  /**
    * Quantizes a computed consume amount to the billing ledger scale.
    *
    * billing-accounts-api-v6 persists budget rows as `Decimal(20,4)`, so finance
@@ -299,14 +319,79 @@ export class WinningsService {
    * transport.
    */
   private toBillingLedgerAmount(amount: Prisma.Decimal): number {
-    return Number(
-      amount
-        .toDecimalPlaces(
-          BUDGET_LEDGER_DECIMAL_PLACES,
-          Prisma.Decimal.ROUND_HALF_UP,
-        )
-        .toFixed(BUDGET_LEDGER_DECIMAL_PLACES),
+    return this.toScaledAmount(amount, BUDGET_LEDGER_DECIMAL_PLACES);
+  }
+
+  /**
+   * Quantizes a payment-column decimal value to the persisted payment scale.
+   *
+   * @param amount Decimal amount to normalize.
+   * @returns JavaScript number rounded to the payment column's two-decimal
+   * scale.
+   */
+  private toPaymentAmount(amount: Prisma.Decimal): number {
+    return this.toScaledAmount(amount, PAYMENT_DECIMAL_PLACES);
+  }
+
+  /**
+   * Normalizes the engagement billing-account markup to the payment column
+   * scale used by `payment.challenge_markup`.
+   *
+   * @param markup billing-account markup returned by billing-accounts-api-v6.
+   * @returns Rounded markup suitable for persistence on payment rows.
+   * @throws InternalServerErrorException when the markup is not finite.
+   */
+  private calculateEngagementChallengeMarkup(markup: number): number {
+    if (!Number.isFinite(markup)) {
+      throw new InternalServerErrorException(
+        'Engagement billing account has invalid markup',
+      );
+    }
+
+    return this.toPaymentAmount(new Prisma.Decimal(markup));
+  }
+
+  /**
+   * Computes the persisted engagement challenge fee using the rounded payment
+   * markup scale.
+   *
+   * @param totalAmount payment detail total amount.
+   * @param challengeMarkup rounded billing-account markup persisted on the
+   * payment row.
+   * @param detailIndex zero-based detail index for error reporting.
+   * @returns Payment-scale challenge fee.
+   * @throws BadRequestException when the detail amount is invalid.
+   * @throws InternalServerErrorException when the markup or computed value is
+   * not finite.
+   */
+  private calculateEngagementChallengeFee(
+    totalAmount: number,
+    challengeMarkup: number,
+    detailIndex: number,
+  ): number {
+    if (!Number.isFinite(totalAmount) || totalAmount < 0) {
+      throw new BadRequestException(
+        `details[${detailIndex}].totalAmount must be a non-negative number`,
+      );
+    }
+
+    if (!Number.isFinite(challengeMarkup)) {
+      throw new InternalServerErrorException(
+        'Engagement billing account has invalid markup',
+      );
+    }
+
+    const challengeFee = this.toPaymentAmount(
+      new Prisma.Decimal(totalAmount).mul(new Prisma.Decimal(challengeMarkup)),
     );
+
+    if (!Number.isFinite(challengeFee)) {
+      throw new InternalServerErrorException(
+        `Failed to compute challenge fee for details[${detailIndex}]`,
+      );
+    }
+
+    return challengeFee;
   }
 
   /**
@@ -371,7 +456,8 @@ export class WinningsService {
    *
    * @param body incoming winning creation request.
    * @returns assignment id, trusted billing account id, and typed consume
-   * requests to execute for non-TopGear billing accounts.
+   * requests to execute for non-TopGear billing accounts, plus the rounded
+   * challenge markup persisted on the created payment rows.
    * @throws BadRequestException when engagement payment input is invalid.
    * @throws InternalServerErrorException when billing-account metadata cannot
    * be normalized into a finite markup.
@@ -403,18 +489,6 @@ export class WinningsService {
       }
     });
 
-    if (this.isTopGearBillingAccount(trustedBillingAccountId)) {
-      this.logger.info(
-        'Ignore BA validation for Topgear account:',
-        trustedBillingAccountId,
-      );
-      return {
-        assignmentId,
-        billingAccountId: trustedBillingAccountId,
-        consumes: [],
-      };
-    }
-
     let billingAccount: { id: number; markup: number };
 
     try {
@@ -443,6 +517,23 @@ export class WinningsService {
       );
     }
 
+    const challengeMarkup = this.calculateEngagementChallengeMarkup(
+      billingAccount.markup,
+    );
+
+    if (this.isTopGearBillingAccount(trustedBillingAccountId)) {
+      this.logger.info(
+        'Ignore BA validation for Topgear account:',
+        trustedBillingAccountId,
+      );
+      return {
+        assignmentId,
+        billingAccountId: trustedBillingAccountId,
+        challengeMarkup,
+        consumes: [],
+      };
+    }
+
     const consumes = body.details.reduce<EngagementBillingAccountConsume[]>(
       (consumePlan, detail, detailIndex) => {
         consumePlan.push({
@@ -463,6 +554,7 @@ export class WinningsService {
     return {
       assignmentId,
       billingAccountId: trustedBillingAccountId,
+      challengeMarkup,
       consumes,
     };
   }
@@ -655,8 +747,10 @@ export class WinningsService {
   }
 
   /**
-   * Create winnings with parameters. Engagement payment requests are gated by
-   * billing-account budget consumption before the transaction can complete.
+   * Create winnings with parameters. Engagement payment requests derive
+   * `payment.challenge_markup` and `payment.challenge_fee` from the trusted
+   * project billing account and are gated by billing-account budget
+   * consumption before the transaction can complete.
    *
    * @param body the request body
    * @param userId the request userId
@@ -771,6 +865,7 @@ export class WinningsService {
             | 'payment_status'
             | 'created_by'
             | 'billing_account'
+            | 'challenge_markup'
             | 'challenge_fee'
           >[],
         },
@@ -801,7 +896,14 @@ export class WinningsService {
           tx,
         );
 
-      for (const detail of body.details || []) {
+      for (const [detailIndex, detail] of (body.details || []).entries()) {
+        const challengeFee = engagementConsumePlan
+          ? this.calculateEngagementChallengeFee(
+              Number(detail.totalAmount),
+              engagementConsumePlan.challengeMarkup,
+              detailIndex,
+            )
+          : (detail.challengeFee ?? 0);
         const paymentModel = {
           gross_amount: Prisma.Decimal(detail.grossAmount),
           total_amount: Prisma.Decimal(detail.totalAmount),
@@ -813,7 +915,10 @@ export class WinningsService {
           billing_account: engagementConsumePlan
             ? String(engagementConsumePlan.billingAccountId)
             : detail.billingAccount,
-          challenge_fee: Prisma.Decimal(detail.challengeFee ?? 0),
+          challenge_markup: engagementConsumePlan
+            ? Prisma.Decimal(engagementConsumePlan.challengeMarkup)
+            : null,
+          challenge_fee: Prisma.Decimal(challengeFee),
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);

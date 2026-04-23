@@ -79,7 +79,7 @@ export class PaymentCreateRequestDto {
 
   @ApiProperty({
     description:
-      'Optional challenge markup fee for challenge-generated payments. Engagement payments omit this field because finance computes billing-account consumption from billing-account markup.',
+      'Optional challenge markup fee for challenge-generated payments. Engagement payments omit this field because finance derives and persists the fee from the parent project billing-account markup.',
     example: '0.5',
     required: false,
   })
