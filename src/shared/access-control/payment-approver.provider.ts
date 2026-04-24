@@ -18,14 +18,13 @@ export class PaymentApproverProvider implements RoleAccessProvider {
   // disable rule: prefer this format instead of returning resolved promise (required by interface)
   // eslint-disable-next-line @typescript-eslint/require-await
   async applyFilter<T>(_userId: string, req: any): Promise<T> {
-    // If the request already has a specific category, preserve it (access is
-    // validated per-resource via verifyAccessToResource). Otherwise restrict the
-    // query to all categories allowed for this role.
-    if (req.category) {
-      return req as T;
-    }
+    const { category: _ignoredCategory, categories: _ignoredCategories, ...rest } =
+      req ?? {};
 
-    return { ...req, categories: allowedCategories } as T;
+    return {
+      ...rest,
+      categories: allowedCategories,
+    } as T;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -37,9 +36,11 @@ export class PaymentApproverProvider implements RoleAccessProvider {
       select: { category: true },
     });
 
-    const unauthorized = winnings.filter(
-      (w) => !allowedCategories.includes(w.category),
-    );
+    const unauthorized = winnings.filter((w) => {
+      const category = w.category;
+
+      return category === null || !allowedCategories.includes(category);
+    });
     if (unauthorized.length > 0) {
       throw new Error(
         `${Role.PaymentApprover} user is trying to access winning with category='${unauthorized.map((w) => w.category).join(', ')}'`,

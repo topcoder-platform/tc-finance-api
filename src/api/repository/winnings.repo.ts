@@ -354,6 +354,7 @@ export class WinningsRepository {
         undefined,
         undefined,
         undefined,
+        undefined,
         [externalId],
         undefined,
       );
