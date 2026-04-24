@@ -745,10 +745,9 @@ export class AdminService {
     try {
       const audits = await this.prisma.audit.findMany({
         where: { winnings_id: winningsId },
-        orderBy: { created_at: 'asc' },
+        orderBy: { created_at: 'desc' },
         take: 200,
       });
-
       const approverAudit = audits.find(
         (a) =>
           typeof a.action === 'string' &&
