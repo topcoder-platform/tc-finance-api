@@ -21,7 +21,7 @@ export class AccessControlService {
     normalizedRoles: Set<string>,
   ): boolean {
     const isCategoryScopedApproverRole =
-      providerRole === Role.EngagementPaymentApprover.trim().toLowerCase() ||
+      providerRole === Role.PaymentApprover.trim().toLowerCase() ||
       providerRole === Role.WiproTaasAdmin.trim().toLowerCase();
 
     return (

@@ -170,7 +170,17 @@ export class WinningRequestDto extends SortPagination {
   category?: WinningsCategory;
 
   @ApiProperty({
-    description: 'The type of winnings',
+    description: 'Multiple winnings categories to filter by',
+    enum: WinningsCategory,
+    isArray: true,
+    example: [WinningsCategory.ENGAGEMENT_PAYMENT, WinningsCategory.TASK_PAYMENT],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsEnum(WinningsCategory, { each: true })
+  categories?: WinningsCategory[];
+
+  @ApiProperty({
     enum: WinningsType,
     example: WinningsType.PAYMENT,
   })
