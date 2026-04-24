@@ -752,6 +752,8 @@ export class AdminService {
       const approverAudit = audits.find(
         (a) =>
           typeof a.action === 'string' &&
+          a.action.includes('ON_HOLD_ADMIN') &&
+          a.action.includes('OWED') &&
           a.action.indexOf('ON_HOLD_ADMIN') < a.action.indexOf('OWED'),
       );
       if (approverAudit?.user_id) {
