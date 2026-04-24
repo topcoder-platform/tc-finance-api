@@ -60,6 +60,11 @@ export class WinningsController {
     description: 'Create winnings successfully.',
     type: ResponseDto<string>,
   })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Invalid winning request or insufficient remaining funds on the billing account.',
+  })
   @HttpCode(HttpStatus.CREATED)
   async createWinnings(
     @Body() body: WinningCreateRequestDto,

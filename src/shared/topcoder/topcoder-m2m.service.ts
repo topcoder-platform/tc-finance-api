@@ -2,6 +2,57 @@ import { Injectable } from '@nestjs/common';
 import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 
+/**
+ * Error raised when a Topcoder M2M-backed HTTP request receives a non-2xx
+ * response.
+ *
+ * The error carries the upstream status code and response body so callers can
+ * translate validation failures into their own Nest exceptions without losing
+ * the source API's message.
+ */
+export class TopcoderM2MHttpError extends Error {
+  readonly status: number;
+  readonly statusText: string;
+  readonly responseBody: unknown;
+  readonly response: {
+    data: unknown;
+    status: number;
+    statusText: string;
+  };
+  readonly url: string;
+  readonly method: string;
+  readonly requestBody?: unknown;
+
+  /**
+   * Creates an M2M HTTP error with the upstream response metadata.
+   * @param params upstream request and response values.
+   */
+  constructor(params: {
+    method: string;
+    requestBody?: unknown;
+    responseBody: unknown;
+    status: number;
+    statusText: string;
+    upstreamMessage?: string;
+    url: string;
+  }) {
+    super(params.upstreamMessage || `HTTP error! Status: ${params.status}`);
+    Object.setPrototypeOf(this, TopcoderM2MHttpError.prototype);
+    this.name = TopcoderM2MHttpError.name;
+    this.status = params.status;
+    this.statusText = params.statusText;
+    this.responseBody = params.responseBody;
+    this.response = {
+      data: params.responseBody,
+      status: params.status,
+      statusText: params.statusText,
+    };
+    this.url = params.url;
+    this.method = params.method;
+    this.requestBody = params.requestBody;
+  }
+}
+
 @Injectable()
 export class TopcoderM2MService {
   private readonly logger = new Logger(TopcoderM2MService.name);
@@ -104,6 +155,24 @@ export class TopcoderM2MService {
       } catch (e) {
         responseBody = `Failed to read response body: ${e?.message ?? e}`;
       }
+      let upstreamMessage: string | undefined;
+      if (typeof responseBody === 'string') {
+        upstreamMessage = responseBody;
+      } else if (responseBody && typeof responseBody === 'object') {
+        const typedResponse = responseBody as {
+          error?: string;
+          message?: string | string[];
+          result?: { content?: string };
+        };
+        if (Array.isArray(typedResponse.message)) {
+          upstreamMessage = typedResponse.message.join(', ');
+        } else {
+          upstreamMessage =
+            typedResponse.message ??
+            typedResponse.result?.content ??
+            typedResponse.error;
+        }
+      }
 
       this.logger.error('M2M fetch failed', {
         url: String(url),
@@ -113,8 +182,15 @@ export class TopcoderM2MService {
         requestBody: (finalOptions as any).body,
         responseBody,
       });
-      // Optional: You could throw a custom error here
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      throw new TopcoderM2MHttpError({
+        method: finalOptions.method ?? 'GET',
+        requestBody: (finalOptions as any).body,
+        responseBody,
+        status: response.status,
+        statusText: response.statusText,
+        upstreamMessage,
+        url: String(url),
+      });
     }
 
     const contentType = response.headers.get('content-type');
