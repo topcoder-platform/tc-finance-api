@@ -76,6 +76,26 @@ export class PaymentWorkLogDto {
   remarks?: string;
 }
 
+export class PaymentTaskDetailsDto {
+  @ApiPropertyOptional({
+    description: 'The Connect project ID associated with the task challenge',
+    example: '12345',
+  })
+  projectId?: string;
+
+  @ApiPropertyOptional({
+    description: 'The name of the project associated with the task challenge',
+    example: 'Platform Modernization',
+  })
+  projectName?: string;
+
+  @ApiPropertyOptional({
+    description: 'The Topcoder handle of the user who approved this payment',
+    example: 'approver_handle',
+  })
+  paymentApproverHandle?: string;
+}
+
 export class WinningPaymentDetailsDto {
   @ApiPropertyOptional({
     description:
@@ -96,4 +116,10 @@ export class WinningPaymentDetailsDto {
     type: PaymentWorkLogDto,
   })
   workLog?: PaymentWorkLogDto;
+
+  @ApiPropertyOptional({
+    description: 'Task-specific details when the winning is a task payment',
+    type: PaymentTaskDetailsDto,
+  })
+  taskDetails?: PaymentTaskDetailsDto;
 }

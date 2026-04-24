@@ -23,6 +23,7 @@ import {
   TopcoderEngagementsService,
 } from 'src/shared/topcoder/engagements.service';
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 
 /**
@@ -43,6 +44,7 @@ export class AdminService {
     private readonly accessControlService: AccessControlService,
     private readonly topcoderEngagementsService: TopcoderEngagementsService,
     private readonly tcMembersService: TopcoderMembersService,
+    private readonly topcoderChallengesService: TopcoderChallengesService,
   ) {}
 
   async verifyUserAccessToWinning(
@@ -712,6 +714,58 @@ export class AdminService {
     return result;
   }
 
+  private async buildTaskDetails(
+    winningsId: string,
+    externalId: string | undefined,
+  ): Promise<WinningPaymentDetailsDto['taskDetails']> {
+    const taskDetails: WinningPaymentDetailsDto['taskDetails'] = {};
+
+    if (externalId) {
+      try {
+        const challenge =
+          await this.topcoderChallengesService.getChallengeById(externalId);
+        if (challenge?.projectId) {
+          taskDetails.projectId = String(challenge.projectId);
+          try {
+            const project = await this.topcoderChallengesService.getProjectById(
+              challenge.projectId,
+            );
+            if (project?.name) {
+              taskDetails.projectName = project.name;
+            }
+          } catch {
+            // project name is optional — ignore failures
+          }
+        }
+      } catch {
+        // projectId is optional — ignore failures
+      }
+    }
+
+    try {
+      const audits = await this.prisma.audit.findMany({
+        where: { winnings_id: winningsId },
+        orderBy: { created_at: 'asc' },
+        take: 200,
+      });
+
+      const approverAudit = audits.find(
+        (a) =>
+          typeof a.action === 'string' &&
+          a.action.indexOf('ON_HOLD_ADMIN') < a.action.indexOf('OWED'),
+      );
+      if (approverAudit?.user_id) {
+        const userId = String(approverAudit.user_id);
+        const handle = await this.getPaymentCreatorHandle(userId);
+        taskDetails.paymentApproverHandle = handle ?? undefined;
+      }
+    } catch {
+      // approver is optional — ignore failures
+    }
+
+    return taskDetails;
+  }
+
   async getWinningPaymentDetails(
     winningsId: string,
     userId: string,
@@ -746,6 +800,16 @@ export class AdminService {
         : undefined;
     const assignmentLookupId = assignmentId ?? externalId;
     const isEngagementPayment = winning.category === 'ENGAGEMENT_PAYMENT';
+
+    const isTaskPayment = winning.category === 'TASK_PAYMENT';
+
+    if (isTaskPayment) {
+      result.data.taskDetails = await this.buildTaskDetails(
+        winningsId,
+        externalId,
+      );
+      return result;
+    }
 
     if (!isEngagementPayment) {
       return result;

@@ -45,6 +45,9 @@ import { AdminService } from './admin.service';
 describe('AdminService', () => {
   let service: AdminService;
   let prisma: {
+    audit: {
+      findMany: jest.Mock;
+    };
     winnings: {
       findFirst: jest.Mock;
     };
@@ -61,9 +64,16 @@ describe('AdminService', () => {
   let tcMembersService: {
     getHandlesByUserIds: jest.Mock;
   };
+  let topcoderChallengesService: {
+    getChallengeById: jest.Mock;
+    getProjectById: jest.Mock;
+  };
 
   beforeEach(() => {
     prisma = {
+      audit: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       winnings: {
         findFirst: jest.fn(),
       },
@@ -82,6 +92,10 @@ describe('AdminService', () => {
         '654321': 'payment-manager',
       }),
     };
+    topcoderChallengesService = {
+      getChallengeById: jest.fn().mockResolvedValue(undefined),
+      getProjectById: jest.fn().mockResolvedValue(undefined),
+    };
 
     service = new AdminService(
       prisma as any,
@@ -90,6 +104,7 @@ describe('AdminService', () => {
       accessControlService as any,
       topcoderEngagementsService as any,
       tcMembersService as any,
+      topcoderChallengesService as any,
     );
   });
 
@@ -322,5 +337,47 @@ describe('AdminService', () => {
     await expect(
       service.getWinningPaymentDetails('missing-winning', '123456', []),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns task details for task payment with projectId and approver', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-task',
+      category: 'TASK_PAYMENT',
+      created_by: '654321',
+      winner_id: '123456',
+      external_id: 'challenge-uuid-1',
+      attributes: {},
+    });
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      id: 'challenge-uuid-1',
+      name: 'Build a widget',
+      projectId: 42,
+    });
+    topcoderChallengesService.getProjectById.mockResolvedValue({
+      id: 42,
+      name: 'My Project',
+    });
+    prisma.audit.findMany.mockResolvedValue([
+      {
+        id: 'audit-1',
+        winnings_id: 'winning-task',
+        user_id: '654321',
+        action: 'status updated from ON_HOLD_ADMIN to OWED',
+        note: null,
+        created_at: new Date(),
+      },
+    ]);
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-task',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(result.data?.taskDetails?.projectId).toBe('42');
+    expect(result.data?.taskDetails?.projectName).toBe('My Project');
+    expect(result.data?.taskDetails?.paymentApproverHandle).toBe(
+      'payment-manager',
+    );
   });
 });
