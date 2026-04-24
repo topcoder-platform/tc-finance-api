@@ -27,6 +27,7 @@ import {
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
+import { PaymentStatus } from 'src/dto/payment.dto';
 import { WinningsService } from '../winnings/winnings.service';
 import {
   WinningRequestDto,
@@ -495,6 +496,9 @@ export class ChallengesService {
       title: challenge.name,
       description: payment.description || challenge.name,
       externalId: challenge.id,
+      ...(challenge.task?.isTask
+        ? { status: PaymentStatus.ON_HOLD_ADMIN }
+        : {}),
       details: [
         {
           totalAmount: payment.amount,
