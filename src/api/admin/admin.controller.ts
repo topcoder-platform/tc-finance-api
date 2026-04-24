@@ -56,7 +56,7 @@ export class AdminController {
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
-    Role.EngagementPaymentApprover,
+    Role.PaymentApprover,
     Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
@@ -64,7 +64,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'Search winnings with parameters',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
+      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -102,7 +102,7 @@ export class AdminController {
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
-    Role.EngagementPaymentApprover,
+    Role.PaymentApprover,
     Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
@@ -145,7 +145,7 @@ export class AdminController {
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
-    Role.EngagementPaymentApprover,
+    Role.PaymentApprover,
     Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
@@ -153,7 +153,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement payment exports include the Payment Creator column.',
+      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement payment exports include the Payment Creator column.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -283,14 +283,14 @@ export class AdminController {
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
-    Role.EngagementPaymentApprover,
+    Role.PaymentApprover,
     Role.WiproTaasAdmin,
     Role.PaymentEditor,
   )
   @ApiOperation({
     summary: 'Update winnings with given parameter',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor. paymentStatus, releaseDate and paymentAmount cannot be null at the same time.',
+      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor. paymentStatus, releaseDate and paymentAmount cannot be null at the same time.',
   })
   @ApiResponse({
     status: 200,
@@ -330,7 +330,7 @@ export class AdminController {
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
-    Role.EngagementPaymentApprover,
+    Role.PaymentApprover,
     Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
@@ -338,7 +338,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'List winning audit logs with given winning id',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
+      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiParam({
     name: 'winningID',
@@ -374,7 +374,7 @@ export class AdminController {
   @Roles(
     Role.PaymentAdmin,
     Role.PaymentBaAdmin,
-    Role.EngagementPaymentApprover,
+    Role.PaymentApprover,
     Role.WiproTaasAdmin,
     Role.PaymentEditor,
     Role.PaymentViewer,
@@ -382,7 +382,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'Fetch winnings payout audit logs with given winning id.',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Engagement Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
+      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer',
   })
   @ApiParam({
     name: 'winningID',
