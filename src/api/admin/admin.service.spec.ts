@@ -40,6 +40,10 @@ jest.mock('src/shared/topcoder/members.service', () => ({
   TopcoderMembersService: class {},
 }));
 
+jest.mock('src/shared/topcoder/challenges.service', () => ({
+  TopcoderChallengesService: class {},
+}));
+
 import { AdminService } from './admin.service';
 
 describe('AdminService', () => {
