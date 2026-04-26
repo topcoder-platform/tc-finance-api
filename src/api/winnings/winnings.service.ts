@@ -398,7 +398,8 @@ export class WinningsService {
    * Computes an engagement consume amount with decimal-safe arithmetic.
    *
    * @param totalAmount payment detail total amount.
-   * @param markup billing-account markup.
+   * @param challengeMarkup rounded billing-account markup persisted on the
+   * payment row.
    * @param detailIndex zero-based detail index for error reporting.
    * @returns Ledger-scale consume amount including markup.
    * @throws BadRequestException when the detail amount is invalid.
@@ -407,7 +408,7 @@ export class WinningsService {
    */
   private calculateEngagementConsumeAmount(
     totalAmount: number,
-    markup: number,
+    challengeMarkup: number,
     detailIndex: number,
   ): number {
     if (!Number.isFinite(totalAmount) || totalAmount < 0) {
@@ -416,14 +417,14 @@ export class WinningsService {
       );
     }
 
-    if (!Number.isFinite(markup)) {
+    if (!Number.isFinite(challengeMarkup)) {
       throw new InternalServerErrorException(
         'Engagement billing account has invalid markup',
       );
     }
 
     const totalAmountDecimal = new Prisma.Decimal(totalAmount);
-    const markupDecimal = new Prisma.Decimal(markup);
+    const markupDecimal = new Prisma.Decimal(challengeMarkup);
     const consumeAmount = totalAmountDecimal.plus(
       totalAmountDecimal.mul(markupDecimal),
     );
@@ -539,7 +540,7 @@ export class WinningsService {
         consumePlan.push({
           amount: this.calculateEngagementConsumeAmount(
             Number(detail.totalAmount),
-            billingAccount.markup,
+            challengeMarkup,
             detailIndex,
           ),
           billingAccountId: trustedBillingAccountId,

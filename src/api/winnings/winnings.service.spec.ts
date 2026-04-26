@@ -226,6 +226,16 @@ describe('WinningsService', () => {
 
     expect(Number(persistedPayment.challenge_markup)).toBe(0.24);
     expect(Number(persistedPayment.challenge_fee)).toBe(24);
+    expect(billingAccountsService.consumeAmounts).toHaveBeenCalledWith({
+      consumes: [
+        {
+          amount: 124,
+          billingAccountId: 123456,
+          externalId: 'assignment-1',
+          externalType: 'ENGAGEMENT',
+        },
+      ],
+    });
   });
 
   it('rejects engagement payment details that do not match the assignment billing account', async () => {

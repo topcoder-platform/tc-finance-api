@@ -139,7 +139,9 @@ describe('ChallengesService', () => {
         id: '11111111-1111-1111-1111-111111111111',
         name: 'Topgear Review Challenge',
         metadata: [{ name: 'payment_type', value: 'topgear' }],
-        prizeSets: [{ type: 'PLACEMENT', prizes: [{ type: PrizeType.USD, value: 500 }] }],
+        prizeSets: [
+          { type: 'PLACEMENT', prizes: [{ type: PrizeType.USD, value: 500 }] },
+        ],
         reviewers: [
           {
             isMemberReview: true,
