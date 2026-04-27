@@ -10,6 +10,19 @@ import {
 
 const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
 
+const CANCELLED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Deleted,
+  ChallengeStatuses.Canceled,
+  ChallengeStatuses.CancelledFailedReview,
+  ChallengeStatuses.CancelledFailedScreening,
+  ChallengeStatuses.CancelledZeroSubmissions,
+  ChallengeStatuses.CancelledWinnerUnresponsive,
+  ChallengeStatuses.CancelledClientRequest,
+  ChallengeStatuses.CancelledRequirementsInfeasible,
+  ChallengeStatuses.CancelledZeroRegistrations,
+  ChallengeStatuses.CancelledPaymentFailed,
+].map((status) => status.toLowerCase());
+
 interface LockAmountDTO {
   challengeId: string;
   amount: number;
@@ -47,6 +60,19 @@ export interface BAValidation {
   status?: string;
   prevTotalPrizesInCents?: number;
   totalPrizesInCents: number;
+}
+
+/**
+ * Determines whether a challenge status should clear or consume challenge
+ * budget reservations.
+ *
+ * @param status Challenge status received from challenge-api-v6.
+ * @returns True when the status is deleted or cancelled.
+ */
+function isCancelledChallengeStatus(status?: string): boolean {
+  return status
+    ? CANCELLED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
 }
 
 @Injectable()
@@ -357,26 +383,22 @@ export class BillingAccountsService {
             (rollback ? prevAmount : currAmount) * (1 + baValidation.markup!),
         });
       }
-    } else if (
-      [
-        ChallengeStatuses.Deleted,
-        ChallengeStatuses.Canceled,
-        ChallengeStatuses.CancelledFailedReview,
-        ChallengeStatuses.CancelledFailedScreening,
-        ChallengeStatuses.CancelledZeroSubmissions,
-        ChallengeStatuses.CancelledWinnerUnresponsive,
-        ChallengeStatuses.CancelledClientRequest,
-        ChallengeStatuses.CancelledRequirementsInfeasible,
-        ChallengeStatuses.CancelledZeroRegistrations,
-        ChallengeStatuses.CancelledPaymentFailed,
-      ].some((t) => t.toLowerCase() === status)
-    ) {
+    } else if (isCancelledChallengeStatus(status)) {
+      const currAmount = baValidation.totalPrizesInCents / 100;
+
+      if (currAmount > 0) {
+        await this.consumeAmount(billingAccountId, {
+          challengeId: baValidation.challengeId!,
+          amount: currAmount * (1 + baValidation.markup!),
+        });
+        return;
+      }
+
       if (
         baValidation.prevStatus?.toLowerCase() ===
         ChallengeStatuses.Active.toLowerCase()
       ) {
         // Challenge canceled, unlock previous locked amount
-        const currAmount = 0;
         const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;
 
         if (currAmount !== prevAmount) {
@@ -385,6 +407,11 @@ export class BillingAccountsService {
             amount: rollback ? prevAmount : 0,
           });
         }
+      } else {
+        await this.lockAmount(billingAccountId, {
+          challengeId: baValidation.challengeId!,
+          amount: 0,
+        });
       }
     }
   }
