@@ -44,6 +44,7 @@ interface PaymentPayload {
   type: WinningsCategory;
   currency: PrizeType;
   description?: string;
+  status?: PaymentStatus;
 }
 
 const placeToOrdinal = (place: number) => {
@@ -213,6 +214,9 @@ export class ChallengesService {
         userId: winner.userId.toString(),
         type: winType,
         currency,
+        ...(challenge.task?.isTask && currency === PrizeType.USD
+          ? { status: PaymentStatus.ON_HOLD_ADMIN }
+          : {}),
         description:
           challenge.type === 'Task'
             ? challenge.name
@@ -422,6 +426,9 @@ export class ChallengesService {
               ),
               type: winType,
               currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
+              ...(challenge.task?.isTask && currency === PrizeType.USD
+                ? { status: PaymentStatus.ON_HOLD_ADMIN }
+                : {}),
               description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
             };
           },
@@ -496,9 +503,7 @@ export class ChallengesService {
       title: challenge.name,
       description: payment.description || challenge.name,
       externalId: challenge.id,
-      ...(challenge.task?.isTask
-        ? { status: PaymentStatus.ON_HOLD_ADMIN }
-        : {}),
+      ...(payment.status ? { status: payment.status } : {}),
       details: [
         {
           totalAmount: payment.amount,

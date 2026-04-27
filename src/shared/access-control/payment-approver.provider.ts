@@ -18,12 +18,27 @@ export class PaymentApproverProvider implements RoleAccessProvider {
   // disable rule: prefer this format instead of returning resolved promise (required by interface)
   // eslint-disable-next-line @typescript-eslint/require-await
   async applyFilter<T>(_userId: string, req: any): Promise<T> {
-    const { category: _ignoredCategory, categories: _ignoredCategories, ...rest } =
-      req ?? {};
+    const { category, categories, ...rest } = req ?? {};
+
+    // If client supplied a filter, intersect with allowed categories for security.
+    // If the intersection is empty (all disallowed), fallback to all allowed.
+    // Otherwise default to all allowed categories.
+    let requestedCategories: winnings_category[] | undefined;
+
+    if (categories && Array.isArray(categories)) {
+      const filtered = categories.filter((cat) =>
+        allowedCategories.includes(cat),
+      );
+      requestedCategories = filtered.length > 0 ? filtered : undefined;
+    } else if (category) {
+      requestedCategories = allowedCategories.includes(category)
+        ? [category]
+        : undefined;
+    }
 
     return {
       ...rest,
-      categories: allowedCategories,
+      categories: requestedCategories ?? allowedCategories,
     } as T;
   }
 

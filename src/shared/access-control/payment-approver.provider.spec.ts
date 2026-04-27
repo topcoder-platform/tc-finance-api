@@ -46,6 +46,73 @@ describe('PaymentApproverProvider', () => {
     expect(result).not.toHaveProperty('category');
   });
 
+  it('filters to a single allowed category when client requests only task payments', async () => {
+    const result = await provider.applyFilter<Record<string, unknown>>(
+      '123456',
+      {
+        category: winnings_category.TASK_PAYMENT,
+        limit: 10,
+      },
+    );
+
+    expect(result).toEqual({
+      categories: [winnings_category.TASK_PAYMENT],
+      limit: 10,
+    });
+  });
+
+  it('filters to a single allowed category when client requests only engagement payments', async () => {
+    const result = await provider.applyFilter<Record<string, unknown>>(
+      '123456',
+      {
+        category: winnings_category.ENGAGEMENT_PAYMENT,
+        limit: 10,
+      },
+    );
+
+    expect(result).toEqual({
+      categories: [winnings_category.ENGAGEMENT_PAYMENT],
+      limit: 10,
+    });
+  });
+
+  it('intersects client categories array with allowed categories', async () => {
+    const result = await provider.applyFilter<Record<string, unknown>>(
+      '123456',
+      {
+        categories: [
+          winnings_category.TASK_PAYMENT,
+          winnings_category.ALGORITHM_CONTEST_PAYMENT,
+          winnings_category.ENGAGEMENT_PAYMENT,
+        ],
+        limit: 10,
+      },
+    );
+
+    expect(result).toEqual({
+      categories: [
+        winnings_category.TASK_PAYMENT,
+        winnings_category.ENGAGEMENT_PAYMENT,
+      ],
+      limit: 10,
+    });
+  });
+
+  it('defaults to all allowed categories when no filter is supplied', async () => {
+    const result = await provider.applyFilter<Record<string, unknown>>(
+      '123456',
+      { limit: 10 },
+    );
+
+    expect(result).toEqual({
+      categories: [
+        winnings_category.ENGAGEMENT_PAYMENT,
+        winnings_category.TASK_PAYMENT,
+      ],
+      limit: 10,
+    });
+  });
+
   it('allows access when all winnings are approver-allowed categories', async () => {
     prisma.winnings.findMany.mockResolvedValue([
       { category: winnings_category.ENGAGEMENT_PAYMENT },
