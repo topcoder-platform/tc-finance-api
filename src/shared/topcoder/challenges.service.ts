@@ -23,6 +23,7 @@ export interface TopcoderChallengeInfo {
   id: string;
   name: string;
   projectId: number;
+  createdBy?: string;
 }
 
 export interface TopcoderProjectInfo {
