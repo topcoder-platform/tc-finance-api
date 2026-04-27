@@ -22,8 +22,14 @@ export interface AdminPaymentUpdateData {
 export interface TopcoderChallengeInfo {
   id: string;
   name: string;
+  billing?: {
+    billingAccountId?: number | string;
+    clientBillingRate?: number | string | null;
+    markup?: number | string | null;
+  };
   projectId: number;
   createdBy?: string;
+  status?: string;
 }
 
 export interface TopcoderProjectInfo {

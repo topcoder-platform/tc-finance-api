@@ -189,6 +189,7 @@ describe('ChallengesService', () => {
           amount: 500,
           type: WinningsCategory.TASK_PAYMENT,
           currency: PrizeType.USD,
+          status: PaymentStatus.ON_HOLD_ADMIN,
         },
       ] as any);
     jest

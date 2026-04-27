@@ -4,15 +4,17 @@ import {
   NotFoundException,
   BadRequestException,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 
-import { Prisma } from '@prisma/client';
+import { payment, Prisma, winnings, winnings_type } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { PaymentsService } from 'src/shared/payments';
 import { AccessControlService } from 'src/shared/access-control/access-control.service';
 
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
+import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { Logger } from 'src/shared/global';
@@ -25,6 +27,12 @@ import {
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
+import { ENV_CONFIG } from 'src/config';
+
+const BUDGET_LEDGER_DECIMAL_PLACES = 4;
+const USD_CURRENCY = 'USD';
+
+type PaymentWithWinning = payment & { winnings: winnings };
 
 /**
  * The admin winning service.
@@ -292,6 +300,140 @@ export class AdminService {
   }
 
   /**
+   * Normalizes a persisted billing account identifier.
+   *
+   * @param billingAccountId raw billing account value from a payment row.
+   * @returns positive integer billing account id, or `undefined` when the row
+   * cannot be associated with a billing account.
+   * @throws This helper does not throw.
+   */
+  private normalizePaymentBillingAccountId(
+    billingAccountId: unknown,
+  ): number | undefined {
+    if (
+      typeof billingAccountId !== 'string' &&
+      typeof billingAccountId !== 'number'
+    ) {
+      return undefined;
+    }
+
+    const normalizedBillingAccountId = String(billingAccountId).trim();
+
+    if (!/^\d+$/.test(normalizedBillingAccountId)) {
+      return undefined;
+    }
+
+    const parsedBillingAccountId = Number(normalizedBillingAccountId);
+
+    return Number.isSafeInteger(parsedBillingAccountId) &&
+      parsedBillingAccountId > 0
+      ? parsedBillingAccountId
+      : undefined;
+  }
+
+  /**
+   * Quantizes a billing-account consume amount to ledger scale.
+   *
+   * @param amount decimal amount that includes member payments and markup.
+   * @returns JavaScript number rounded to the BA ledger precision.
+   * @throws This helper does not throw.
+   */
+  private toBillingLedgerAmount(amount: Prisma.Decimal): number {
+    return Number(
+      amount
+        .toDecimalPlaces(
+          BUDGET_LEDGER_DECIMAL_PLACES,
+          Prisma.Decimal.ROUND_HALF_UP,
+        )
+        .toFixed(BUDGET_LEDGER_DECIMAL_PLACES),
+    );
+  }
+
+  /**
+   * Rewrites the consumed BA line item for a challenge after a payment is
+   * cancelled.
+   *
+   * The BA API overwrites CHALLENGE consumed rows by external id, so finance
+   * sends the recomputed non-cancelled challenge total rather than the cancelled
+   * payment delta.
+   *
+   * @param payment cancelled payment row loaded with its parent winning.
+   * @param tx active Prisma transaction client after the status update ran.
+   * @returns promise resolved after the upstream consumed row is updated.
+   * @throws BadRequestException when billing accounts rejects the consume.
+   * @throws InternalServerErrorException when challenge metadata is malformed.
+   */
+  private async reconcileChallengeBillingAccountAfterCancellation(
+    payment: PaymentWithWinning,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const challengeId =
+      typeof payment.winnings?.external_id === 'string'
+        ? payment.winnings.external_id.trim()
+        : '';
+    const billingAccountId = this.normalizePaymentBillingAccountId(
+      payment.billing_account,
+    );
+
+    if (
+      !challengeId ||
+      !billingAccountId ||
+      ENV_CONFIG.TGBillingAccounts.includes(billingAccountId)
+    ) {
+      return;
+    }
+
+    const challenge =
+      await this.topcoderChallengesService.getChallengeById(challengeId);
+
+    if (
+      !challenge ||
+      String(challenge.status ?? '').toLowerCase() !==
+        ChallengeStatuses.Completed.toLowerCase()
+    ) {
+      return;
+    }
+
+    const challengeMarkup = Number(
+      challenge.billing?.clientBillingRate ?? challenge.billing?.markup,
+    );
+
+    if (!Number.isFinite(challengeMarkup)) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing markup is invalid`,
+      );
+    }
+
+    const total = await tx.payment.aggregate({
+      where: {
+        billing_account: String(billingAccountId),
+        currency: USD_CURRENCY,
+        payment_status: {
+          not: PaymentStatus.CANCELLED,
+        },
+        winnings: {
+          external_id: challengeId,
+          type: winnings_type.PAYMENT,
+        },
+      },
+      _sum: { total_amount: true },
+    });
+    const totalAmount = new Prisma.Decimal(total._sum.total_amount ?? 0);
+    const consumeAmount = this.toBillingLedgerAmount(
+      totalAmount.plus(totalAmount.mul(new Prisma.Decimal(challengeMarkup))),
+    );
+
+    if (consumeAmount <= 0) {
+      return;
+    }
+
+    await this.baService.consumeAmount(billingAccountId, {
+      amount: consumeAmount,
+      challengeId,
+    });
+  }
+
+  /**
    * Verify that a BA admin user has access to the billing account(s)
    * associated with the given winningsId. Throws BadRequestException when
    * access is not allowed.
@@ -333,10 +475,14 @@ export class AdminService {
   }
 
   /**
-   * Update winnings with parameters
+   * Update winnings with parameters and reconcile challenge BA consumption when
+   * a challenge payment is cancelled.
+   *
    * @param body the request body
    * @param userId the request user id
+   * @param roles authenticated user roles used for access verification.
    * @returns the Promise with response result
+   * @throws BadRequestException when the requested update is invalid.
    */
   async updateWinnings(
     body: WinningUpdateRequestDto,
@@ -381,6 +527,10 @@ export class AdminService {
       const transactions: ((
         tx: Prisma.TransactionClient,
       ) => Promise<unknown>)[] = [];
+      const challengeBudgetReconciliationPayments = new Map<
+        string,
+        PaymentWithWinning
+      >();
       const now = new Date().getTime();
 
       // iterate payments and build transaction list
@@ -516,6 +666,23 @@ export class AdminService {
             this.logger.log(
               `Payment ${payment.payment_id} marked OWED; will trigger reconciliation later`,
             );
+          }
+
+          if (body.paymentStatus === PaymentStatus.CANCELLED) {
+            const challengeId =
+              typeof payment.winnings?.external_id === 'string'
+                ? payment.winnings.external_id.trim()
+                : '';
+            const billingAccountId = this.normalizePaymentBillingAccountId(
+              payment.billing_account,
+            );
+
+            if (challengeId && billingAccountId) {
+              challengeBudgetReconciliationPayments.set(
+                `${billingAccountId}:${challengeId}`,
+                payment,
+              );
+            }
           }
 
           if (payment.installment_number === 1) {
@@ -657,6 +824,13 @@ export class AdminService {
             `Executing transaction ${i + 1}/${transactions.length}`,
           );
           await transactions[i](tx);
+        }
+
+        for (const payment of challengeBudgetReconciliationPayments.values()) {
+          await this.reconcileChallengeBillingAccountAfterCancellation(
+            payment,
+            tx,
+          );
         }
       });
 
