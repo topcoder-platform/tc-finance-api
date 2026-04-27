@@ -724,6 +724,11 @@ export class AdminService {
       try {
         const challenge =
           await this.topcoderChallengesService.getChallengeById(externalId);
+        if (challenge?.createdBy) {
+          taskDetails.paymentCreatorHandle = await this.getPaymentCreatorHandle(
+            challenge.createdBy
+          );
+        }
         if (challenge?.projectId) {
           taskDetails.projectId = String(challenge.projectId);
           try {

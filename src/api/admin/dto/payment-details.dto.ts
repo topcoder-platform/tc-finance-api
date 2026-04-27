@@ -94,6 +94,12 @@ export class PaymentTaskDetailsDto {
     example: 'approver_handle',
   })
   paymentApproverHandle?: string;
+
+  @ApiPropertyOptional({
+    description: 'The Topcoder handle of the challenge creator',
+    example: 'task_creator_handle',
+  })
+  paymentCreatorHandle?: string;
 }
 
 export class WinningPaymentDetailsDto {

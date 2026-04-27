@@ -356,6 +356,7 @@ describe('AdminService', () => {
       id: 'challenge-uuid-1',
       name: 'Build a widget',
       projectId: 42,
+      createdBy: 'challenge-creator',
     });
     topcoderChallengesService.getProjectById.mockResolvedValue({
       id: 42,
@@ -380,6 +381,9 @@ describe('AdminService', () => {
 
     expect(result.data?.taskDetails?.projectId).toBe('42');
     expect(result.data?.taskDetails?.projectName).toBe('My Project');
+    expect(result.data?.taskDetails?.paymentCreatorHandle).toBe(
+      'challenge-creator',
+    );
     expect(result.data?.taskDetails?.paymentApproverHandle).toBe(
       'payment-manager',
     );
