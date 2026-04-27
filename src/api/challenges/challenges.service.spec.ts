@@ -181,16 +181,14 @@ describe('ChallengesService', () => {
     jest
       .spyOn(service, 'getChallengeResources')
       .mockResolvedValue({ winner: [] } as any);
-    jest
-      .spyOn(service, 'generatePlacementWinnersPayments')
-      .mockReturnValue([
-        {
-          userId: '40158994',
-          amount: 500,
-          type: WinningsCategory.TASK_PAYMENT,
-          currency: PrizeType.USD,
-        },
-      ] as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.TASK_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
     jest
       .spyOn(service, 'generateCheckpointWinnersPayments')
       .mockReturnValue([]);
@@ -224,16 +222,14 @@ describe('ChallengesService', () => {
     jest
       .spyOn(service, 'getChallengeResources')
       .mockResolvedValue({ winner: [] } as any);
-    jest
-      .spyOn(service, 'generatePlacementWinnersPayments')
-      .mockReturnValue([
-        {
-          userId: '40158994',
-          amount: 500,
-          type: WinningsCategory.CONTEST_PAYMENT,
-          currency: PrizeType.USD,
-        },
-      ] as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.CONTEST_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
     jest
       .spyOn(service, 'generateCheckpointWinnersPayments')
       .mockReturnValue([]);

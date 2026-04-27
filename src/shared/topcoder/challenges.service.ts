@@ -24,6 +24,12 @@ export interface TopcoderChallengeInfo {
   name: string;
   projectId: number;
   createdBy?: string;
+  status?: string;
+  billing?: {
+    billingAccountId?: number | string | null;
+    markup?: number | string | null;
+    clientBillingRate?: number | string | null;
+  };
 }
 
 export interface TopcoderProjectInfo {

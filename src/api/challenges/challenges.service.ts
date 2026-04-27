@@ -503,7 +503,9 @@ export class ChallengesService {
       title: challenge.name,
       description: payment.description || challenge.name,
       externalId: challenge.id,
-      ...(payment.status ? { status: payment.status } : {}),
+      ...(payment.status || challenge.task?.isTask
+        ? { status: payment.status ?? PaymentStatus.ON_HOLD_ADMIN }
+        : {}),
       details: [
         {
           totalAmount: payment.amount,
@@ -586,7 +588,9 @@ export class ChallengesService {
     await Promise.all(
       payments.map(async (p) => {
         try {
-          await this.winningsService.createWinningWithPayments(p, userId);
+          await this.winningsService.createWinningWithPayments(p, userId, {
+            skipChallengeBudgetConsume: true,
+          });
         } catch (e) {
           this.logger.log(
             `Failed to create winnings payment for user ${p.winnerId}!`,

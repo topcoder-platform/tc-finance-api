@@ -23,6 +23,7 @@ import {
 } from 'src/dto/winning.dto';
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentCreateRequestDto, PaymentStatus } from 'src/dto/payment.dto';
+import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { OriginRepository } from '../repository/origin.repo';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
@@ -36,6 +37,7 @@ import { PrizeType } from '../challenges/models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.service';
 import { TopcoderM2MHttpError } from 'src/shared/topcoder/topcoder-m2m.service';
+import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
 
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
 const PAYMENT_DECIMAL_PLACES = 2;
@@ -51,6 +53,16 @@ interface EngagementBillingAccountConsumePlan {
   billingAccountId: number;
   challengeMarkup: number;
   consumes: EngagementBillingAccountConsume[];
+}
+
+interface ChallengeBillingAccountConsumePlan {
+  billingAccountId: number;
+  challengeId: string;
+  challengeMarkup: number;
+}
+
+export interface CreateWinningWithPaymentsOptions {
+  skipChallengeBudgetConsume?: boolean;
 }
 
 /**
@@ -70,6 +82,7 @@ export class WinningsService {
    * @param identityVerificationRepo repository for identity verification checks.
    * @param tcEmailService Topcoder email client.
    * @param topcoderEngagementsService Topcoder engagements client.
+   * @param topcoderChallengesService Topcoder challenges client.
    * @param billingAccountsService Topcoder billing-account client.
    */
   constructor(
@@ -81,6 +94,7 @@ export class WinningsService {
     private readonly identityVerificationRepo: IdentityVerificationRepository,
     private readonly tcEmailService: TopcoderEmailService,
     private readonly topcoderEngagementsService: TopcoderEngagementsService,
+    private readonly topcoderChallengesService: TopcoderChallengesService,
     private readonly billingAccountsService: BillingAccountsService,
   ) {}
 
@@ -160,14 +174,14 @@ export class WinningsService {
   }
 
   /**
-   * Normalizes the billing account id from an engagement payment detail.
+   * Normalizes the billing account id from a payment detail.
    *
    * @param detail payment detail supplied in the winning request.
    * @param detailIndex zero-based detail index for error reporting.
    * @returns positive integer billing account id.
    * @throws BadRequestException when the detail cannot be mapped to an id.
    */
-  private normalizeEngagementBillingAccountId(
+  private normalizePaymentDetailBillingAccountId(
     detail: PaymentCreateRequestDto,
     detailIndex: number,
   ): number {
@@ -478,10 +492,8 @@ export class WinningsService {
       await this.resolveTrustedAssignmentBillingAccountId(assignmentId);
 
     body.details.forEach((detail, detailIndex) => {
-      const suppliedBillingAccountId = this.normalizeEngagementBillingAccountId(
-        detail,
-        detailIndex,
-      );
+      const suppliedBillingAccountId =
+        this.normalizePaymentDetailBillingAccountId(detail, detailIndex);
 
       if (suppliedBillingAccountId !== trustedBillingAccountId) {
         throw new BadRequestException(
@@ -558,6 +570,334 @@ export class WinningsService {
       challengeMarkup,
       consumes,
     };
+  }
+
+  /**
+   * Determines whether a winning request can represent a challenge payment that
+   * needs billing-account consumption.
+   *
+   * @param body incoming winning creation request.
+   * @param options caller options for internal payment-generation paths.
+   * @returns `true` when finance should resolve the external id as a challenge
+   * and prepare a challenge budget consume.
+   */
+  private shouldBuildChallengeBillingAccountConsumePlan(
+    body: WinningCreateRequestDto,
+    options: CreateWinningWithPaymentsOptions,
+  ): boolean {
+    if (
+      options.skipChallengeBudgetConsume ||
+      body.category === WinningsCategory.ENGAGEMENT_PAYMENT ||
+      body.type !== WinningsType.PAYMENT
+    ) {
+      return false;
+    }
+
+    return (body.details ?? []).some(
+      (detail) =>
+        String(detail.currency) === 'USD' && Number(detail.totalAmount) > 0,
+    );
+  }
+
+  /**
+   * Normalizes the billing account id persisted on a challenge.
+   *
+   * @param billingAccountId raw challenge billing account id.
+   * @param challengeId challenge id used for diagnostics.
+   * @returns positive integer billing account id.
+   * @throws BadRequestException when the challenge has no billing account.
+   * @throws InternalServerErrorException when the challenge billing account id
+   * is malformed.
+   */
+  private normalizeChallengeBillingAccountId(
+    billingAccountId: unknown,
+    challengeId: string,
+  ): number {
+    if (billingAccountId === undefined || billingAccountId === null) {
+      throw new BadRequestException(
+        `No billing account is configured for challenge ${challengeId}`,
+      );
+    }
+
+    if (
+      typeof billingAccountId !== 'string' &&
+      typeof billingAccountId !== 'number'
+    ) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing account id has invalid type`,
+      );
+    }
+
+    const normalizedBillingAccountId = String(billingAccountId).trim();
+
+    if (!/^\d+$/.test(normalizedBillingAccountId)) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing account id is invalid`,
+      );
+    }
+
+    const parsedBillingAccountId = Number(normalizedBillingAccountId);
+
+    if (
+      !Number.isSafeInteger(parsedBillingAccountId) ||
+      parsedBillingAccountId <= 0
+    ) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing account id is invalid`,
+      );
+    }
+
+    return parsedBillingAccountId;
+  }
+
+  /**
+   * Normalizes the markup used for challenge billing-account consumption.
+   *
+   * @param markup raw challenge markup or client billing rate.
+   * @param challengeId challenge id used for diagnostics.
+   * @returns finite markup multiplier.
+   * @throws InternalServerErrorException when markup is missing or malformed.
+   */
+  private normalizeChallengeBillingMarkup(
+    markup: unknown,
+    challengeId: string,
+  ): number {
+    if (markup === undefined || markup === null) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing markup is missing`,
+      );
+    }
+
+    const normalizedMarkup = Number(markup);
+
+    if (!Number.isFinite(normalizedMarkup)) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing markup is invalid`,
+      );
+    }
+
+    return normalizedMarkup;
+  }
+
+  /**
+   * Resolves the challenge billing-account consume plan for a manual challenge
+   * payment request.
+   *
+   * Finance treats a valid completed challenge external id as the source of
+   * truth for the billing account. Non-challenge external ids and non-completed
+   * challenges are left unchanged so other winning types keep their existing
+   * behavior.
+   *
+   * @param body incoming winning creation request.
+   * @param options caller options for internal payment-generation paths.
+   * @returns challenge consume plan, or `undefined` when no challenge consume
+   * should be attempted.
+   * @throws BadRequestException when a challenge payment targets a billing
+   * account other than the challenge billing account.
+   */
+  private async buildChallengeBillingAccountConsumePlan(
+    body: WinningCreateRequestDto,
+    options: CreateWinningWithPaymentsOptions,
+  ): Promise<ChallengeBillingAccountConsumePlan | undefined> {
+    if (!this.shouldBuildChallengeBillingAccountConsumePlan(body, options)) {
+      return undefined;
+    }
+
+    const challengeId = String(body.externalId ?? '').trim();
+
+    if (!challengeId) {
+      return undefined;
+    }
+
+    const challenge =
+      await this.topcoderChallengesService.getChallengeById(challengeId);
+
+    if (!challenge) {
+      return undefined;
+    }
+
+    if (
+      String(challenge.status ?? '').toLowerCase() !==
+      ChallengeStatuses.Completed.toLowerCase()
+    ) {
+      return undefined;
+    }
+
+    const billingAccountId = this.normalizeChallengeBillingAccountId(
+      challenge.billing?.billingAccountId,
+      challengeId,
+    );
+
+    body.details.forEach((detail, detailIndex) => {
+      if (
+        String(detail.currency) !== 'USD' ||
+        Number(detail.totalAmount) <= 0
+      ) {
+        return;
+      }
+
+      const suppliedBillingAccountId =
+        this.normalizePaymentDetailBillingAccountId(detail, detailIndex);
+
+      if (suppliedBillingAccountId !== billingAccountId) {
+        throw new BadRequestException(
+          `details[${detailIndex}].billingAccount does not match the challenge billing account`,
+        );
+      }
+    });
+
+    if (this.isTopGearBillingAccount(billingAccountId)) {
+      this.logger.info(
+        'Ignore BA validation for Topgear account:',
+        billingAccountId,
+      );
+      return undefined;
+    }
+
+    const challengeMarkup = this.normalizeChallengeBillingMarkup(
+      challenge.billing?.clientBillingRate ?? challenge.billing?.markup,
+      challengeId,
+    );
+
+    return {
+      billingAccountId,
+      challengeId,
+      challengeMarkup,
+    };
+  }
+
+  /**
+   * Sums all USD payment rows for a challenge and billing account.
+   *
+   * @param tx active transaction client.
+   * @param consumePlan challenge billing-account consume plan.
+   * @returns total member payment amount for the challenge billing account.
+   */
+  private async getChallengePaymentTotalAmount(
+    tx: Prisma.TransactionClient,
+    consumePlan: ChallengeBillingAccountConsumePlan,
+  ): Promise<Prisma.Decimal> {
+    const winnings = await tx.winnings.findMany({
+      where: {
+        external_id: consumePlan.challengeId,
+        type: winnings_type.PAYMENT,
+      },
+      select: { winning_id: true },
+    });
+
+    if (!winnings.length) {
+      return new Prisma.Decimal(0);
+    }
+
+    const total = await tx.payment.aggregate({
+      where: {
+        billing_account: String(consumePlan.billingAccountId),
+        currency: PrizeType.USD,
+        winnings_id: {
+          in: winnings.map((winning) => winning.winning_id),
+        },
+      },
+      _sum: { total_amount: true },
+    });
+
+    return new Prisma.Decimal(total._sum.total_amount ?? 0);
+  }
+
+  /**
+   * Computes the challenge billing-account consume amount from total member
+   * payments and the challenge markup.
+   *
+   * @param totalAmount total USD payment amount for the challenge billing
+   * account.
+   * @param challengeMarkup markup multiplier from challenge billing.
+   * @returns ledger-scale amount to consume from the billing account.
+   */
+  private calculateChallengeConsumeAmount(
+    totalAmount: Prisma.Decimal,
+    challengeMarkup: number,
+  ): number {
+    const consumeAmount = totalAmount.plus(
+      totalAmount.mul(new Prisma.Decimal(challengeMarkup)),
+    );
+
+    return this.toBillingLedgerAmount(consumeAmount);
+  }
+
+  /**
+   * Rethrows challenge billing-account consume failures with the `/winnings`
+   * HTTP contract.
+   *
+   * @param error error thrown while consuming billing-account budget.
+   * @throws BadRequestException when billing accounts reports a client-visible
+   * consume error.
+   * @throws HttpException for non-400 upstream billing-account failures.
+   * @throws InternalServerErrorException for transport or unexpected failures.
+   */
+  private throwChallengeConsumeError(error: unknown): never {
+    if (error instanceof HttpException) {
+      if (error.getStatus() === 400) {
+        throw new BadRequestException(
+          this.getExceptionMessage(
+            error,
+            'Failed to consume challenge billing account budget',
+          ),
+        );
+      }
+
+      throw error;
+    }
+
+    throw new InternalServerErrorException(
+      'Failed to consume challenge billing account budget',
+    );
+  }
+
+  /**
+   * Updates the consumed BA row for a challenge after a manual payment is
+   * created.
+   *
+   * Challenge consumed rows are keyed by challenge id, so the service writes the
+   * total current challenge payment amount instead of only the newly-created
+   * payment amount.
+   *
+   * @param tx active transaction client.
+   * @param consumePlan challenge billing-account consume plan.
+   * @returns promise resolved after the upstream consume succeeds.
+   * @throws BadRequestException when billing accounts reports insufficient
+   * funds or another client-visible consume error.
+   */
+  private async consumeChallengeBillingAccount(
+    tx: Prisma.TransactionClient,
+    consumePlan: ChallengeBillingAccountConsumePlan,
+  ): Promise<void> {
+    const totalAmount = await this.getChallengePaymentTotalAmount(
+      tx,
+      consumePlan,
+    );
+    const consumeAmount = this.calculateChallengeConsumeAmount(
+      totalAmount,
+      consumePlan.challengeMarkup,
+    );
+
+    if (consumeAmount <= 0) {
+      return;
+    }
+
+    try {
+      await this.billingAccountsService.consumeAmount(
+        consumePlan.billingAccountId,
+        {
+          amount: consumeAmount,
+          challengeId: consumePlan.challengeId,
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to consume billing account budget for challenge payment ${consumePlan.challengeId}`,
+        error,
+      );
+      this.throwChallengeConsumeError(error);
+    }
   }
 
   /**
@@ -755,13 +1095,16 @@ export class WinningsService {
    *
    * @param body the request body
    * @param userId the request userId
+   * @param options optional behavior switches for internal payment-generation
+   * callers.
    * @returns the Promise with response result
    * @throws BadRequestException when engagement payment budget consume fails or
-   * engagement payment input is invalid.
+   * challenge or engagement payment input is invalid.
    */
   async createWinningWithPayments(
     body: WinningCreateRequestDto,
     userId: string,
+    options: CreateWinningWithPaymentsOptions = {},
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
     const isEngagementPayment =
@@ -769,6 +1112,9 @@ export class WinningsService {
     const engagementConsumePlan = isEngagementPayment
       ? await this.buildEngagementBillingAccountConsumePlan(body)
       : undefined;
+    const challengeConsumePlan = isEngagementPayment
+      ? undefined
+      : await this.buildChallengeBillingAccountConsumePlan(body, options);
     let setupEmailNotificationAmount: number | undefined;
 
     this.logger.debug(
@@ -977,6 +1323,10 @@ export class WinningsService {
 
       if (engagementConsumePlan) {
         await this.consumeEngagementBillingAccounts(engagementConsumePlan);
+      }
+
+      if (challengeConsumePlan) {
+        await this.consumeChallengeBillingAccount(tx, challengeConsumePlan);
       }
 
       if (
