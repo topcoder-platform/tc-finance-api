@@ -214,7 +214,7 @@ export class ChallengesService {
         userId: winner.userId.toString(),
         type: winType,
         currency,
-        ...(challenge.task?.isTask
+        ...(challenge.task?.isTask && currency === PrizeType.USD
           ? { status: PaymentStatus.ON_HOLD_ADMIN }
           : {}),
         description:
@@ -426,7 +426,7 @@ export class ChallengesService {
               ),
               type: winType,
               currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
-              ...(challenge.task?.isTask
+              ...(challenge.task?.isTask && currency === PrizeType.USD
                 ? { status: PaymentStatus.ON_HOLD_ADMIN }
                 : {}),
               description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
