@@ -331,6 +331,113 @@ export class WinningsService {
   }
 
   /**
+   * Normalizes the billing-account id configured on a challenge.
+   *
+   * @param billingAccountId raw challenge billing-account id.
+   * @param challengeId challenge id used in diagnostics.
+   * @returns positive integer billing-account id, or `undefined` when the
+   * challenge does not expose a configured billing account.
+   * @throws InternalServerErrorException when the configured billing-account id
+   * is malformed.
+   */
+  private normalizeConfiguredChallengeBillingAccountId(
+    billingAccountId: unknown,
+    challengeId: string,
+  ): number | undefined {
+    if (billingAccountId === undefined || billingAccountId === null) {
+      return undefined;
+    }
+
+    if (
+      typeof billingAccountId !== 'string' &&
+      typeof billingAccountId !== 'number'
+    ) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing account id has invalid type`,
+      );
+    }
+
+    const normalizedBillingAccountId = String(billingAccountId).trim();
+
+    if (!normalizedBillingAccountId) {
+      return undefined;
+    }
+
+    if (!/^\d+$/.test(normalizedBillingAccountId)) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing account id is invalid`,
+      );
+    }
+
+    const parsedBillingAccountId = Number(normalizedBillingAccountId);
+
+    if (
+      !Number.isSafeInteger(parsedBillingAccountId) ||
+      parsedBillingAccountId <= 0
+    ) {
+      throw new InternalServerErrorException(
+        `Challenge ${challengeId} billing account id is invalid`,
+      );
+    }
+
+    return parsedBillingAccountId;
+  }
+
+  /**
+   * Resolves the billing accounts that should be synchronized for a challenge
+   * payment request.
+   *
+   * When challenge-api exposes a challenge billing account, finance treats it
+   * as the source of truth and rejects caller-supplied payment details that
+   * target another account. Challenges without billing metadata keep the
+   * previous detail-based fallback.
+   *
+   * @param body incoming winning creation request.
+   * @param challenge challenge-api-v6 challenge details.
+   * @param detailBillingAccountIds billing-account ids supplied by USD payment
+   * details.
+   * @returns billing-account ids to synchronize for this challenge.
+   * @throws BadRequestException when a payment detail targets a different
+   * billing account than the challenge.
+   * @throws InternalServerErrorException when the challenge billing account id
+   * is malformed.
+   */
+  private getChallengeBillingAccountSyncIds(
+    body: WinningCreateRequestDto,
+    challenge: TopcoderChallengeInfo,
+    detailBillingAccountIds: number[],
+  ): number[] {
+    const configuredBillingAccountId =
+      this.normalizeConfiguredChallengeBillingAccountId(
+        challenge.billing?.billingAccountId,
+        String(challenge.id),
+      );
+
+    if (configuredBillingAccountId === undefined) {
+      return detailBillingAccountIds;
+    }
+
+    for (const [detailIndex, detail] of (body.details || []).entries()) {
+      if (String(detail.currency) !== String(PrizeType.USD)) {
+        continue;
+      }
+
+      const suppliedBillingAccountId = this.normalizeChallengeBillingAccountId(
+        detail,
+        detailIndex,
+      );
+
+      if (suppliedBillingAccountId !== configuredBillingAccountId) {
+        throw new BadRequestException(
+          `details[${detailIndex}].billingAccount does not match the challenge billing account`,
+        );
+      }
+    }
+
+    return [configuredBillingAccountId];
+  }
+
+  /**
    * Resolves the markup rate to use for a challenge billing-account sync.
    *
    * @param challenge challenge-api-v6 challenge details.
@@ -379,7 +486,8 @@ export class WinningsService {
    * @returns Billing-account sync plan, or `undefined` when the request is not
    * a challenge payment.
    * @throws BadRequestException when a challenge payment detail has an invalid
-   * billing account.
+   * billing account. When the challenge exposes a billing account, that account
+   * is used as the source of truth for the sync.
    * @throws InternalServerErrorException when markup cannot be resolved.
    */
   private async buildChallengeBillingAccountSyncPlan(
@@ -409,9 +517,15 @@ export class WinningsService {
       return undefined;
     }
 
+    const billingAccountSyncIds = this.getChallengeBillingAccountSyncIds(
+      body,
+      challenge,
+      billingAccountIds,
+    );
+
     return {
       billingAccounts: await Promise.all(
-        billingAccountIds.map(async (billingAccountId) => ({
+        billingAccountSyncIds.map(async (billingAccountId) => ({
           billingAccountId,
           markup: await this.resolveChallengeBillingMarkup(
             challenge,

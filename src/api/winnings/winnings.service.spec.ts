@@ -440,6 +440,102 @@ describe('WinningsService', () => {
     expect(Number(persistedPayment.challenge_fee)).toBe(20);
   });
 
+  it('syncs completed challenge payments to the challenge billing account as consumed', async () => {
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      billing: {
+        billingAccountId: '80001012',
+        markup: 0.2,
+      },
+      id: 'challenge-id',
+      status: 'COMPLETED',
+    });
+    tx.payment.findMany.mockResolvedValue([
+      { total_amount: '75.00' },
+      { total_amount: '25.00' },
+    ]);
+
+    await service.createWinningWithPayments(
+      {
+        winnerId: 'user-1',
+        type: WinningsType.PAYMENT,
+        origin: 'Topcoder',
+        category: WinningsCategory.CONTEST_PAYMENT,
+        title: 'Completed challenge payment',
+        description: 'Completed challenge payment',
+        externalId: 'challenge-id',
+        details: [
+          {
+            totalAmount: 25,
+            grossAmount: 25,
+            installmentNumber: 1,
+            currency: PrizeType.USD,
+            billingAccount: '80001012',
+          },
+        ],
+      } as any,
+      'creator-1',
+    );
+
+    expect(tx.payment.findMany).toHaveBeenCalledWith({
+      select: { total_amount: true },
+      where: {
+        billing_account: '80001012',
+        currency: PrizeType.USD,
+        winnings: {
+          external_id: 'challenge-id',
+          type: 'PAYMENT',
+        },
+      },
+    });
+    expect(billingAccountsService.lockConsumeAmount).toHaveBeenCalledWith({
+      billingAccountId: 80001012,
+      challengeId: 'challenge-id',
+      markup: 0.2,
+      status: 'COMPLETED',
+      totalPrizesInCents: 10000,
+    });
+  });
+
+  it('rejects manual challenge payments for a different billing account', async () => {
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      billing: {
+        billingAccountId: '80001012',
+        markup: 0.2,
+      },
+      id: 'challenge-id',
+      status: 'COMPLETED',
+    });
+
+    await expect(
+      service.createWinningWithPayments(
+        {
+          winnerId: 'user-1',
+          type: WinningsType.PAYMENT,
+          origin: 'Topcoder',
+          category: WinningsCategory.CONTEST_PAYMENT,
+          title: 'Completed challenge payment',
+          description: 'Completed challenge payment',
+          externalId: 'challenge-id',
+          details: [
+            {
+              totalAmount: 25,
+              grossAmount: 25,
+              installmentNumber: 1,
+              currency: PrizeType.USD,
+              billingAccount: '999999',
+            },
+          ],
+        } as any,
+        'creator-1',
+      ),
+    ).rejects.toThrow(
+      'details[0].billingAccount does not match the challenge billing account',
+    );
+
+    expect(tx.winnings.create).not.toHaveBeenCalled();
+    expect(billingAccountsService.lockConsumeAmount).not.toHaveBeenCalled();
+  });
+
   it('locks the aggregate billing-account amount for draft challenge payments', async () => {
     topcoderChallengesService.getChallengeById.mockResolvedValue({
       billing: {
