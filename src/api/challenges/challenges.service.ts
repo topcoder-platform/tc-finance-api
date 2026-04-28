@@ -64,7 +64,32 @@ const PAYMENT_TYPE_TO_CATEGORY: Record<string, WinningsCategory> = {
   topgear: WinningsCategory.TOPGEAR_PAYMENT,
 };
 
+const CANCELLED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Canceled,
+  ChallengeStatuses.CancelledFailedReview,
+  ChallengeStatuses.CancelledFailedScreening,
+  ChallengeStatuses.CancelledZeroSubmissions,
+  ChallengeStatuses.CancelledWinnerUnresponsive,
+  ChallengeStatuses.CancelledClientRequest,
+  ChallengeStatuses.CancelledRequirementsInfeasible,
+  ChallengeStatuses.CancelledZeroRegistrations,
+  ChallengeStatuses.CancelledPaymentFailed,
+].map((status) => status.toLowerCase());
+
 const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
+
+/**
+ * Determines whether a challenge status represents a cancelled challenge.
+ *
+ * @param status Challenge status returned by challenge-api-v6.
+ * @returns True when the status is one of the cancelled challenge states used
+ * by challenge-api-v6.
+ */
+function isCancelledChallengeStatus(status?: string): boolean {
+  return status
+    ? CANCELLED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
+}
 
 @Injectable()
 export class ChallengesService {
@@ -194,11 +219,7 @@ export class ChallengesService {
     prizes: Prize[],
     type?: WinningsCategory,
   ): PaymentPayload[] {
-    const isCancelledFailedReview =
-      challenge.status.toLowerCase() ===
-      ChallengeStatuses.CancelledFailedReview.toLowerCase();
-
-    if (isCancelledFailedReview) {
+    if (isCancelledChallengeStatus(challenge.status)) {
       return [];
     }
 
@@ -285,14 +306,10 @@ export class ChallengesService {
     challenge: Challenge,
     copilots: ChallengeResource[],
   ): PaymentPayload[] {
-    const isCancelledFailedReview =
-      challenge.status.toLowerCase() ===
-      ChallengeStatuses.CancelledFailedReview.toLowerCase();
-
     const copilotPrizes =
       find(challenge.prizeSets, { type: 'COPILOT' })?.prizes ?? [];
 
-    if (!copilotPrizes.length || isCancelledFailedReview) {
+    if (!copilotPrizes.length || isCancelledChallengeStatus(challenge.status)) {
       return [];
     }
 
@@ -625,12 +642,12 @@ export class ChallengesService {
       `Challenge ${challenge.id} - "${challenge.name}" with status "${challenge.status}" retrieved`,
     );
 
-    const allowedStatuses = [
-      ChallengeStatuses.Completed.toLowerCase(),
-      ChallengeStatuses.CancelledFailedReview.toLowerCase(),
-    ];
+    const isPayableStatus =
+      challenge.status.toLowerCase() ===
+        ChallengeStatuses.Completed.toLowerCase() ||
+      isCancelledChallengeStatus(challenge.status);
 
-    if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
+    if (!isPayableStatus) {
       this.logger.error(
         `Challenge ${challenge.id} isn't in a payable status: ${challenge.status}`,
       );

@@ -16,6 +16,19 @@ const LOCKED_CHALLENGE_STATUSES = [
   ChallengeStatuses.Approved,
 ].map((status) => status.toLowerCase());
 
+const CANCELLED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Deleted,
+  ChallengeStatuses.Canceled,
+  ChallengeStatuses.CancelledFailedReview,
+  ChallengeStatuses.CancelledFailedScreening,
+  ChallengeStatuses.CancelledZeroSubmissions,
+  ChallengeStatuses.CancelledWinnerUnresponsive,
+  ChallengeStatuses.CancelledClientRequest,
+  ChallengeStatuses.CancelledRequirementsInfeasible,
+  ChallengeStatuses.CancelledZeroRegistrations,
+  ChallengeStatuses.CancelledPaymentFailed,
+].map((status) => status.toLowerCase());
+
 interface LockAmountDTO {
   challengeId: string;
   amount: number;
@@ -65,6 +78,18 @@ export interface BAValidation {
 function isLockedChallengeStatus(status?: string): boolean {
   return status
     ? LOCKED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
+}
+
+/**
+ * Determines whether a challenge status represents a cancelled terminal state.
+ *
+ * @param status Challenge status received from challenge-api-v6.
+ * @returns True when finance should release or consume any challenge budget row.
+ */
+function isCancelledChallengeStatus(status?: string): boolean {
+  return status
+    ? CANCELLED_CHALLENGE_STATUSES.includes(status.toLowerCase())
     : false;
 }
 
@@ -373,34 +398,21 @@ export class BillingAccountsService {
             (rollback ? prevAmount : currAmount) * (1 + baValidation.markup!),
         });
       }
-    } else if (
-      [
-        ChallengeStatuses.Deleted,
-        ChallengeStatuses.Canceled,
-        ChallengeStatuses.CancelledFailedReview,
-        ChallengeStatuses.CancelledFailedScreening,
-        ChallengeStatuses.CancelledZeroSubmissions,
-        ChallengeStatuses.CancelledWinnerUnresponsive,
-        ChallengeStatuses.CancelledClientRequest,
-        ChallengeStatuses.CancelledRequirementsInfeasible,
-        ChallengeStatuses.CancelledZeroRegistrations,
-        ChallengeStatuses.CancelledPaymentFailed,
-      ].some((t) => t.toLowerCase() === status)
-    ) {
-      if (
-        baValidation.prevStatus?.toLowerCase() ===
-        ChallengeStatuses.Active.toLowerCase()
-      ) {
-        // Challenge canceled, unlock previous locked amount
-        const currAmount = 0;
-        const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;
+    } else if (isCancelledChallengeStatus(status)) {
+      const currAmount = baValidation.totalPrizesInCents / 100;
+      const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;
+      const targetAmount = rollback ? prevAmount : currAmount;
 
-        if (currAmount !== prevAmount) {
-          await this.lockAmount(billingAccountId, {
-            challengeId: baValidation.challengeId!,
-            amount: rollback ? prevAmount : 0,
-          });
-        }
+      if (targetAmount > 0) {
+        await this.consumeAmount(billingAccountId, {
+          challengeId: baValidation.challengeId!,
+          amount: targetAmount * (1 + baValidation.markup!),
+        });
+      } else {
+        await this.lockAmount(billingAccountId, {
+          challengeId: baValidation.challengeId!,
+          amount: 0,
+        });
       }
     }
   }
