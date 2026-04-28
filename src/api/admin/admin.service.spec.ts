@@ -45,19 +45,36 @@ jest.mock('src/shared/topcoder/challenges.service', () => ({
 }));
 
 import { AdminService } from './admin.service';
+import { PaymentStatus } from 'src/dto/payment.dto';
 
 describe('AdminService', () => {
   let service: AdminService;
   let prisma: {
+    $transaction: jest.Mock;
     audit: {
+      create: jest.Mock;
       findMany: jest.Mock;
+    };
+    payment: {
+      findMany: jest.Mock;
+      update: jest.Mock;
+    };
+    payment_releases: {
+      findFirst: jest.Mock;
+      updateMany: jest.Mock;
     };
     winnings: {
       findFirst: jest.Mock;
     };
   };
-  let paymentsService: object;
-  let baService: object;
+  let paymentsService: {
+    reconcileUserPayments: jest.Mock;
+  };
+  let baService: {
+    getBillingAccountById: jest.Mock;
+    getBillingAccountsForUser: jest.Mock;
+    lockConsumeAmount: jest.Mock;
+  };
   let accessControlService: {
     verifyAccess: jest.Mock;
   };
@@ -75,15 +92,35 @@ describe('AdminService', () => {
 
   beforeEach(() => {
     prisma = {
+      $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
+        Promise.resolve(callback(prisma)),
+      ),
       audit: {
+        create: jest.fn().mockResolvedValue({}),
         findMany: jest.fn().mockResolvedValue([]),
+      },
+      payment: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      payment_releases: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       winnings: {
         findFirst: jest.fn(),
       },
     };
-    paymentsService = {};
-    baService = {};
+    paymentsService = {
+      reconcileUserPayments: jest.fn().mockResolvedValue(undefined),
+    };
+    baService = {
+      getBillingAccountById: jest
+        .fn()
+        .mockResolvedValue({ id: 80001012, markup: 0.1 }),
+      getBillingAccountsForUser: jest.fn().mockResolvedValue(['80001012']),
+      lockConsumeAmount: jest.fn().mockResolvedValue(undefined),
+    };
     accessControlService = {
       verifyAccess: jest.fn().mockResolvedValue(undefined),
     };
@@ -341,6 +378,83 @@ describe('AdminService', () => {
     await expect(
       service.getWinningPaymentDetails('missing-winning', '123456', []),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('recalculates the challenge billing-account line item when a challenge payment is cancelled', async () => {
+    prisma.payment.findMany
+      .mockResolvedValueOnce([
+        {
+          billing_account: '80001012',
+          currency: 'USD',
+          installment_number: 1,
+          payment_id: 'payment-1',
+          payment_status: PaymentStatus.OWED,
+          release_date: new Date('2026-04-27T00:00:00.000Z'),
+          version: 1,
+          winnings: {
+            category: 'CONTEST_PAYMENT',
+            external_id: 'challenge-1',
+            type: 'PAYMENT',
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        { total_amount: '12.00' },
+        { total_amount: '27.50' },
+      ]);
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      billing: {
+        billingAccountId: '80001012',
+        markup: 0.1,
+      },
+      id: 'challenge-1',
+      status: 'COMPLETED',
+    });
+
+    const result = await service.updateWinnings(
+      {
+        paymentId: 'payment-1',
+        paymentStatus: PaymentStatus.CANCELLED,
+        winningsId: 'winning-1',
+      } as any,
+      'admin-1',
+      ['Payment Admin'],
+    );
+
+    expect(result.data).toBe('Successfully updated winnings');
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: {
+        payment_id: 'payment-1',
+        winnings_id: 'winning-1',
+        version: 1,
+      },
+      data: {
+        date_paid: undefined,
+        payment_status: PaymentStatus.CANCELLED,
+        updated_at: expect.any(Date),
+        updated_by: 'admin-1',
+        version: 2,
+      },
+    });
+    expect(prisma.payment.findMany).toHaveBeenNthCalledWith(2, {
+      select: { total_amount: true },
+      where: {
+        billing_account: '80001012',
+        currency: 'USD',
+        payment_status: { not: PaymentStatus.CANCELLED },
+        winnings: {
+          external_id: 'challenge-1',
+          type: 'PAYMENT',
+        },
+      },
+    });
+    expect(baService.lockConsumeAmount).toHaveBeenCalledWith({
+      billingAccountId: 80001012,
+      challengeId: 'challenge-1',
+      markup: 0.1,
+      status: 'COMPLETED',
+      totalPrizesInCents: 3950,
+    });
   });
 
   it('returns task details for task payment with projectId and approver', async () => {

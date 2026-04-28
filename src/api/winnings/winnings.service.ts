@@ -539,13 +539,14 @@ export class WinningsService {
   }
 
   /**
-   * Sums persisted USD payment rows for a challenge and billing account.
+   * Sums non-cancelled persisted USD payment rows for a challenge and billing
+   * account.
    *
    * @param tx active Prisma transaction.
    * @param challengeId challenge external id stored on winnings.
    * @param billingAccountId billing account stored on payment rows.
-   * @returns Payment-scale total USD amount for all persisted challenge
-   * payments on that billing account.
+   * @returns Payment-scale total USD amount for active challenge payments on
+   * that billing account.
    */
   private async getPersistedChallengePaymentTotal(
     tx: Prisma.TransactionClient,
@@ -557,6 +558,7 @@ export class WinningsService {
       where: {
         billing_account: String(billingAccountId),
         currency: PrizeType.USD,
+        payment_status: { not: payment_status.CANCELLED },
         winnings: {
           external_id: challengeId,
           type: winnings_type.PAYMENT,

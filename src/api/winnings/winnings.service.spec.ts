@@ -579,6 +579,7 @@ describe('WinningsService', () => {
       where: {
         billing_account: '80001012',
         currency: PrizeType.USD,
+        payment_status: { not: 'CANCELLED' },
         winnings: {
           external_id: 'challenge-id',
           type: 'PAYMENT',
