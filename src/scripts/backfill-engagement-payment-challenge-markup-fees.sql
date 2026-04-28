@@ -8,11 +8,18 @@
 --     BillingAccount.id.
 --   - Rows where payment.challenge_markup or payment.challenge_fee differs
 --     from the value derived from billing account markup and payment total_amount.
+--   - Matching billing-accounts ConsumedAmount rows for engagement payments
+--     whose amount does not include the derived challenge fee.
 --
 -- Calculation:
 --   - payment.challenge_markup = billing account markup, rounded to the
 --     payment column scale.
 --   - payment.challenge_fee = payment.total_amount * payment.challenge_markup.
+--   - "billing-accounts"."ConsumedAmount".amount = payment.total_amount +
+--     payment.challenge_fee, rounded to the billing ledger scale.
+--   - Finance payment rows are matched to billing ledger rows by assignment id,
+--     billing account, and creation order because the billing API stores
+--     engagement consumed rows without the finance payment id.
 --
 -- Run this against the PostgreSQL database that contains these schemas:
 --   - "finance"
@@ -146,6 +153,157 @@ SELECT
   COUNT(DISTINCT billing_account) AS "billingAccountsAffected"
 FROM updated;
 
+WITH finance_payment_rows AS (
+  SELECT
+    p.payment_id,
+    w.external_id AS "assignmentId",
+    p.billing_account AS "billingAccount",
+    ROW_NUMBER() OVER (
+      PARTITION BY w.external_id, p.billing_account
+      ORDER BY
+        COALESCE(p.created_at, w.created_at),
+        p.payment_id
+    ) AS "rowNumber",
+    ROUND(
+      (
+        p.total_amount
+        + ROUND(p.total_amount * ROUND(ba.markup::numeric, 2), 2)
+      )::numeric,
+      4
+    ) AS "expectedConsumedAmount"
+  FROM "finance"."payment" p
+  INNER JOIN "finance"."winnings" w
+    ON w.winning_id = p.winnings_id
+  INNER JOIN "billing-accounts"."BillingAccount" ba
+    ON p.billing_account ~ '^\d+$'
+   AND ba.id::text = p.billing_account
+  WHERE w.category::text = 'ENGAGEMENT_PAYMENT'
+    AND w.external_id IS NOT NULL
+    AND p.total_amount IS NOT NULL
+),
+billing_consumed_rows AS (
+  SELECT
+    consumed_amount.id,
+    consumed_amount."externalId" AS "assignmentId",
+    consumed_amount."billingAccountId"::text AS "billingAccount",
+    ROW_NUMBER() OVER (
+      PARTITION BY
+        consumed_amount."externalId",
+        consumed_amount."billingAccountId"
+      ORDER BY
+        consumed_amount."createdAt",
+        consumed_amount.id
+    ) AS "rowNumber",
+    consumed_amount.amount AS "currentConsumedAmount"
+  FROM "billing-accounts"."ConsumedAmount" consumed_amount
+  WHERE consumed_amount."externalType"::text = 'ENGAGEMENT'
+    AND EXISTS (
+      SELECT 1
+      FROM "finance"."payment" p
+      INNER JOIN "finance"."winnings" w
+        ON w.winning_id = p.winnings_id
+      WHERE w.category::text = 'ENGAGEMENT_PAYMENT'
+        AND w.external_id = consumed_amount."externalId"
+        AND p.billing_account = consumed_amount."billingAccountId"::text
+    )
+)
+SELECT
+  COUNT(*) FILTER (
+    WHERE finance_payment_rows.payment_id IS NOT NULL
+      AND billing_consumed_rows.id IS NULL
+  ) AS "financeRowsWithoutBillingConsumedRow",
+  COUNT(*) FILTER (
+    WHERE finance_payment_rows.payment_id IS NULL
+      AND billing_consumed_rows.id IS NOT NULL
+  ) AS "billingConsumedRowsWithoutFinancePayment",
+  COUNT(*) FILTER (
+    WHERE finance_payment_rows.payment_id IS NOT NULL
+      AND billing_consumed_rows.id IS NOT NULL
+      AND billing_consumed_rows."currentConsumedAmount" IS DISTINCT FROM
+        finance_payment_rows."expectedConsumedAmount"
+  ) AS "billingConsumedRowsToUpdate"
+FROM finance_payment_rows
+FULL OUTER JOIN billing_consumed_rows
+  ON billing_consumed_rows."assignmentId" = finance_payment_rows."assignmentId"
+ AND billing_consumed_rows."billingAccount" = finance_payment_rows."billingAccount"
+ AND billing_consumed_rows."rowNumber" = finance_payment_rows."rowNumber";
+
+WITH finance_payment_rows AS (
+  SELECT
+    p.payment_id,
+    w.external_id AS "assignmentId",
+    p.billing_account AS "billingAccount",
+    ROW_NUMBER() OVER (
+      PARTITION BY w.external_id, p.billing_account
+      ORDER BY
+        COALESCE(p.created_at, w.created_at),
+        p.payment_id
+    ) AS "rowNumber",
+    ROUND(
+      (
+        p.total_amount
+        + ROUND(p.total_amount * ROUND(ba.markup::numeric, 2), 2)
+      )::numeric,
+      4
+    ) AS "expectedConsumedAmount"
+  FROM "finance"."payment" p
+  INNER JOIN "finance"."winnings" w
+    ON w.winning_id = p.winnings_id
+  INNER JOIN "billing-accounts"."BillingAccount" ba
+    ON p.billing_account ~ '^\d+$'
+   AND ba.id::text = p.billing_account
+  WHERE w.category::text = 'ENGAGEMENT_PAYMENT'
+    AND w.external_id IS NOT NULL
+    AND p.total_amount IS NOT NULL
+),
+billing_consumed_rows AS (
+  SELECT
+    consumed_amount.id,
+    consumed_amount."externalId" AS "assignmentId",
+    consumed_amount."billingAccountId"::text AS "billingAccount",
+    ROW_NUMBER() OVER (
+      PARTITION BY
+        consumed_amount."externalId",
+        consumed_amount."billingAccountId"
+      ORDER BY
+        consumed_amount."createdAt",
+        consumed_amount.id
+    ) AS "rowNumber",
+    consumed_amount.amount AS "currentConsumedAmount"
+  FROM "billing-accounts"."ConsumedAmount" consumed_amount
+  WHERE consumed_amount."externalType"::text = 'ENGAGEMENT'
+),
+matched_rows AS (
+  SELECT
+    billing_consumed_rows.id,
+    finance_payment_rows."expectedConsumedAmount"
+  FROM finance_payment_rows
+  INNER JOIN billing_consumed_rows
+    ON billing_consumed_rows."assignmentId" = finance_payment_rows."assignmentId"
+   AND billing_consumed_rows."billingAccount" = finance_payment_rows."billingAccount"
+   AND billing_consumed_rows."rowNumber" = finance_payment_rows."rowNumber"
+  WHERE billing_consumed_rows."currentConsumedAmount" IS DISTINCT FROM
+    finance_payment_rows."expectedConsumedAmount"
+),
+updated AS (
+  UPDATE "billing-accounts"."ConsumedAmount" consumed_amount
+  SET
+    amount = matched_rows."expectedConsumedAmount",
+    "updatedAt" = CURRENT_TIMESTAMP
+  FROM matched_rows
+  WHERE consumed_amount.id = matched_rows.id
+  RETURNING
+    consumed_amount.id,
+    consumed_amount."billingAccountId",
+    consumed_amount."externalId",
+    consumed_amount.amount
+)
+SELECT
+  COUNT(*) AS "billingConsumedRowsUpdated",
+  COUNT(DISTINCT "externalId") AS "assignmentsAffected",
+  COUNT(DISTINCT "billingAccountId") AS "billingAccountsAffected"
+FROM updated;
+
 -- Post-update sample for verification.
 SELECT
   w.winning_id,
@@ -155,13 +313,18 @@ SELECT
   p.total_amount,
   p.challenge_markup,
   p.challenge_fee,
-  ba.markup AS "billingAccountMarkup"
+  ba.markup AS "billingAccountMarkup",
+  consumed_amount.amount AS "billingAccountConsumedAmount"
 FROM "finance"."winnings" w
 INNER JOIN "finance"."payment" p
   ON p.winnings_id = w.winning_id
 INNER JOIN "billing-accounts"."BillingAccount" ba
   ON p.billing_account ~ '^\d+$'
  AND ba.id::text = p.billing_account
+LEFT JOIN "billing-accounts"."ConsumedAmount" consumed_amount
+  ON consumed_amount."externalType"::text = 'ENGAGEMENT'
+ AND consumed_amount."externalId" = w.external_id
+ AND consumed_amount."billingAccountId"::text = p.billing_account
 WHERE w.category::text = 'ENGAGEMENT_PAYMENT'
 ORDER BY p.updated_at DESC NULLS LAST, p.created_at DESC NULLS LAST
 LIMIT 25;
