@@ -3,6 +3,7 @@ import { isNumber, includes } from 'lodash';
 import { ENV_CONFIG } from 'src/config';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { Logger } from 'src/shared/global';
+import { getBaClient } from 'src/shared/global/ba-prisma.client';
 import {
   TopcoderM2MHttpError,
   TopcoderM2MService,
@@ -46,6 +47,21 @@ interface ConsumeAmountsItemDTO extends ConsumeAmountDTO {
 
 interface ConsumeAmountsDTO {
   consumes: ConsumeAmountsItemDTO[];
+}
+
+interface SyncEngagementConsumeAmountsDTO {
+  amounts: number[];
+  billingAccountId: number;
+  externalId: string;
+}
+
+interface BillingAccountLedgerRow {
+  id: string;
+}
+
+interface BillingAccountLedgerTransaction {
+  $executeRawUnsafe(query: string, ...values: unknown[]): Promise<number>;
+  $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
 }
 
 interface BillingAccountDetailsResponse {
@@ -346,6 +362,205 @@ export class BillingAccountsService {
       this.logger.error(exception.message, err);
       throw exception;
     }
+  }
+
+  /**
+   * Detects whether the billing-account ledger uses typed external references.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @returns true when consumed rows expose `externalId` and `externalType`,
+   * false for the legacy `challengeId` column shape.
+   * @throws Prisma errors when the metadata query fails.
+   */
+  private async hasTypedConsumedAmountReferences(
+    tx: BillingAccountLedgerTransaction,
+  ): Promise<boolean> {
+    const rows = await tx.$queryRawUnsafe<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'ConsumedAmount'
+          AND table_schema = ANY (current_schemas(false))
+          AND column_name = 'externalId'
+      ) AS "exists"`,
+    );
+
+    return Boolean(rows[0]?.exists);
+  }
+
+  /**
+   * Reads consumed ledger rows for one engagement assignment.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @param billingAccountId target billing account id.
+   * @param externalId engagement assignment id.
+   * @param hasTypedReferences whether the ledger uses typed external reference
+   * columns.
+   * @returns matching consumed row ids ordered by ledger creation order.
+   * @throws Prisma errors when the row query fails.
+   */
+  private async getEngagementConsumedRows(
+    tx: BillingAccountLedgerTransaction,
+    billingAccountId: number,
+    externalId: string,
+    hasTypedReferences: boolean,
+  ): Promise<BillingAccountLedgerRow[]> {
+    if (hasTypedReferences) {
+      return tx.$queryRawUnsafe<BillingAccountLedgerRow[]>(
+        `SELECT id
+         FROM "ConsumedAmount"
+         WHERE "billingAccountId" = $1
+           AND "externalId" = $2
+           AND "externalType"::text = 'ENGAGEMENT'
+         ORDER BY "createdAt" ASC, id ASC`,
+        billingAccountId,
+        externalId,
+      );
+    }
+
+    return tx.$queryRawUnsafe<BillingAccountLedgerRow[]>(
+      `SELECT id
+       FROM "ConsumedAmount"
+       WHERE "billingAccountId" = $1
+         AND "challengeId" = $2
+       ORDER BY "createdAt" ASC, id ASC`,
+      billingAccountId,
+      externalId,
+    );
+  }
+
+  /**
+   * Rewrites one consumed ledger row amount.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @param rowId consumed row id.
+   * @param amount ledger-scale amount to persist.
+   * @returns promise resolved after the row is updated.
+   * @throws Prisma errors when the update fails.
+   */
+  private async updateEngagementConsumedRow(
+    tx: BillingAccountLedgerTransaction,
+    rowId: string,
+    amount: number,
+  ): Promise<void> {
+    await tx.$executeRawUnsafe(
+      `UPDATE "ConsumedAmount"
+       SET amount = $1,
+           "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      amount,
+      rowId,
+    );
+  }
+
+  /**
+   * Deletes consumed ledger rows that no longer have active finance payments.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @param rows consumed rows to remove.
+   * @returns promise resolved after every row is deleted.
+   * @throws Prisma errors when a delete fails.
+   */
+  private async deleteEngagementConsumedRows(
+    tx: BillingAccountLedgerTransaction,
+    rows: BillingAccountLedgerRow[],
+  ): Promise<void> {
+    for (const row of rows) {
+      await tx.$executeRawUnsafe(
+        `DELETE FROM "ConsumedAmount"
+         WHERE id = $1`,
+        row.id,
+      );
+    }
+  }
+
+  /**
+   * Reconciles consumed BA ledger rows for one engagement assignment.
+   *
+   * Engagement consumes are written as one billing-account consumed row per
+   * finance payment. Wallet-admin cancellation must therefore rewrite the rows
+   * for the assignment to match the still-active finance payments and delete
+   * stale rows for payments that are now cancelled.
+   *
+   * @param dto engagement assignment external id, billing account id, and
+   * active ledger amounts to keep.
+   * @returns promise resolved after the billing-account ledger rows are synced.
+   * @throws BadRequestException when the sync target or amounts are invalid.
+   * @throws Prisma errors when the billing-account database update fails.
+   */
+  async syncEngagementConsumeAmounts(
+    dto: SyncEngagementConsumeAmountsDTO,
+  ): Promise<void> {
+    const externalId =
+      typeof dto.externalId === 'string' ? dto.externalId.trim() : '';
+
+    if (
+      !Number.isSafeInteger(dto.billingAccountId) ||
+      dto.billingAccountId <= 0
+    ) {
+      throw new BadRequestException(
+        'billingAccountId must be a positive integer',
+      );
+    }
+
+    if (!externalId) {
+      throw new BadRequestException('externalId is required');
+    }
+
+    if (includes(TGBillingAccounts, dto.billingAccountId)) {
+      this.logger.info(
+        'Ignore BA validation for Topgear account:',
+        dto.billingAccountId,
+      );
+      return;
+    }
+
+    const amounts = dto.amounts.filter((amount) => {
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new BadRequestException(
+          'engagement consume amounts must be non-negative finite numbers',
+        );
+      }
+
+      return amount > 0;
+    });
+
+    const baClient = getBaClient();
+
+    await baClient.$transaction(async (tx) => {
+      const hasTypedReferences =
+        await this.hasTypedConsumedAmountReferences(tx);
+      const existingRows = await this.getEngagementConsumedRows(
+        tx,
+        dto.billingAccountId,
+        externalId,
+        hasTypedReferences,
+      );
+      const syncAmounts = hasTypedReferences
+        ? amounts
+        : [
+            Number(amounts.reduce((sum, amount) => sum + amount, 0).toFixed(4)),
+          ].filter((amount) => amount > 0);
+
+      for (const [index, amount] of syncAmounts.entries()) {
+        const existingRow = existingRows[index];
+
+        if (existingRow) {
+          await this.updateEngagementConsumedRow(tx, existingRow.id, amount);
+          continue;
+        }
+
+        this.logger.warn(
+          `Missing engagement consumed row for assignment ${externalId} on billing account ${dto.billingAccountId}`,
+        );
+      }
+
+      const staleRows = existingRows.slice(syncAmounts.length);
+
+      if (staleRows.length > 0) {
+        await this.deleteEngagementConsumedRows(tx, staleRows);
+      }
+    });
   }
 
   async lockConsumeAmount(

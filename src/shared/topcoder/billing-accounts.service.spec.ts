@@ -17,6 +17,18 @@ jest.mock('src/shared/global', () => ({
   },
 }));
 
+const mockBaTx = {
+  $executeRawUnsafe: jest.fn(),
+  $queryRawUnsafe: jest.fn(),
+};
+const mockBaClient = {
+  $transaction: jest.fn(),
+};
+
+jest.mock('src/shared/global/ba-prisma.client', () => ({
+  getBaClient: jest.fn(() => mockBaClient),
+}));
+
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { BillingAccountsService } from './billing-accounts.service';
 
@@ -24,6 +36,15 @@ describe('BillingAccountsService', () => {
   let service: BillingAccountsService;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    mockBaTx.$executeRawUnsafe.mockResolvedValue(undefined);
+    mockBaTx.$queryRawUnsafe
+      .mockResolvedValueOnce([{ exists: true }])
+      .mockResolvedValueOnce([]);
+    mockBaClient.$transaction.mockImplementation(
+      (callback: (tx: typeof mockBaTx) => unknown) => callback(mockBaTx),
+    );
+
     service = new BillingAccountsService({} as any);
   });
 
@@ -94,5 +115,82 @@ describe('BillingAccountsService', () => {
       challengeId: 'challenge-id',
     });
     expect(consumeAmountSpy).not.toHaveBeenCalled();
+  });
+
+  it('deletes stale engagement consumed rows when no active amounts remain', async () => {
+    mockBaTx.$queryRawUnsafe
+      .mockReset()
+      .mockResolvedValueOnce([{ exists: true }])
+      .mockResolvedValueOnce([{ id: 'consumed-row-1' }]);
+
+    await service.syncEngagementConsumeAmounts({
+      amounts: [],
+      billingAccountId: 80001012,
+      externalId: 'assignment-1',
+    });
+
+    expect(mockBaTx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('"externalId" = $2'),
+      80001012,
+      'assignment-1',
+    );
+    expect(mockBaTx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM "ConsumedAmount"'),
+      'consumed-row-1',
+    );
+  });
+
+  it('syncs engagement consumed rows to the active ledger amounts', async () => {
+    mockBaTx.$queryRawUnsafe
+      .mockReset()
+      .mockResolvedValueOnce([{ exists: true }])
+      .mockResolvedValueOnce([{ id: 'consumed-row-1' }, { id: 'stale-row-1' }]);
+
+    await service.syncEngagementConsumeAmounts({
+      amounts: [24.2, 12],
+      billingAccountId: 80001012,
+      externalId: 'assignment-1',
+    });
+
+    expect(mockBaTx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE "ConsumedAmount"'),
+      24.2,
+      'consumed-row-1',
+    );
+    expect(mockBaTx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE "ConsumedAmount"'),
+      12,
+      'stale-row-1',
+    );
+    expect(mockBaTx.$executeRawUnsafe).not.toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM "ConsumedAmount"'),
+      expect.any(String),
+    );
+  });
+
+  it('syncs legacy consumed rows with the aggregate active amount', async () => {
+    mockBaTx.$queryRawUnsafe
+      .mockReset()
+      .mockResolvedValueOnce([{ exists: false }])
+      .mockResolvedValueOnce([{ id: 'legacy-row-1' }]);
+
+    await service.syncEngagementConsumeAmounts({
+      amounts: [24.2, 12],
+      billingAccountId: 80001012,
+      externalId: 'assignment-1',
+    });
+
+    expect(mockBaTx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('"challengeId" = $2'),
+      80001012,
+      'assignment-1',
+    );
+    expect(mockBaTx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE "ConsumedAmount"'),
+      36.2,
+      'legacy-row-1',
+    );
   });
 });
