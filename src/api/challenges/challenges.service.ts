@@ -28,7 +28,10 @@ import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.ser
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
-import { WinningsService } from '../winnings/winnings.service';
+import {
+  CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE,
+  WinningsService,
+} from '../winnings/winnings.service';
 import {
   WinningRequestDto,
   WinningsCategory,
@@ -492,36 +495,45 @@ export class ChallengesService {
       0,
     );
 
-    return payments.map((payment) => ({
-      winnerId: payment.userId.toString(),
-      type:
-        payment.currency === PrizeType.USD
-          ? WinningsType.PAYMENT
-          : WinningsType.POINTS,
-      origin: 'Topcoder',
-      category: payment.type,
-      title: challenge.name,
-      description: payment.description || challenge.name,
-      externalId: challenge.id,
-      ...(payment.status ? { status: payment.status } : {}),
-      details: [
-        {
-          totalAmount: payment.amount,
-          grossAmount: payment.amount,
-          installmentNumber: 1,
-          currency: payment.currency || PrizeType.USD,
-          billingAccount: `${challenge.billing.billingAccountId}`,
-          challengeFee: totalUsdAmount * challenge.billing.markup,
+    return payments.map((payment) => {
+      const paymentStatus =
+        payment.status ??
+        (challenge.task?.isTask && payment.currency === PrizeType.USD
+          ? PaymentStatus.ON_HOLD_ADMIN
+          : undefined);
+
+      return {
+        winnerId: payment.userId.toString(),
+        type:
+          payment.currency === PrizeType.USD
+            ? WinningsType.PAYMENT
+            : WinningsType.POINTS,
+        origin: 'Topcoder',
+        category: payment.type,
+        title: challenge.name,
+        description: payment.description || challenge.name,
+        externalId: challenge.id,
+        ...(paymentStatus ? { status: paymentStatus } : {}),
+        details: [
+          {
+            totalAmount: payment.amount,
+            grossAmount: payment.amount,
+            installmentNumber: 1,
+            currency: payment.currency || PrizeType.USD,
+            billingAccount: `${challenge.billing.billingAccountId}`,
+            challengeFee: totalUsdAmount * challenge.billing.markup,
+          },
+        ],
+        attributes: {
+          billingAccountId: challenge.billing.billingAccountId,
+          [CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE]: true,
+          payroll: includes(
+            TGBillingAccounts,
+            parseInt(challenge.billing.billingAccountId),
+          ),
         },
-      ],
-      attributes: {
-        billingAccountId: challenge.billing.billingAccountId,
-        payroll: includes(
-          TGBillingAccounts,
-          parseInt(challenge.billing.billingAccountId),
-        ),
-      },
-    }));
+      };
+    });
   }
 
   private async createPayments(challenge: Challenge, userId: string) {

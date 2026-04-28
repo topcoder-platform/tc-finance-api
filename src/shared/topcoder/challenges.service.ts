@@ -20,10 +20,16 @@ export interface AdminPaymentUpdateData {
 }
 
 export interface TopcoderChallengeInfo {
+  billing?: {
+    billingAccountId?: number | string | null;
+    clientBillingRate?: number | string | null;
+    markup?: number | string | null;
+  };
+  createdBy?: string;
   id: string;
   name: string;
   projectId: number;
-  createdBy?: string;
+  status?: string;
 }
 
 export interface TopcoderProjectInfo {

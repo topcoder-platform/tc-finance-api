@@ -10,6 +10,12 @@ import {
 
 const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
 
+const LOCKED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Draft,
+  ChallengeStatuses.Active,
+  ChallengeStatuses.Approved,
+].map((status) => status.toLowerCase());
+
 interface LockAmountDTO {
   challengeId: string;
   amount: number;
@@ -47,6 +53,19 @@ export interface BAValidation {
   status?: string;
   prevTotalPrizesInCents?: number;
   totalPrizesInCents: number;
+}
+
+/**
+ * Determines whether a challenge status should reserve billing-account budget
+ * without consuming it.
+ *
+ * @param status Challenge status received from challenge-api-v6.
+ * @returns True when finance should write the challenge amount as locked.
+ */
+function isLockedChallengeStatus(status?: string): boolean {
+  return status
+    ? LOCKED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
 }
 
 @Injectable()
@@ -329,10 +348,7 @@ export class BillingAccountsService {
     this.logger.log('BA validation:', baValidation);
 
     const status = baValidation.status?.toLowerCase();
-    if (
-      status === ChallengeStatuses.Active.toLowerCase() ||
-      status === ChallengeStatuses.Approved.toLowerCase()
-    ) {
+    if (isLockedChallengeStatus(status)) {
       // Update lock amount
       const currAmount = baValidation.totalPrizesInCents / 100;
       const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;

@@ -25,6 +25,7 @@ import { ChallengesService } from './challenges.service';
 import { PrizeType } from './models';
 import { WinningsCategory } from 'src/dto/winning.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
+import { CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE } from '../winnings/winnings.service';
 
 describe('ChallengesService', () => {
   it('skips creating payments for fun challenges', async () => {
@@ -181,16 +182,14 @@ describe('ChallengesService', () => {
     jest
       .spyOn(service, 'getChallengeResources')
       .mockResolvedValue({ winner: [] } as any);
-    jest
-      .spyOn(service, 'generatePlacementWinnersPayments')
-      .mockReturnValue([
-        {
-          userId: '40158994',
-          amount: 500,
-          type: WinningsCategory.TASK_PAYMENT,
-          currency: PrizeType.USD,
-        },
-      ] as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.TASK_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
     jest
       .spyOn(service, 'generateCheckpointWinnersPayments')
       .mockReturnValue([]);
@@ -210,6 +209,9 @@ describe('ChallengesService', () => {
         status: PaymentStatus.ON_HOLD_ADMIN,
       }),
     ]);
+    expect(winnings[0].attributes).toMatchObject({
+      [CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE]: true,
+    });
   });
 
   it('does not force ON_HOLD_ADMIN status for non-task challenge winnings', async () => {
@@ -224,16 +226,14 @@ describe('ChallengesService', () => {
     jest
       .spyOn(service, 'getChallengeResources')
       .mockResolvedValue({ winner: [] } as any);
-    jest
-      .spyOn(service, 'generatePlacementWinnersPayments')
-      .mockReturnValue([
-        {
-          userId: '40158994',
-          amount: 500,
-          type: WinningsCategory.CONTEST_PAYMENT,
-          currency: PrizeType.USD,
-        },
-      ] as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.CONTEST_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
     jest
       .spyOn(service, 'generateCheckpointWinnersPayments')
       .mockReturnValue([]);

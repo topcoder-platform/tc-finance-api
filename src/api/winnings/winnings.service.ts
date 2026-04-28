@@ -35,10 +35,15 @@ import { IdentityVerificationRepository } from '../repository/identity-verificat
 import { PrizeType } from '../challenges/models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.service';
+import {
+  TopcoderChallengeInfo,
+  TopcoderChallengesService,
+} from 'src/shared/topcoder/challenges.service';
 import { TopcoderM2MHttpError } from 'src/shared/topcoder/topcoder-m2m.service';
 
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
 const PAYMENT_DECIMAL_PLACES = 2;
+export const CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE = 'skipChallengeBudgetSync';
 
 interface EngagementBillingAccountConsume {
   amount: number;
@@ -51,6 +56,17 @@ interface EngagementBillingAccountConsumePlan {
   billingAccountId: number;
   challengeMarkup: number;
   consumes: EngagementBillingAccountConsume[];
+}
+
+interface ChallengeBillingAccountSync {
+  billingAccountId: number;
+  markup: number;
+}
+
+interface ChallengeBillingAccountSyncPlan {
+  billingAccounts: ChallengeBillingAccountSync[];
+  challengeId: string;
+  status: string;
 }
 
 /**
@@ -69,6 +85,7 @@ export class WinningsService {
    * @param tcMembersService Topcoder member profile client.
    * @param identityVerificationRepo repository for identity verification checks.
    * @param tcEmailService Topcoder email client.
+   * @param topcoderChallengesService Topcoder challenge client.
    * @param topcoderEngagementsService Topcoder engagements client.
    * @param billingAccountsService Topcoder billing-account client.
    */
@@ -80,13 +97,15 @@ export class WinningsService {
     private readonly tcMembersService: TopcoderMembersService,
     private readonly identityVerificationRepo: IdentityVerificationRepository,
     private readonly tcEmailService: TopcoderEmailService,
+    private readonly topcoderChallengesService: TopcoderChallengesService,
     private readonly topcoderEngagementsService: TopcoderEngagementsService,
     private readonly billingAccountsService: BillingAccountsService,
   ) {}
 
   /**
    * Builds the persisted winning attributes object.
-   * @param attributes Arbitrary attributes supplied by the client.
+   * @param attributes Arbitrary attributes supplied by the client. The internal
+   * challenge budget sync skip marker is removed before persistence.
    * @param hoursWorked Optional engagement-payment hours to persist.
    * @returns The normalized attributes object, or `undefined` when empty.
    */
@@ -98,6 +117,7 @@ export class WinningsService {
       attributes && typeof attributes === 'object' && !Array.isArray(attributes)
         ? { ...attributes }
         : {};
+    delete normalizedAttributes[CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE];
 
     if (hoursWorked !== undefined) {
       normalizedAttributes.hoursWorked = hoursWorked;
@@ -233,6 +253,239 @@ export class WinningsService {
     }
 
     return parsedBillingAccountId;
+  }
+
+  /**
+   * Checks whether the winning request opts out of per-winning challenge budget
+   * synchronization.
+   *
+   * @param body incoming winning creation request.
+   * @returns True when another caller will manage the aggregate challenge
+   * billing-account row.
+   */
+  private shouldSkipChallengeBudgetSync(
+    body: WinningCreateRequestDto,
+  ): boolean {
+    const attributes =
+      body.attributes &&
+      typeof body.attributes === 'object' &&
+      !Array.isArray(body.attributes)
+        ? (body.attributes as Record<string, unknown>)
+        : undefined;
+
+    return attributes?.[CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE] === true;
+  }
+
+  /**
+   * Normalizes the billing-account id from a challenge payment detail.
+   *
+   * @param detail payment detail supplied in the winning request.
+   * @param detailIndex zero-based detail index for error reporting.
+   * @returns positive integer billing account id.
+   * @throws BadRequestException when the detail cannot be mapped to an id.
+   */
+  private normalizeChallengeBillingAccountId(
+    detail: PaymentCreateRequestDto,
+    detailIndex: number,
+  ): number {
+    const rawBillingAccount = String(detail.billingAccount ?? '').trim();
+    const billingAccountId = Number(rawBillingAccount);
+
+    if (
+      !rawBillingAccount ||
+      !/^\d+$/.test(rawBillingAccount) ||
+      !Number.isSafeInteger(billingAccountId) ||
+      billingAccountId <= 0
+    ) {
+      throw new BadRequestException(
+        `details[${detailIndex}].billingAccount must be a valid billing account id`,
+      );
+    }
+
+    return billingAccountId;
+  }
+
+  /**
+   * Finds the distinct billing accounts touched by USD challenge payment details.
+   *
+   * @param body incoming winning creation request.
+   * @returns Unique positive billing-account ids from USD payment details.
+   * @throws BadRequestException when a USD detail has an invalid billing account.
+   */
+  private getChallengePaymentBillingAccountIds(
+    body: WinningCreateRequestDto,
+  ): number[] {
+    const billingAccountIds = new Set<number>();
+
+    for (const [detailIndex, detail] of (body.details || []).entries()) {
+      if (String(detail.currency) !== String(PrizeType.USD)) {
+        continue;
+      }
+
+      billingAccountIds.add(
+        this.normalizeChallengeBillingAccountId(detail, detailIndex),
+      );
+    }
+
+    return [...billingAccountIds];
+  }
+
+  /**
+   * Resolves the markup rate to use for a challenge billing-account sync.
+   *
+   * @param challenge challenge-api-v6 challenge details.
+   * @param billingAccountId billing account being synchronized.
+   * @returns Non-negative markup rate.
+   * @throws InternalServerErrorException when no valid markup can be resolved.
+   */
+  private async resolveChallengeBillingMarkup(
+    challenge: TopcoderChallengeInfo,
+    billingAccountId: number,
+  ): Promise<number> {
+    const candidateMarkups = [
+      challenge.billing?.clientBillingRate,
+      challenge.billing?.markup,
+    ];
+
+    for (const candidateMarkup of candidateMarkups) {
+      const markup = Number(candidateMarkup);
+
+      if (Number.isFinite(markup) && markup >= 0) {
+        return markup;
+      }
+    }
+
+    const billingAccount =
+      await this.billingAccountsService.getBillingAccountById(billingAccountId);
+
+    if (!Number.isFinite(billingAccount.markup) || billingAccount.markup < 0) {
+      throw new InternalServerErrorException(
+        `Billing account ${billingAccountId} has invalid markup`,
+      );
+    }
+
+    return billingAccount.markup;
+  }
+
+  /**
+   * Builds the challenge budget synchronization plan for a winning request.
+   *
+   * Finance only synchronizes non-engagement USD payment requests that point to
+   * an existing challenge. Challenge-generated payment batches set an internal
+   * skip marker because they already write one aggregate budget row after all
+   * generated payments are attempted.
+   *
+   * @param body incoming winning creation request.
+   * @returns Billing-account sync plan, or `undefined` when the request is not
+   * a challenge payment.
+   * @throws BadRequestException when a challenge payment detail has an invalid
+   * billing account.
+   * @throws InternalServerErrorException when markup cannot be resolved.
+   */
+  private async buildChallengeBillingAccountSyncPlan(
+    body: WinningCreateRequestDto,
+  ): Promise<ChallengeBillingAccountSyncPlan | undefined> {
+    const challengeId = String(body.externalId ?? '').trim();
+
+    if (
+      this.shouldSkipChallengeBudgetSync(body) ||
+      body.category === WinningsCategory.ENGAGEMENT_PAYMENT ||
+      body.type !== WinningsType.PAYMENT ||
+      !challengeId
+    ) {
+      return undefined;
+    }
+
+    const billingAccountIds = this.getChallengePaymentBillingAccountIds(body);
+
+    if (billingAccountIds.length === 0) {
+      return undefined;
+    }
+
+    const challenge =
+      await this.topcoderChallengesService.getChallengeById(challengeId);
+
+    if (!challenge?.id || !challenge.status) {
+      return undefined;
+    }
+
+    return {
+      billingAccounts: await Promise.all(
+        billingAccountIds.map(async (billingAccountId) => ({
+          billingAccountId,
+          markup: await this.resolveChallengeBillingMarkup(
+            challenge,
+            billingAccountId,
+          ),
+        })),
+      ),
+      challengeId,
+      status: challenge.status,
+    };
+  }
+
+  /**
+   * Sums persisted USD payment rows for a challenge and billing account.
+   *
+   * @param tx active Prisma transaction.
+   * @param challengeId challenge external id stored on winnings.
+   * @param billingAccountId billing account stored on payment rows.
+   * @returns Payment-scale total USD amount for all persisted challenge
+   * payments on that billing account.
+   */
+  private async getPersistedChallengePaymentTotal(
+    tx: Prisma.TransactionClient,
+    challengeId: string,
+    billingAccountId: number,
+  ): Promise<number> {
+    const payments = await tx.payment.findMany({
+      select: { total_amount: true },
+      where: {
+        billing_account: String(billingAccountId),
+        currency: PrizeType.USD,
+        winnings: {
+          external_id: challengeId,
+          type: winnings_type.PAYMENT,
+        },
+      },
+    });
+    const totalAmount = payments.reduce(
+      (sum, paymentRow) =>
+        sum.plus(new Prisma.Decimal(paymentRow.total_amount ?? 0)),
+      new Prisma.Decimal(0),
+    );
+
+    return this.toPaymentAmount(totalAmount);
+  }
+
+  /**
+   * Synchronizes challenge payment totals into billing-account locked/consumed rows.
+   *
+   * @param tx active Prisma transaction after the winning row has been created.
+   * @param syncPlan challenge billing-account sync plan.
+   * @returns Resolves when all affected billing accounts are synchronized.
+   */
+  private async syncChallengeBillingAccountBudget(
+    tx: Prisma.TransactionClient,
+    syncPlan: ChallengeBillingAccountSyncPlan,
+  ): Promise<void> {
+    await Promise.all(
+      syncPlan.billingAccounts.map(async ({ billingAccountId, markup }) => {
+        const totalUsdAmount = await this.getPersistedChallengePaymentTotal(
+          tx,
+          syncPlan.challengeId,
+          billingAccountId,
+        );
+
+        await this.billingAccountsService.lockConsumeAmount({
+          billingAccountId,
+          challengeId: syncPlan.challengeId,
+          markup,
+          status: syncPlan.status,
+          totalPrizesInCents: totalUsdAmount * 100,
+        });
+      }),
+    );
   }
 
   /**
@@ -751,13 +1004,16 @@ export class WinningsService {
    * Create winnings with parameters. Engagement payment requests derive
    * `payment.challenge_markup` and `payment.challenge_fee` from the trusted
    * project billing account and are gated by billing-account budget
-   * consumption before the transaction can complete.
+   * consumption before the transaction can complete. Challenge payment
+   * requests that point to a challenge synchronize the aggregate persisted USD
+   * payment total back to billing-account locked or consumed rows based on the
+   * current challenge status.
    *
    * @param body the request body
    * @param userId the request userId
    * @returns the Promise with response result
-   * @throws BadRequestException when engagement payment budget consume fails or
-   * engagement payment input is invalid.
+   * @throws BadRequestException when billing-account budget sync fails or
+   * payment input is invalid.
    */
   async createWinningWithPayments(
     body: WinningCreateRequestDto,
@@ -769,6 +1025,8 @@ export class WinningsService {
     const engagementConsumePlan = isEngagementPayment
       ? await this.buildEngagementBillingAccountConsumePlan(body)
       : undefined;
+    const challengeBillingAccountSyncPlan =
+      await this.buildChallengeBillingAccountSyncPlan(body);
     let setupEmailNotificationAmount: number | undefined;
 
     this.logger.debug(
@@ -977,6 +1235,13 @@ export class WinningsService {
 
       if (engagementConsumePlan) {
         await this.consumeEngagementBillingAccounts(engagementConsumePlan);
+      }
+
+      if (challengeBillingAccountSyncPlan) {
+        await this.syncChallengeBillingAccountBudget(
+          tx,
+          challengeBillingAccountSyncPlan,
+        );
       }
 
       if (
