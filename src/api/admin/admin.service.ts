@@ -726,7 +726,7 @@ export class AdminService {
           await this.topcoderChallengesService.getChallengeById(externalId);
         if (challenge?.createdBy) {
           taskDetails.paymentCreatorHandle = await this.getPaymentCreatorHandle(
-            challenge.createdBy
+            challenge.createdBy,
           );
         }
         if (challenge?.projectId) {

@@ -173,7 +173,10 @@ export class WinningRequestDto extends SortPagination {
     description: 'Multiple winnings categories to filter by',
     enum: WinningsCategory,
     isArray: true,
-    example: [WinningsCategory.ENGAGEMENT_PAYMENT, WinningsCategory.TASK_PAYMENT],
+    example: [
+      WinningsCategory.ENGAGEMENT_PAYMENT,
+      WinningsCategory.TASK_PAYMENT,
+    ],
   })
   @IsOptional()
   @IsArray()

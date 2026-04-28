@@ -30,9 +30,7 @@ describe('AccessControlService', () => {
       roleName: Role.PaymentAdmin,
       applyFilter: paymentAdminApplyFilter,
     };
-    const approverProvider: RoleAccessProvider<
-      Record<string, unknown>
-    > = {
+    const approverProvider: RoleAccessProvider<Record<string, unknown>> = {
       roleName: Role.PaymentApprover,
       applyFilter: approverApplyFilter,
     };
@@ -63,9 +61,7 @@ describe('AccessControlService', () => {
           categories: ['ENGAGEMENT_PAYMENT', 'TASK_PAYMENT'],
         }),
       );
-    const approverProvider: RoleAccessProvider<
-      Record<string, unknown>
-    > = {
+    const approverProvider: RoleAccessProvider<Record<string, unknown>> = {
       roleName: Role.PaymentApprover,
       applyFilter: approverApplyFilter,
     };
