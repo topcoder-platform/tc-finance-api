@@ -36,10 +36,16 @@ import {
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 
 const PAYMENT_DECIMAL_PLACES = 2;
+const BUDGET_LEDGER_DECIMAL_PLACES = 4;
 
 interface ChallengeBudgetSyncTarget {
   billingAccountId: number;
   challengeId: string;
+}
+
+interface EngagementBudgetSyncTarget {
+  assignmentId: string;
+  billingAccountId: number;
 }
 
 /**
@@ -395,6 +401,55 @@ export class AdminService {
   }
 
   /**
+   * Finds engagement billing-account rows that need to be reconciled after a
+   * wallet-admin payment status change.
+   *
+   * @param payments payment rows selected by the update request.
+   * @returns unique engagement assignment and billing-account pairs touched by
+   * USD engagement payments.
+   * @throws This helper does not throw.
+   */
+  private getEngagementBudgetSyncTargets(
+    payments: Awaited<ReturnType<AdminService['getPaymentsByWinningsId']>>,
+  ): EngagementBudgetSyncTarget[] {
+    const targets = new Map<string, EngagementBudgetSyncTarget>();
+
+    payments.forEach((payment) => {
+      const assignmentId =
+        typeof payment.winnings.external_id === 'string'
+          ? payment.winnings.external_id.trim()
+          : '';
+
+      if (
+        !assignmentId ||
+        payment.winnings.type !== winnings_type.PAYMENT ||
+        payment.winnings.category !== winnings_category.ENGAGEMENT_PAYMENT ||
+        (payment.currency ?? '') !== 'USD'
+      ) {
+        return;
+      }
+
+      const billingAccountId = this.normalizeBillingAccountId(
+        payment.billing_account,
+      );
+
+      if (!billingAccountId) {
+        this.logger.warn(
+          `Skipping engagement budget sync for payment ${payment.payment_id}; invalid billing account ${String(payment.billing_account)}`,
+        );
+        return;
+      }
+
+      targets.set(`${assignmentId}:${billingAccountId}`, {
+        assignmentId,
+        billingAccountId,
+      });
+    });
+
+    return [...targets.values()];
+  }
+
+  /**
    * Resolves the billing account to synchronize for a challenge.
    *
    * @param challenge challenge-api-v6 payload.
@@ -462,6 +517,25 @@ export class AdminService {
       amount
         .toDecimalPlaces(PAYMENT_DECIMAL_PLACES, Prisma.Decimal.ROUND_HALF_UP)
         .toFixed(PAYMENT_DECIMAL_PLACES),
+    );
+  }
+
+  /**
+   * Quantizes a billing-account ledger amount to the same four-decimal scale
+   * used by billing-accounts-api-v6.
+   *
+   * @param amount decimal amount to normalize.
+   * @returns JavaScript number rounded to four decimal places.
+   * @throws This helper does not throw.
+   */
+  private toBillingLedgerAmount(amount: Prisma.Decimal): number {
+    return Number(
+      amount
+        .toDecimalPlaces(
+          BUDGET_LEDGER_DECIMAL_PLACES,
+          Prisma.Decimal.ROUND_HALF_UP,
+        )
+        .toFixed(BUDGET_LEDGER_DECIMAL_PLACES),
     );
   }
 
@@ -542,6 +616,74 @@ export class AdminService {
           markup,
           status: challenge.status,
           totalPrizesInCents: totalUsdAmount * 100,
+        });
+      }),
+    );
+  }
+
+  /**
+   * Reads active engagement payment ledger amounts for one assignment.
+   *
+   * @param assignmentId engagement assignment external id stored on winnings.
+   * @param billingAccountId billing account stored on payment rows.
+   * @returns ledger-scale consumed amounts for non-cancelled finance payments,
+   * in the same order used when engagement consumed rows were created.
+   * @throws Prisma errors when the payment query fails.
+   */
+  private async getActiveEngagementConsumeAmounts(
+    assignmentId: string,
+    billingAccountId: number,
+  ): Promise<number[]> {
+    const payments = await this.prisma.payment.findMany({
+      select: {
+        challenge_fee: true,
+        total_amount: true,
+      },
+      where: {
+        billing_account: String(billingAccountId),
+        currency: PrizeType.USD,
+        payment_status: { not: payment_status.CANCELLED },
+        winnings: {
+          category: winnings_category.ENGAGEMENT_PAYMENT,
+          external_id: assignmentId,
+          type: winnings_type.PAYMENT,
+        },
+      },
+      orderBy: [{ created_at: 'asc' }, { payment_id: 'asc' }],
+    });
+
+    return payments.map((paymentRow) =>
+      this.toBillingLedgerAmount(
+        new Prisma.Decimal(paymentRow.total_amount ?? 0).plus(
+          new Prisma.Decimal(paymentRow.challenge_fee ?? 0),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Reconciles engagement billing-account consumed rows after a wallet-admin
+   * cancellation changes the active payment set.
+   *
+   * @param targets unique engagement assignment and billing-account pairs to
+   * synchronize.
+   * @returns promise resolved after every target has been reconciled in BA.
+   * @throws Error when BA synchronization fails.
+   */
+  private async syncEngagementBudgetTargets(
+    targets: EngagementBudgetSyncTarget[],
+  ): Promise<void> {
+    await Promise.all(
+      targets.map(async (target) => {
+        const amounts = await this.getActiveEngagementConsumeAmounts(
+          target.assignmentId,
+          target.billingAccountId,
+        );
+
+        await this.baService.syncEngagementConsumeAmounts({
+          amounts,
+          billingAccountId: target.billingAccountId,
+          externalId: target.assignmentId,
         });
       }),
     );
@@ -641,6 +783,10 @@ export class AdminService {
       const challengeBudgetSyncTargets =
         body.paymentStatus === PaymentStatus.CANCELLED
           ? this.getChallengeBudgetSyncTargets(payments)
+          : [];
+      const engagementBudgetSyncTargets =
+        body.paymentStatus === PaymentStatus.CANCELLED
+          ? this.getEngagementBudgetSyncTargets(payments)
           : [];
 
       // iterate payments and build transaction list
@@ -926,6 +1072,10 @@ export class AdminService {
 
       if (challengeBudgetSyncTargets.length > 0) {
         await this.syncChallengeBudgetTargets(challengeBudgetSyncTargets);
+      }
+
+      if (engagementBudgetSyncTargets.length > 0) {
+        await this.syncEngagementBudgetTargets(engagementBudgetSyncTargets);
       }
 
       if (needsReconciliation) {

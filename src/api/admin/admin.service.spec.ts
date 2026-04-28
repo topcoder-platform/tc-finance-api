@@ -74,6 +74,7 @@ describe('AdminService', () => {
     getBillingAccountById: jest.Mock;
     getBillingAccountsForUser: jest.Mock;
     lockConsumeAmount: jest.Mock;
+    syncEngagementConsumeAmounts: jest.Mock;
   };
   let accessControlService: {
     verifyAccess: jest.Mock;
@@ -120,6 +121,7 @@ describe('AdminService', () => {
         .mockResolvedValue({ id: 80001012, markup: 0.1 }),
       getBillingAccountsForUser: jest.fn().mockResolvedValue(['80001012']),
       lockConsumeAmount: jest.fn().mockResolvedValue(undefined),
+      syncEngagementConsumeAmounts: jest.fn().mockResolvedValue(undefined),
     };
     accessControlService = {
       verifyAccess: jest.fn().mockResolvedValue(undefined),
@@ -455,6 +457,62 @@ describe('AdminService', () => {
       status: 'COMPLETED',
       totalPrizesInCents: 3950,
     });
+  });
+
+  it('releases engagement billing-account rows when an engagement payment is cancelled', async () => {
+    prisma.payment.findMany
+      .mockResolvedValueOnce([
+        {
+          billing_account: '80001012',
+          currency: 'USD',
+          installment_number: 1,
+          payment_id: 'payment-1',
+          payment_status: PaymentStatus.OWED,
+          release_date: new Date('2026-04-28T00:00:00.000Z'),
+          version: 1,
+          winnings: {
+            category: 'ENGAGEMENT_PAYMENT',
+            external_id: 'assignment-1',
+            type: 'PAYMENT',
+          },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.updateWinnings(
+      {
+        paymentId: 'payment-1',
+        paymentStatus: PaymentStatus.CANCELLED,
+        winningsId: 'winning-1',
+      } as any,
+      'admin-1',
+      ['Payment Admin'],
+    );
+
+    expect(result.data).toBe('Successfully updated winnings');
+    expect(prisma.payment.findMany).toHaveBeenNthCalledWith(2, {
+      select: {
+        challenge_fee: true,
+        total_amount: true,
+      },
+      where: {
+        billing_account: '80001012',
+        currency: 'USD',
+        payment_status: { not: PaymentStatus.CANCELLED },
+        winnings: {
+          category: 'ENGAGEMENT_PAYMENT',
+          external_id: 'assignment-1',
+          type: 'PAYMENT',
+        },
+      },
+      orderBy: [{ created_at: 'asc' }, { payment_id: 'asc' }],
+    });
+    expect(baService.syncEngagementConsumeAmounts).toHaveBeenCalledWith({
+      amounts: [],
+      billingAccountId: 80001012,
+      externalId: 'assignment-1',
+    });
+    expect(baService.lockConsumeAmount).not.toHaveBeenCalled();
   });
 
   it('returns task details for task payment with projectId and approver', async () => {
