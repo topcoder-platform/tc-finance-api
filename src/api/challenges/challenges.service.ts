@@ -513,12 +513,6 @@ export class ChallengesService {
     );
 
     return payments.map((payment) => {
-      const paymentStatus =
-        payment.status ??
-        (challenge.task?.isTask && payment.currency === PrizeType.USD
-          ? PaymentStatus.ON_HOLD_ADMIN
-          : undefined);
-
       return {
         winnerId: payment.userId.toString(),
         type:
@@ -530,7 +524,7 @@ export class ChallengesService {
         title: challenge.name,
         description: payment.description || challenge.name,
         externalId: challenge.id,
-        ...(paymentStatus ? { status: paymentStatus } : {}),
+        ...(payment.status ? { status: payment.status } : {}),
         details: [
           {
             totalAmount: payment.amount,
