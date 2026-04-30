@@ -94,4 +94,15 @@ describe('WinningsRepository', () => {
 
     expect(createdAtFilter).toBeUndefined();
   });
+
+  it('filters getWinningsByExternalId by external_id instead of winner_id', async () => {
+    await winningsRepo.getWinningsByExternalId('ext-123');
+
+    const findManyArgs = findManyMock.mock.calls[0][0];
+
+    expect(findManyArgs.where.external_id).toEqual({
+      in: ['ext-123'],
+    });
+    expect(findManyArgs.where.winner_id).toBeUndefined();
+  });
 });

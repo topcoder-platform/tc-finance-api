@@ -6,13 +6,19 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-import { Prisma } from '@prisma/client';
+import {
+  Prisma,
+  payment_status,
+  winnings_category,
+  winnings_type,
+} from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { PaymentsService } from 'src/shared/payments';
 import { AccessControlService } from 'src/shared/access-control/access-control.service';
 
 import { ResponseDto } from 'src/dto/api-response.dto';
 import { PaymentStatus } from 'src/dto/payment.dto';
+import { PrizeType } from '../challenges/models';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { Logger } from 'src/shared/global';
@@ -23,7 +29,24 @@ import {
   TopcoderEngagementsService,
 } from 'src/shared/topcoder/engagements.service';
 import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import {
+  TopcoderChallengeInfo,
+  TopcoderChallengesService,
+} from 'src/shared/topcoder/challenges.service';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
+
+const PAYMENT_DECIMAL_PLACES = 2;
+const BUDGET_LEDGER_DECIMAL_PLACES = 4;
+
+interface ChallengeBudgetSyncTarget {
+  billingAccountId: number;
+  challengeId: string;
+}
+
+interface EngagementBudgetSyncTarget {
+  assignmentId: string;
+  billingAccountId: number;
+}
 
 /**
  * The admin winning service.
@@ -43,6 +66,7 @@ export class AdminService {
     private readonly accessControlService: AccessControlService,
     private readonly topcoderEngagementsService: TopcoderEngagementsService,
     private readonly tcMembersService: TopcoderMembersService,
+    private readonly topcoderChallengesService: TopcoderChallengesService,
   ) {}
 
   async verifyUserAccessToWinning(
@@ -290,6 +314,382 @@ export class AdminService {
   }
 
   /**
+   * Normalizes billing-account identifiers read from persisted payment or
+   * challenge records.
+   *
+   * @param billingAccountId raw billing-account id value.
+   * @returns positive integer billing-account id, or `undefined` when the value
+   * is missing or malformed.
+   * @throws This helper does not throw.
+   */
+  private normalizeBillingAccountId(
+    billingAccountId: unknown,
+  ): number | undefined {
+    if (billingAccountId === undefined || billingAccountId === null) {
+      return undefined;
+    }
+
+    if (
+      typeof billingAccountId !== 'string' &&
+      typeof billingAccountId !== 'number'
+    ) {
+      return undefined;
+    }
+
+    const normalizedBillingAccountId = String(billingAccountId).trim();
+    const parsedBillingAccountId = Number(normalizedBillingAccountId);
+
+    if (
+      !normalizedBillingAccountId ||
+      !/^\d+$/.test(normalizedBillingAccountId) ||
+      !Number.isSafeInteger(parsedBillingAccountId) ||
+      parsedBillingAccountId <= 0
+    ) {
+      return undefined;
+    }
+
+    return parsedBillingAccountId;
+  }
+
+  /**
+   * Finds challenge billing-account rows that need to be recalculated after a
+   * wallet-admin payment status change.
+   *
+   * @param payments payment rows selected by the update request.
+   * @returns unique challenge and billing-account pairs touched by USD
+   * challenge payments.
+   * @throws This helper does not throw.
+   */
+  private getChallengeBudgetSyncTargets(
+    payments: Awaited<ReturnType<AdminService['getPaymentsByWinningsId']>>,
+  ): ChallengeBudgetSyncTarget[] {
+    const targets = new Map<string, ChallengeBudgetSyncTarget>();
+
+    payments.forEach((payment) => {
+      const challengeId =
+        typeof payment.winnings.external_id === 'string'
+          ? payment.winnings.external_id.trim()
+          : '';
+
+      if (
+        !challengeId ||
+        payment.winnings.type !== winnings_type.PAYMENT ||
+        payment.winnings.category === winnings_category.ENGAGEMENT_PAYMENT ||
+        (payment.currency ?? '') !== 'USD'
+      ) {
+        return;
+      }
+
+      const billingAccountId = this.normalizeBillingAccountId(
+        payment.billing_account,
+      );
+
+      if (!billingAccountId) {
+        this.logger.warn(
+          `Skipping challenge budget sync for payment ${payment.payment_id}; invalid billing account ${String(payment.billing_account)}`,
+        );
+        return;
+      }
+
+      targets.set(`${challengeId}:${billingAccountId}`, {
+        billingAccountId,
+        challengeId,
+      });
+    });
+
+    return [...targets.values()];
+  }
+
+  /**
+   * Finds engagement billing-account rows that need to be reconciled after a
+   * wallet-admin payment status change.
+   *
+   * @param payments payment rows selected by the update request.
+   * @returns unique engagement assignment and billing-account pairs touched by
+   * USD engagement payments.
+   * @throws This helper does not throw.
+   */
+  private getEngagementBudgetSyncTargets(
+    payments: Awaited<ReturnType<AdminService['getPaymentsByWinningsId']>>,
+  ): EngagementBudgetSyncTarget[] {
+    const targets = new Map<string, EngagementBudgetSyncTarget>();
+
+    payments.forEach((payment) => {
+      const assignmentId =
+        typeof payment.winnings.external_id === 'string'
+          ? payment.winnings.external_id.trim()
+          : '';
+
+      if (
+        !assignmentId ||
+        payment.winnings.type !== winnings_type.PAYMENT ||
+        payment.winnings.category !== winnings_category.ENGAGEMENT_PAYMENT ||
+        (payment.currency ?? '') !== 'USD'
+      ) {
+        return;
+      }
+
+      const billingAccountId = this.normalizeBillingAccountId(
+        payment.billing_account,
+      );
+
+      if (!billingAccountId) {
+        this.logger.warn(
+          `Skipping engagement budget sync for payment ${payment.payment_id}; invalid billing account ${String(payment.billing_account)}`,
+        );
+        return;
+      }
+
+      targets.set(`${assignmentId}:${billingAccountId}`, {
+        assignmentId,
+        billingAccountId,
+      });
+    });
+
+    return [...targets.values()];
+  }
+
+  /**
+   * Resolves the billing account to synchronize for a challenge.
+   *
+   * @param challenge challenge-api-v6 payload.
+   * @param fallbackBillingAccountId billing account from the payment row when
+   * challenge metadata does not expose one.
+   * @returns the configured challenge billing account when available, otherwise
+   * the payment-row billing account.
+   * @throws This helper does not throw.
+   */
+  private resolveChallengeBudgetBillingAccountId(
+    challenge: TopcoderChallengeInfo,
+    fallbackBillingAccountId: number,
+  ): number {
+    return (
+      this.normalizeBillingAccountId(challenge.billing?.billingAccountId) ??
+      fallbackBillingAccountId
+    );
+  }
+
+  /**
+   * Resolves the markup used when writing a challenge budget line item.
+   *
+   * @param challenge challenge-api-v6 payload.
+   * @param billingAccountId billing account being synchronized.
+   * @returns non-negative markup rate.
+   * @throws Error when no valid markup can be resolved.
+   */
+  private async resolveChallengeBudgetMarkup(
+    challenge: TopcoderChallengeInfo,
+    billingAccountId: number,
+  ): Promise<number> {
+    const candidateMarkups = [
+      challenge.billing?.clientBillingRate,
+      challenge.billing?.markup,
+    ];
+
+    for (const candidateMarkup of candidateMarkups) {
+      const markup = Number(candidateMarkup);
+
+      if (Number.isFinite(markup) && markup >= 0) {
+        return markup;
+      }
+    }
+
+    const billingAccount =
+      await this.baService.getBillingAccountById(billingAccountId);
+
+    if (!Number.isFinite(billingAccount.markup) || billingAccount.markup < 0) {
+      throw new Error(`Billing account ${billingAccountId} has invalid markup`);
+    }
+
+    return billingAccount.markup;
+  }
+
+  /**
+   * Quantizes a payment total to the same two-decimal scale used by persisted
+   * payment rows.
+   *
+   * @param amount decimal amount to normalize.
+   * @returns JavaScript number rounded to two decimal places.
+   * @throws This helper does not throw.
+   */
+  private toPaymentAmount(amount: Prisma.Decimal): number {
+    return Number(
+      amount
+        .toDecimalPlaces(PAYMENT_DECIMAL_PLACES, Prisma.Decimal.ROUND_HALF_UP)
+        .toFixed(PAYMENT_DECIMAL_PLACES),
+    );
+  }
+
+  /**
+   * Quantizes a billing-account ledger amount to the same four-decimal scale
+   * used by billing-accounts-api-v6.
+   *
+   * @param amount decimal amount to normalize.
+   * @returns JavaScript number rounded to four decimal places.
+   * @throws This helper does not throw.
+   */
+  private toBillingLedgerAmount(amount: Prisma.Decimal): number {
+    return Number(
+      amount
+        .toDecimalPlaces(
+          BUDGET_LEDGER_DECIMAL_PLACES,
+          Prisma.Decimal.ROUND_HALF_UP,
+        )
+        .toFixed(BUDGET_LEDGER_DECIMAL_PLACES),
+    );
+  }
+
+  /**
+   * Sums non-cancelled USD payment rows for a challenge and billing account.
+   *
+   * @param challengeId challenge external id stored on winnings.
+   * @param billingAccountId billing account stored on payment rows.
+   * @returns total member-payment amount that should remain locked or consumed
+   * for the challenge billing-account line item.
+   * @throws Prisma errors when the aggregate query fails.
+   */
+  private async getActiveChallengePaymentTotal(
+    challengeId: string,
+    billingAccountId: number,
+  ): Promise<number> {
+    const payments = await this.prisma.payment.findMany({
+      select: { total_amount: true },
+      where: {
+        billing_account: String(billingAccountId),
+        currency: PrizeType.USD,
+        payment_status: { not: payment_status.CANCELLED },
+        winnings: {
+          external_id: challengeId,
+          type: 'PAYMENT',
+        },
+      },
+    });
+    const totalAmount = payments.reduce(
+      (sum, paymentRow) =>
+        sum.plus(new Prisma.Decimal(paymentRow.total_amount ?? 0)),
+      new Prisma.Decimal(0),
+    );
+
+    return this.toPaymentAmount(totalAmount);
+  }
+
+  /**
+   * Rewrites challenge billing-account budget rows after a wallet-admin status
+   * update changes the active payment total.
+   *
+   * @param targets unique challenge and billing-account pairs to synchronize.
+   * @returns promise resolved after every target has been sent to BA.
+   * @throws Error when BA synchronization fails.
+   */
+  private async syncChallengeBudgetTargets(
+    targets: ChallengeBudgetSyncTarget[],
+  ): Promise<void> {
+    await Promise.all(
+      targets.map(async (target) => {
+        const challenge = await this.topcoderChallengesService.getChallengeById(
+          target.challengeId,
+        );
+
+        if (!challenge?.id || !challenge.status) {
+          this.logger.warn(
+            `Skipping challenge budget sync for ${target.challengeId}; challenge metadata is unavailable`,
+          );
+          return;
+        }
+
+        const billingAccountId = this.resolveChallengeBudgetBillingAccountId(
+          challenge,
+          target.billingAccountId,
+        );
+        const markup = await this.resolveChallengeBudgetMarkup(
+          challenge,
+          billingAccountId,
+        );
+        const totalUsdAmount = await this.getActiveChallengePaymentTotal(
+          target.challengeId,
+          billingAccountId,
+        );
+
+        await this.baService.lockConsumeAmount({
+          billingAccountId,
+          challengeId: target.challengeId,
+          markup,
+          status: challenge.status,
+          totalPrizesInCents: totalUsdAmount * 100,
+        });
+      }),
+    );
+  }
+
+  /**
+   * Reads active engagement payment ledger amounts for one assignment.
+   *
+   * @param assignmentId engagement assignment external id stored on winnings.
+   * @param billingAccountId billing account stored on payment rows.
+   * @returns ledger-scale consumed amounts for non-cancelled finance payments,
+   * in the same order used when engagement consumed rows were created.
+   * @throws Prisma errors when the payment query fails.
+   */
+  private async getActiveEngagementConsumeAmounts(
+    assignmentId: string,
+    billingAccountId: number,
+  ): Promise<number[]> {
+    const payments = await this.prisma.payment.findMany({
+      select: {
+        challenge_fee: true,
+        total_amount: true,
+      },
+      where: {
+        billing_account: String(billingAccountId),
+        currency: PrizeType.USD,
+        payment_status: { not: payment_status.CANCELLED },
+        winnings: {
+          category: winnings_category.ENGAGEMENT_PAYMENT,
+          external_id: assignmentId,
+          type: winnings_type.PAYMENT,
+        },
+      },
+      orderBy: [{ created_at: 'asc' }, { payment_id: 'asc' }],
+    });
+
+    return payments.map((paymentRow) =>
+      this.toBillingLedgerAmount(
+        new Prisma.Decimal(paymentRow.total_amount ?? 0).plus(
+          new Prisma.Decimal(paymentRow.challenge_fee ?? 0),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Reconciles engagement billing-account consumed rows after a wallet-admin
+   * cancellation changes the active payment set.
+   *
+   * @param targets unique engagement assignment and billing-account pairs to
+   * synchronize.
+   * @returns promise resolved after every target has been reconciled in BA.
+   * @throws Error when BA synchronization fails.
+   */
+  private async syncEngagementBudgetTargets(
+    targets: EngagementBudgetSyncTarget[],
+  ): Promise<void> {
+    await Promise.all(
+      targets.map(async (target) => {
+        const amounts = await this.getActiveEngagementConsumeAmounts(
+          target.assignmentId,
+          target.billingAccountId,
+        );
+
+        await this.baService.syncEngagementConsumeAmounts({
+          amounts,
+          billingAccountId: target.billingAccountId,
+          externalId: target.assignmentId,
+        });
+      }),
+    );
+  }
+
+  /**
    * Verify that a BA admin user has access to the billing account(s)
    * associated with the given winningsId. Throws BadRequestException when
    * access is not allowed.
@@ -380,6 +780,14 @@ export class AdminService {
         tx: Prisma.TransactionClient,
       ) => Promise<unknown>)[] = [];
       const now = new Date().getTime();
+      const challengeBudgetSyncTargets =
+        body.paymentStatus === PaymentStatus.CANCELLED
+          ? this.getChallengeBudgetSyncTargets(payments)
+          : [];
+      const engagementBudgetSyncTargets =
+        body.paymentStatus === PaymentStatus.CANCELLED
+          ? this.getEngagementBudgetSyncTargets(payments)
+          : [];
 
       // iterate payments and build transaction list
       payments.forEach((payment) => {
@@ -662,6 +1070,14 @@ export class AdminService {
         `Successfully executed transactions for winningsId=${winningsId}`,
       );
 
+      if (challengeBudgetSyncTargets.length > 0) {
+        await this.syncChallengeBudgetTargets(challengeBudgetSyncTargets);
+      }
+
+      if (engagementBudgetSyncTargets.length > 0) {
+        await this.syncEngagementBudgetTargets(engagementBudgetSyncTargets);
+      }
+
       if (needsReconciliation) {
         const winning = await this.prisma.winnings.findFirst({
           select: {
@@ -712,6 +1128,64 @@ export class AdminService {
     return result;
   }
 
+  private async buildTaskDetails(
+    winningsId: string,
+    externalId: string | undefined,
+  ): Promise<WinningPaymentDetailsDto['taskDetails']> {
+    const taskDetails: WinningPaymentDetailsDto['taskDetails'] = {};
+
+    if (externalId) {
+      try {
+        const challenge =
+          await this.topcoderChallengesService.getChallengeById(externalId);
+        if (challenge?.createdBy) {
+          taskDetails.paymentCreatorHandle = await this.getPaymentCreatorHandle(
+            challenge.createdBy,
+          );
+        }
+        if (challenge?.projectId) {
+          taskDetails.projectId = String(challenge.projectId);
+          try {
+            const project = await this.topcoderChallengesService.getProjectById(
+              challenge.projectId,
+            );
+            if (project?.name) {
+              taskDetails.projectName = project.name;
+            }
+          } catch {
+            // project name is optional — ignore failures
+          }
+        }
+      } catch {
+        // projectId is optional — ignore failures
+      }
+    }
+
+    try {
+      const audits = await this.prisma.audit.findMany({
+        where: { winnings_id: winningsId },
+        orderBy: { created_at: 'desc' },
+        take: 200,
+      });
+      const approverAudit = audits.find(
+        (a) =>
+          typeof a.action === 'string' &&
+          a.action.includes('ON_HOLD_ADMIN') &&
+          a.action.includes('OWED') &&
+          a.action.indexOf('ON_HOLD_ADMIN') < a.action.indexOf('OWED'),
+      );
+      if (approverAudit?.user_id) {
+        const userId = String(approverAudit.user_id);
+        const handle = await this.getPaymentCreatorHandle(userId);
+        taskDetails.paymentApproverHandle = handle ?? undefined;
+      }
+    } catch {
+      // approver is optional — ignore failures
+    }
+
+    return taskDetails;
+  }
+
   async getWinningPaymentDetails(
     winningsId: string,
     userId: string,
@@ -746,6 +1220,16 @@ export class AdminService {
         : undefined;
     const assignmentLookupId = assignmentId ?? externalId;
     const isEngagementPayment = winning.category === 'ENGAGEMENT_PAYMENT';
+
+    const isTaskPayment = winning.category === 'TASK_PAYMENT';
+
+    if (isTaskPayment) {
+      result.data.taskDetails = await this.buildTaskDetails(
+        winningsId,
+        externalId,
+      );
+      return result;
+    }
 
     if (!isEngagementPayment) {
       return result;

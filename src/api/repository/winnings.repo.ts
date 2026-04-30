@@ -94,6 +94,7 @@ export class WinningsRepository {
   private getWinningsQueryFilters(
     type?: string,
     category?: string,
+    categories?: string[],
     status?: string,
     winnerIds?: string[],
     externalIds?: string[],
@@ -120,7 +121,11 @@ export class WinningsRepository {
         ? {
             equals: category as winnings_category,
           }
-        : undefined,
+        : categories?.length
+          ? {
+              in: categories as winnings_category[],
+            }
+          : undefined,
       type: typeFilter,
       payment: status
         ? {
@@ -219,6 +224,7 @@ export class WinningsRepository {
       const queryWhere = this.getWinningsQueryFilters(
         searchProps.type,
         searchProps.category,
+        searchProps.categories,
         searchProps.status,
         winnerIds,
         externalIds,
@@ -344,6 +350,7 @@ export class WinningsRepository {
 
     try {
       const queryWhere = this.getWinningsQueryFilters(
+        undefined,
         undefined,
         undefined,
         undefined,

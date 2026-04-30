@@ -24,6 +24,8 @@ jest.mock('src/shared/global', () => ({
 import { ChallengesService } from './challenges.service';
 import { PrizeType } from './models';
 import { WinningsCategory } from 'src/dto/winning.dto';
+import { PaymentStatus } from 'src/dto/payment.dto';
+import { CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE } from '../winnings/winnings.service';
 
 describe('ChallengesService', () => {
   it('skips creating payments for fun challenges', async () => {
@@ -139,7 +141,9 @@ describe('ChallengesService', () => {
         id: '11111111-1111-1111-1111-111111111111',
         name: 'Topgear Review Challenge',
         metadata: [{ name: 'payment_type', value: 'topgear' }],
-        prizeSets: [{ type: 'PLACEMENT', prizes: [{ type: PrizeType.USD, value: 500 }] }],
+        prizeSets: [
+          { type: 'PLACEMENT', prizes: [{ type: PrizeType.USD, value: 500 }] },
+        ],
         reviewers: [
           {
             isMemberReview: true,
@@ -164,5 +168,198 @@ describe('ChallengesService', () => {
         type: WinningsCategory.TOPGEAR_PAYMENT,
       }),
     ]);
+  });
+
+  it('defaults task challenge winnings to ON_HOLD_ADMIN status', async () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    jest
+      .spyOn(service, 'getChallengeResources')
+      .mockResolvedValue({ winner: [] } as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.TASK_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
+    jest
+      .spyOn(service, 'generateCheckpointWinnersPayments')
+      .mockReturnValue([]);
+    jest.spyOn(service, 'generateCopilotPayment').mockReturnValue([]);
+    jest.spyOn(service, 'generateReviewersPayments').mockResolvedValue([]);
+
+    const winnings = await service.getChallengePayments({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Task Challenge',
+      type: 'Task',
+      task: { isTask: true },
+      billing: { billingAccountId: '1234', markup: 0.2 },
+    } as any);
+
+    expect(winnings).toEqual([
+      expect.objectContaining({
+        status: PaymentStatus.ON_HOLD_ADMIN,
+      }),
+    ]);
+    expect(winnings[0].attributes).toMatchObject({
+      [CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE]: true,
+    });
+  });
+
+  it('does not force ON_HOLD_ADMIN status for non-task challenge winnings', async () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    jest
+      .spyOn(service, 'getChallengeResources')
+      .mockResolvedValue({ winner: [] } as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.CONTEST_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
+    jest
+      .spyOn(service, 'generateCheckpointWinnersPayments')
+      .mockReturnValue([]);
+    jest.spyOn(service, 'generateCopilotPayment').mockReturnValue([]);
+    jest.spyOn(service, 'generateReviewersPayments').mockResolvedValue([]);
+
+    const winnings = await service.getChallengePayments({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Marathon Match',
+      type: 'Challenge',
+      task: { isTask: false },
+      billing: { billingAccountId: '1234', markup: 0.2 },
+    } as any);
+
+    expect(winnings).toEqual([
+      expect.not.objectContaining({
+        status: PaymentStatus.ON_HOLD_ADMIN,
+      }),
+    ]);
+  });
+
+  it('skips winner payments for cancelled challenges', () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const payments = service.generateWinnersPayments(
+      {
+        name: 'Cancelled Challenge',
+        status: ChallengeStatuses.CancelledClientRequest,
+        task: { isTask: false },
+        type: 'Challenge',
+      } as any,
+      [{ handle: 'winner', placement: 1, userId: 40158994 }],
+      [{ type: PrizeType.USD, value: 500 }],
+    );
+
+    expect(payments).toEqual([]);
+  });
+
+  it('skips copilot payments for cancelled challenges', () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const payments = service.generateCopilotPayment(
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        name: 'Cancelled Challenge',
+        prizeSets: [
+          { prizes: [{ type: PrizeType.USD, value: 100 }], type: 'COPILOT' },
+          { prizes: [{ type: PrizeType.USD, value: 500 }], type: 'PLACEMENT' },
+        ],
+        status: ChallengeStatuses.CancelledClientRequest,
+      } as any,
+      [{ memberHandle: 'copilot', memberId: '40158994' }] as any,
+    );
+
+    expect(payments).toEqual([]);
+  });
+
+  it('allows cancelled challenges with no generated payments to release budget locks', async () => {
+    const prisma = {
+      challenge_lock: {
+        create: jest.fn().mockResolvedValue({}),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const baService = {
+      lockConsumeAmount: jest.fn().mockResolvedValue(undefined),
+    };
+    const winningsService = {
+      createWinningWithPayments: jest.fn(),
+    };
+    const winningsRepo = {
+      searchWinnings: jest.fn().mockResolvedValue({ data: { winnings: [] } }),
+    };
+    const service = new ChallengesService(
+      prisma as any,
+      {} as any,
+      baService as any,
+      winningsService as any,
+      winningsRepo as any,
+    );
+    const challenge = {
+      billing: { billingAccountId: '80001012', markup: 0.1 },
+      funChallenge: false,
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Cancelled Challenge',
+      prizeSets: [
+        { prizes: [{ type: PrizeType.USD, value: 500 }], type: 'PLACEMENT' },
+      ],
+      reviewers: [],
+      status: ChallengeStatuses.CancelledClientRequest,
+      task: { isTask: false },
+      type: 'Challenge',
+    };
+
+    jest.spyOn(service, 'getChallenge').mockResolvedValue(challenge as any);
+    jest.spyOn(service, 'getChallengeResources').mockResolvedValue({
+      reviewer: [{ memberHandle: 'reviewer', memberId: '40158995' }],
+    } as any);
+    jest.spyOn(service, 'getChallengeReviews').mockResolvedValue([]);
+
+    await service.generateChallengePayments(
+      '11111111-1111-1111-1111-111111111111',
+      'test-user',
+    );
+
+    expect(winningsService.createWinningWithPayments).not.toHaveBeenCalled();
+    expect(baService.lockConsumeAmount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingAccountId: 80001012,
+        challengeId: '11111111-1111-1111-1111-111111111111',
+        markup: 0.1,
+        status: ChallengeStatuses.CancelledClientRequest,
+        totalPrizesInCents: 0,
+      }),
+    );
   });
 });

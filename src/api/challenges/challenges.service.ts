@@ -27,7 +27,11 @@ import {
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
-import { WinningsService } from '../winnings/winnings.service';
+import { PaymentStatus } from 'src/dto/payment.dto';
+import {
+  CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE,
+  WinningsService,
+} from '../winnings/winnings.service';
 import {
   WinningRequestDto,
   WinningsCategory,
@@ -43,6 +47,7 @@ interface PaymentPayload {
   type: WinningsCategory;
   currency: PrizeType;
   description?: string;
+  status?: PaymentStatus;
 }
 
 const placeToOrdinal = (place: number) => {
@@ -59,7 +64,32 @@ const PAYMENT_TYPE_TO_CATEGORY: Record<string, WinningsCategory> = {
   topgear: WinningsCategory.TOPGEAR_PAYMENT,
 };
 
+const CANCELLED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Canceled,
+  ChallengeStatuses.CancelledFailedReview,
+  ChallengeStatuses.CancelledFailedScreening,
+  ChallengeStatuses.CancelledZeroSubmissions,
+  ChallengeStatuses.CancelledWinnerUnresponsive,
+  ChallengeStatuses.CancelledClientRequest,
+  ChallengeStatuses.CancelledRequirementsInfeasible,
+  ChallengeStatuses.CancelledZeroRegistrations,
+  ChallengeStatuses.CancelledPaymentFailed,
+].map((status) => status.toLowerCase());
+
 const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
+
+/**
+ * Determines whether a challenge status represents a cancelled challenge.
+ *
+ * @param status Challenge status returned by challenge-api-v6.
+ * @returns True when the status is one of the cancelled challenge states used
+ * by challenge-api-v6.
+ */
+function isCancelledChallengeStatus(status?: string): boolean {
+  return status
+    ? CANCELLED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
+}
 
 @Injectable()
 export class ChallengesService {
@@ -189,11 +219,7 @@ export class ChallengesService {
     prizes: Prize[],
     type?: WinningsCategory,
   ): PaymentPayload[] {
-    const isCancelledFailedReview =
-      challenge.status.toLowerCase() ===
-      ChallengeStatuses.CancelledFailedReview.toLowerCase();
-
-    if (isCancelledFailedReview) {
+    if (isCancelledChallengeStatus(challenge.status)) {
       return [];
     }
 
@@ -212,6 +238,9 @@ export class ChallengesService {
         userId: winner.userId.toString(),
         type: winType,
         currency,
+        ...(challenge.task?.isTask && currency === PrizeType.USD
+          ? { status: PaymentStatus.ON_HOLD_ADMIN }
+          : {}),
         description:
           challenge.type === 'Task'
             ? challenge.name
@@ -277,14 +306,10 @@ export class ChallengesService {
     challenge: Challenge,
     copilots: ChallengeResource[],
   ): PaymentPayload[] {
-    const isCancelledFailedReview =
-      challenge.status.toLowerCase() ===
-      ChallengeStatuses.CancelledFailedReview.toLowerCase();
-
     const copilotPrizes =
       find(challenge.prizeSets, { type: 'COPILOT' })?.prizes ?? [];
 
-    if (!copilotPrizes.length || isCancelledFailedReview) {
+    if (!copilotPrizes.length || isCancelledChallengeStatus(challenge.status)) {
       return [];
     }
 
@@ -421,6 +446,9 @@ export class ChallengesService {
               ),
               type: winType,
               currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
+              ...(challenge.task?.isTask && currency === PrizeType.USD
+                ? { status: PaymentStatus.ON_HOLD_ADMIN }
+                : {}),
               description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
             };
           },
@@ -484,35 +512,39 @@ export class ChallengesService {
       0,
     );
 
-    return payments.map((payment) => ({
-      winnerId: payment.userId.toString(),
-      type:
-        payment.currency === PrizeType.USD
-          ? WinningsType.PAYMENT
-          : WinningsType.POINTS,
-      origin: 'Topcoder',
-      category: payment.type,
-      title: challenge.name,
-      description: payment.description || challenge.name,
-      externalId: challenge.id,
-      details: [
-        {
-          totalAmount: payment.amount,
-          grossAmount: payment.amount,
-          installmentNumber: 1,
-          currency: payment.currency || PrizeType.USD,
-          billingAccount: `${challenge.billing.billingAccountId}`,
-          challengeFee: totalUsdAmount * challenge.billing.markup,
+    return payments.map((payment) => {
+      return {
+        winnerId: payment.userId.toString(),
+        type:
+          payment.currency === PrizeType.USD
+            ? WinningsType.PAYMENT
+            : WinningsType.POINTS,
+        origin: 'Topcoder',
+        category: payment.type,
+        title: challenge.name,
+        description: payment.description || challenge.name,
+        externalId: challenge.id,
+        ...(payment.status ? { status: payment.status } : {}),
+        details: [
+          {
+            totalAmount: payment.amount,
+            grossAmount: payment.amount,
+            installmentNumber: 1,
+            currency: payment.currency || PrizeType.USD,
+            billingAccount: `${challenge.billing.billingAccountId}`,
+            challengeFee: totalUsdAmount * challenge.billing.markup,
+          },
+        ],
+        attributes: {
+          billingAccountId: challenge.billing.billingAccountId,
+          [CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE]: true,
+          payroll: includes(
+            TGBillingAccounts,
+            parseInt(challenge.billing.billingAccountId),
+          ),
         },
-      ],
-      attributes: {
-        billingAccountId: challenge.billing.billingAccountId,
-        payroll: includes(
-          TGBillingAccounts,
-          parseInt(challenge.billing.billingAccountId),
-        ),
-      },
-    }));
+      };
+    });
   }
 
   private async createPayments(challenge: Challenge, userId: string) {
@@ -604,12 +636,12 @@ export class ChallengesService {
       `Challenge ${challenge.id} - "${challenge.name}" with status "${challenge.status}" retrieved`,
     );
 
-    const allowedStatuses = [
-      ChallengeStatuses.Completed.toLowerCase(),
-      ChallengeStatuses.CancelledFailedReview.toLowerCase(),
-    ];
+    const isPayableStatus =
+      challenge.status.toLowerCase() ===
+        ChallengeStatuses.Completed.toLowerCase() ||
+      isCancelledChallengeStatus(challenge.status);
 
-    if (!allowedStatuses.includes(challenge.status.toLowerCase())) {
+    if (!isPayableStatus) {
       this.logger.error(
         `Challenge ${challenge.id} isn't in a payable status: ${challenge.status}`,
       );

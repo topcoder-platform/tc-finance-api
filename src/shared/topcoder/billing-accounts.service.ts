@@ -3,12 +3,32 @@ import { isNumber, includes } from 'lodash';
 import { ENV_CONFIG } from 'src/config';
 import { ChallengeStatuses } from 'src/dto/challenge.dto';
 import { Logger } from 'src/shared/global';
+import { getBaClient } from 'src/shared/global/ba-prisma.client';
 import {
   TopcoderM2MHttpError,
   TopcoderM2MService,
 } from './topcoder-m2m.service';
 
 const { TOPCODER_API_V6_BASE_URL, TGBillingAccounts } = ENV_CONFIG;
+
+const LOCKED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Draft,
+  ChallengeStatuses.Active,
+  ChallengeStatuses.Approved,
+].map((status) => status.toLowerCase());
+
+const CANCELLED_CHALLENGE_STATUSES = [
+  ChallengeStatuses.Deleted,
+  ChallengeStatuses.Canceled,
+  ChallengeStatuses.CancelledFailedReview,
+  ChallengeStatuses.CancelledFailedScreening,
+  ChallengeStatuses.CancelledZeroSubmissions,
+  ChallengeStatuses.CancelledWinnerUnresponsive,
+  ChallengeStatuses.CancelledClientRequest,
+  ChallengeStatuses.CancelledRequirementsInfeasible,
+  ChallengeStatuses.CancelledZeroRegistrations,
+  ChallengeStatuses.CancelledPaymentFailed,
+].map((status) => status.toLowerCase());
 
 interface LockAmountDTO {
   challengeId: string;
@@ -29,6 +49,21 @@ interface ConsumeAmountsDTO {
   consumes: ConsumeAmountsItemDTO[];
 }
 
+interface SyncEngagementConsumeAmountsDTO {
+  amounts: number[];
+  billingAccountId: number;
+  externalId: string;
+}
+
+interface BillingAccountLedgerRow {
+  id: string;
+}
+
+interface BillingAccountLedgerTransaction {
+  $executeRawUnsafe(query: string, ...values: unknown[]): Promise<number>;
+  $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
+}
+
 interface BillingAccountDetailsResponse {
   id: number | string;
   markup: number | string;
@@ -47,6 +82,31 @@ export interface BAValidation {
   status?: string;
   prevTotalPrizesInCents?: number;
   totalPrizesInCents: number;
+}
+
+/**
+ * Determines whether a challenge status should reserve billing-account budget
+ * without consuming it.
+ *
+ * @param status Challenge status received from challenge-api-v6.
+ * @returns True when finance should write the challenge amount as locked.
+ */
+function isLockedChallengeStatus(status?: string): boolean {
+  return status
+    ? LOCKED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
+}
+
+/**
+ * Determines whether a challenge status represents a cancelled terminal state.
+ *
+ * @param status Challenge status received from challenge-api-v6.
+ * @returns True when finance should release or consume any challenge budget row.
+ */
+function isCancelledChallengeStatus(status?: string): boolean {
+  return status
+    ? CANCELLED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
 }
 
 @Injectable()
@@ -304,6 +364,205 @@ export class BillingAccountsService {
     }
   }
 
+  /**
+   * Detects whether the billing-account ledger uses typed external references.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @returns true when consumed rows expose `externalId` and `externalType`,
+   * false for the legacy `challengeId` column shape.
+   * @throws Prisma errors when the metadata query fails.
+   */
+  private async hasTypedConsumedAmountReferences(
+    tx: BillingAccountLedgerTransaction,
+  ): Promise<boolean> {
+    const rows = await tx.$queryRawUnsafe<{ exists: boolean }[]>(
+      `SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'ConsumedAmount'
+          AND table_schema = ANY (current_schemas(false))
+          AND column_name = 'externalId'
+      ) AS "exists"`,
+    );
+
+    return Boolean(rows[0]?.exists);
+  }
+
+  /**
+   * Reads consumed ledger rows for one engagement assignment.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @param billingAccountId target billing account id.
+   * @param externalId engagement assignment id.
+   * @param hasTypedReferences whether the ledger uses typed external reference
+   * columns.
+   * @returns matching consumed row ids ordered by ledger creation order.
+   * @throws Prisma errors when the row query fails.
+   */
+  private async getEngagementConsumedRows(
+    tx: BillingAccountLedgerTransaction,
+    billingAccountId: number,
+    externalId: string,
+    hasTypedReferences: boolean,
+  ): Promise<BillingAccountLedgerRow[]> {
+    if (hasTypedReferences) {
+      return tx.$queryRawUnsafe<BillingAccountLedgerRow[]>(
+        `SELECT id
+         FROM "ConsumedAmount"
+         WHERE "billingAccountId" = $1
+           AND "externalId" = $2
+           AND "externalType"::text = 'ENGAGEMENT'
+         ORDER BY "createdAt" ASC, id ASC`,
+        billingAccountId,
+        externalId,
+      );
+    }
+
+    return tx.$queryRawUnsafe<BillingAccountLedgerRow[]>(
+      `SELECT id
+       FROM "ConsumedAmount"
+       WHERE "billingAccountId" = $1
+         AND "challengeId" = $2
+       ORDER BY "createdAt" ASC, id ASC`,
+      billingAccountId,
+      externalId,
+    );
+  }
+
+  /**
+   * Rewrites one consumed ledger row amount.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @param rowId consumed row id.
+   * @param amount ledger-scale amount to persist.
+   * @returns promise resolved after the row is updated.
+   * @throws Prisma errors when the update fails.
+   */
+  private async updateEngagementConsumedRow(
+    tx: BillingAccountLedgerTransaction,
+    rowId: string,
+    amount: number,
+  ): Promise<void> {
+    await tx.$executeRawUnsafe(
+      `UPDATE "ConsumedAmount"
+       SET amount = $1,
+           "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      amount,
+      rowId,
+    );
+  }
+
+  /**
+   * Deletes consumed ledger rows that no longer have active finance payments.
+   *
+   * @param tx active billing-account Prisma transaction.
+   * @param rows consumed rows to remove.
+   * @returns promise resolved after every row is deleted.
+   * @throws Prisma errors when a delete fails.
+   */
+  private async deleteEngagementConsumedRows(
+    tx: BillingAccountLedgerTransaction,
+    rows: BillingAccountLedgerRow[],
+  ): Promise<void> {
+    for (const row of rows) {
+      await tx.$executeRawUnsafe(
+        `DELETE FROM "ConsumedAmount"
+         WHERE id = $1`,
+        row.id,
+      );
+    }
+  }
+
+  /**
+   * Reconciles consumed BA ledger rows for one engagement assignment.
+   *
+   * Engagement consumes are written as one billing-account consumed row per
+   * finance payment. Wallet-admin cancellation must therefore rewrite the rows
+   * for the assignment to match the still-active finance payments and delete
+   * stale rows for payments that are now cancelled.
+   *
+   * @param dto engagement assignment external id, billing account id, and
+   * active ledger amounts to keep.
+   * @returns promise resolved after the billing-account ledger rows are synced.
+   * @throws BadRequestException when the sync target or amounts are invalid.
+   * @throws Prisma errors when the billing-account database update fails.
+   */
+  async syncEngagementConsumeAmounts(
+    dto: SyncEngagementConsumeAmountsDTO,
+  ): Promise<void> {
+    const externalId =
+      typeof dto.externalId === 'string' ? dto.externalId.trim() : '';
+
+    if (
+      !Number.isSafeInteger(dto.billingAccountId) ||
+      dto.billingAccountId <= 0
+    ) {
+      throw new BadRequestException(
+        'billingAccountId must be a positive integer',
+      );
+    }
+
+    if (!externalId) {
+      throw new BadRequestException('externalId is required');
+    }
+
+    if (includes(TGBillingAccounts, dto.billingAccountId)) {
+      this.logger.info(
+        'Ignore BA validation for Topgear account:',
+        dto.billingAccountId,
+      );
+      return;
+    }
+
+    const amounts = dto.amounts.filter((amount) => {
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new BadRequestException(
+          'engagement consume amounts must be non-negative finite numbers',
+        );
+      }
+
+      return amount > 0;
+    });
+
+    const baClient = getBaClient();
+
+    await baClient.$transaction(async (tx) => {
+      const hasTypedReferences =
+        await this.hasTypedConsumedAmountReferences(tx);
+      const existingRows = await this.getEngagementConsumedRows(
+        tx,
+        dto.billingAccountId,
+        externalId,
+        hasTypedReferences,
+      );
+      const syncAmounts = hasTypedReferences
+        ? amounts
+        : [
+            Number(amounts.reduce((sum, amount) => sum + amount, 0).toFixed(4)),
+          ].filter((amount) => amount > 0);
+
+      for (const [index, amount] of syncAmounts.entries()) {
+        const existingRow = existingRows[index];
+
+        if (existingRow) {
+          await this.updateEngagementConsumedRow(tx, existingRow.id, amount);
+          continue;
+        }
+
+        this.logger.warn(
+          `Missing engagement consumed row for assignment ${externalId} on billing account ${dto.billingAccountId}`,
+        );
+      }
+
+      const staleRows = existingRows.slice(syncAmounts.length);
+
+      if (staleRows.length > 0) {
+        await this.deleteEngagementConsumedRows(tx, staleRows);
+      }
+    });
+  }
+
   async lockConsumeAmount(
     baValidation: BAValidation,
     rollback: boolean = false,
@@ -329,10 +588,7 @@ export class BillingAccountsService {
     this.logger.log('BA validation:', baValidation);
 
     const status = baValidation.status?.toLowerCase();
-    if (
-      status === ChallengeStatuses.Active.toLowerCase() ||
-      status === ChallengeStatuses.Approved.toLowerCase()
-    ) {
+    if (isLockedChallengeStatus(status)) {
       // Update lock amount
       const currAmount = baValidation.totalPrizesInCents / 100;
       const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;
@@ -357,34 +613,21 @@ export class BillingAccountsService {
             (rollback ? prevAmount : currAmount) * (1 + baValidation.markup!),
         });
       }
-    } else if (
-      [
-        ChallengeStatuses.Deleted,
-        ChallengeStatuses.Canceled,
-        ChallengeStatuses.CancelledFailedReview,
-        ChallengeStatuses.CancelledFailedScreening,
-        ChallengeStatuses.CancelledZeroSubmissions,
-        ChallengeStatuses.CancelledWinnerUnresponsive,
-        ChallengeStatuses.CancelledClientRequest,
-        ChallengeStatuses.CancelledRequirementsInfeasible,
-        ChallengeStatuses.CancelledZeroRegistrations,
-        ChallengeStatuses.CancelledPaymentFailed,
-      ].some((t) => t.toLowerCase() === status)
-    ) {
-      if (
-        baValidation.prevStatus?.toLowerCase() ===
-        ChallengeStatuses.Active.toLowerCase()
-      ) {
-        // Challenge canceled, unlock previous locked amount
-        const currAmount = 0;
-        const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;
+    } else if (isCancelledChallengeStatus(status)) {
+      const currAmount = baValidation.totalPrizesInCents / 100;
+      const prevAmount = (baValidation.prevTotalPrizesInCents ?? 0) / 100;
+      const targetAmount = rollback ? prevAmount : currAmount;
 
-        if (currAmount !== prevAmount) {
-          await this.lockAmount(billingAccountId, {
-            challengeId: baValidation.challengeId!,
-            amount: rollback ? prevAmount : 0,
-          });
-        }
+      if (targetAmount > 0) {
+        await this.consumeAmount(billingAccountId, {
+          challengeId: baValidation.challengeId!,
+          amount: targetAmount * (1 + baValidation.markup!),
+        });
+      } else {
+        await this.lockAmount(billingAccountId, {
+          challengeId: baValidation.challengeId!,
+          amount: 0,
+        });
       }
     }
   }

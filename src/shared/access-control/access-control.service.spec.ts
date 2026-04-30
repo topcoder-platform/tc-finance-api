@@ -9,7 +9,7 @@ describe('AccessControlService', () => {
     service = new AccessControlService();
   });
 
-  it('skips engagement approver filters when payment admin role is also present', async () => {
+  it('skips approver filters when payment admin role is also present', async () => {
     const paymentAdminApplyFilter = jest
       .fn()
       .mockImplementation((_userId, req: Record<string, unknown>) =>
@@ -18,31 +18,29 @@ describe('AccessControlService', () => {
           admin: true,
         }),
       );
-    const engagementApproverApplyFilter = jest
+    const approverApplyFilter = jest
       .fn()
       .mockImplementation((_userId, req: Record<string, unknown>) =>
         Promise.resolve({
           ...req,
-          category: 'ENGAGEMENT_PAYMENT',
+          categories: ['ENGAGEMENT_PAYMENT', 'TASK_PAYMENT'],
         }),
       );
     const paymentAdminProvider: RoleAccessProvider<Record<string, unknown>> = {
       roleName: Role.PaymentAdmin,
       applyFilter: paymentAdminApplyFilter,
     };
-    const engagementApproverProvider: RoleAccessProvider<
-      Record<string, unknown>
-    > = {
-      roleName: Role.EngagementPaymentApprover,
-      applyFilter: engagementApproverApplyFilter,
+    const approverProvider: RoleAccessProvider<Record<string, unknown>> = {
+      roleName: Role.PaymentApprover,
+      applyFilter: approverApplyFilter,
     };
 
     service.register(paymentAdminProvider);
-    service.register(engagementApproverProvider);
+    service.register(approverProvider);
 
     const result = await service.applyFilters<Record<string, unknown>>(
       '88770025',
-      [Role.PaymentAdmin, Role.EngagementPaymentApprover],
+      [Role.PaymentAdmin, Role.PaymentApprover],
       { type: 'PAYMENT' },
     );
 
@@ -51,38 +49,36 @@ describe('AccessControlService', () => {
       type: 'PAYMENT',
     });
     expect(paymentAdminApplyFilter).toHaveBeenCalledTimes(1);
-    expect(engagementApproverApplyFilter).not.toHaveBeenCalled();
+    expect(approverApplyFilter).not.toHaveBeenCalled();
   });
 
-  it('applies engagement approver filters when payment admin role is absent', async () => {
-    const engagementApproverApplyFilter = jest
+  it('applies approver filters when payment admin role is absent', async () => {
+    const approverApplyFilter = jest
       .fn()
       .mockImplementation((_userId, req: Record<string, unknown>) =>
         Promise.resolve({
           ...req,
-          category: 'ENGAGEMENT_PAYMENT',
+          categories: ['ENGAGEMENT_PAYMENT', 'TASK_PAYMENT'],
         }),
       );
-    const engagementApproverProvider: RoleAccessProvider<
-      Record<string, unknown>
-    > = {
-      roleName: Role.EngagementPaymentApprover,
-      applyFilter: engagementApproverApplyFilter,
+    const approverProvider: RoleAccessProvider<Record<string, unknown>> = {
+      roleName: Role.PaymentApprover,
+      applyFilter: approverApplyFilter,
     };
 
-    service.register(engagementApproverProvider);
+    service.register(approverProvider);
 
     const result = await service.applyFilters<Record<string, unknown>>(
       '88770025',
-      [Role.EngagementPaymentApprover],
+      [Role.PaymentApprover],
       { type: 'PAYMENT' },
     );
 
     expect(result).toEqual({
-      category: 'ENGAGEMENT_PAYMENT',
+      categories: ['ENGAGEMENT_PAYMENT', 'TASK_PAYMENT'],
       type: 'PAYMENT',
     });
-    expect(engagementApproverApplyFilter).toHaveBeenCalledTimes(1);
+    expect(approverApplyFilter).toHaveBeenCalledTimes(1);
   });
 
   it('applies wipro taas admin filters when payment admin role is absent', async () => {
@@ -115,32 +111,32 @@ describe('AccessControlService', () => {
     expect(wiproTaasAdminApplyFilter).toHaveBeenCalledTimes(1);
   });
 
-  it('skips engagement approver resource checks when payment admin role is also present', async () => {
+  it('skips approver resource checks when payment admin role is also present', async () => {
     const paymentAdminVerifyAccess = jest.fn().mockResolvedValue(undefined);
-    const engagementApproverVerifyAccess = jest
+    const approverVerifyAccess = jest
       .fn()
       .mockRejectedValue(new Error('should not be called'));
     const paymentAdminProvider: RoleAccessProvider = {
       roleName: Role.PaymentAdmin,
       verifyAccessToResource: paymentAdminVerifyAccess,
     };
-    const engagementApproverProvider: RoleAccessProvider = {
-      roleName: Role.EngagementPaymentApprover,
-      verifyAccessToResource: engagementApproverVerifyAccess,
+    const approverProvider: RoleAccessProvider = {
+      roleName: Role.PaymentApprover,
+      verifyAccessToResource: approverVerifyAccess,
     };
 
     service.register(paymentAdminProvider);
-    service.register(engagementApproverProvider);
+    service.register(approverProvider);
 
     await expect(
       service.verifyAccess('winning-id', '88770025', [
         Role.PaymentAdmin,
-        Role.EngagementPaymentApprover,
+        Role.PaymentApprover,
       ]),
     ).resolves.toBeUndefined();
 
     expect(paymentAdminVerifyAccess).toHaveBeenCalledTimes(1);
-    expect(engagementApproverVerifyAccess).not.toHaveBeenCalled();
+    expect(approverVerifyAccess).not.toHaveBeenCalled();
   });
 
   it('skips wipro taas admin resource checks when payment admin role is also present', async () => {
