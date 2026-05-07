@@ -353,7 +353,7 @@ export class AdminService {
 
   /**
    * Finds challenge billing-account rows that need to be recalculated after a
-   * wallet-admin payment status change.
+   * wallet-admin payment status or amount change.
    *
    * @param payments payment rows selected by the update request.
    * @returns unique challenge and billing-account pairs touched by USD
@@ -402,7 +402,7 @@ export class AdminService {
 
   /**
    * Finds engagement billing-account rows that need to be reconciled after a
-   * wallet-admin payment status change.
+   * wallet-admin payment status or amount change.
    *
    * @param payments payment rows selected by the update request.
    * @returns unique engagement assignment and billing-account pairs touched by
@@ -540,6 +540,39 @@ export class AdminService {
   }
 
   /**
+   * Recomputes the persisted engagement billing fee after an admin amount edit.
+   *
+   * Engagement consumed rows store payment total plus `payment.challenge_fee`.
+   * When wallet admin adjusts the payment total, the fee must be recalculated
+   * from the persisted markup before finance resyncs the BA consumed row.
+   *
+   * @param category winning category for the payment being edited.
+   * @param challengeMarkup markup persisted on the payment row.
+   * @param totalAmount new payment total amount.
+   * @returns recalculated fee for engagement payments, or `undefined` when the
+   * payment is not an engagement payment or has no valid persisted markup.
+   * @throws This helper does not throw.
+   */
+  private calculateAdjustedChallengeFee(
+    category: winnings_category | null,
+    challengeMarkup: Prisma.Decimal | number | string | null,
+    totalAmount: number,
+  ): number | undefined {
+    if (category !== winnings_category.ENGAGEMENT_PAYMENT) {
+      return undefined;
+    }
+
+    const markup = Number(challengeMarkup);
+    if (!Number.isFinite(markup) || markup < 0) {
+      return undefined;
+    }
+
+    return this.toPaymentAmount(
+      new Prisma.Decimal(totalAmount).mul(new Prisma.Decimal(markup)),
+    );
+  }
+
+  /**
    * Sums non-cancelled USD payment rows for a challenge and billing account.
    *
    * @param challengeId challenge external id stored on winnings.
@@ -574,8 +607,8 @@ export class AdminService {
   }
 
   /**
-   * Rewrites challenge billing-account budget rows after a wallet-admin status
-   * update changes the active payment total.
+   * Rewrites challenge billing-account budget rows after a wallet-admin update
+   * changes the active payment total.
    *
    * @param targets unique challenge and billing-account pairs to synchronize.
    * @returns promise resolved after every target has been sent to BA.
@@ -663,7 +696,7 @@ export class AdminService {
 
   /**
    * Reconciles engagement billing-account consumed rows after a wallet-admin
-   * cancellation changes the active payment set.
+   * update changes the active payment amounts or active payment set.
    *
    * @param targets unique engagement assignment and billing-account pairs to
    * synchronize.
@@ -780,14 +813,15 @@ export class AdminService {
         tx: Prisma.TransactionClient,
       ) => Promise<unknown>)[] = [];
       const now = new Date().getTime();
-      const challengeBudgetSyncTargets =
-        body.paymentStatus === PaymentStatus.CANCELLED
-          ? this.getChallengeBudgetSyncTargets(payments)
-          : [];
-      const engagementBudgetSyncTargets =
-        body.paymentStatus === PaymentStatus.CANCELLED
-          ? this.getEngagementBudgetSyncTargets(payments)
-          : [];
+      const shouldSyncBudget =
+        body.paymentStatus === PaymentStatus.CANCELLED ||
+        body.paymentAmount !== undefined;
+      const challengeBudgetSyncTargets = shouldSyncBudget
+        ? this.getChallengeBudgetSyncTargets(payments)
+        : [];
+      const engagementBudgetSyncTargets = shouldSyncBudget
+        ? this.getEngagementBudgetSyncTargets(payments)
+        : [];
 
       // iterate payments and build transaction list
       payments.forEach((payment) => {
@@ -999,6 +1033,12 @@ export class AdminService {
         ) {
           // ideally we should be maintaining the original split of the payment amount between installments - but we aren't really using splits anymore
           if (payment.installment_number === 1) {
+            const challengeFee = this.calculateAdjustedChallengeFee(
+              payment.winnings.category,
+              payment.challenge_markup,
+              body.paymentAmount,
+            );
+
             transactions.push((tx) =>
               this.updatePaymentAmount(
                 userId,
@@ -1007,6 +1047,7 @@ export class AdminService {
                 body.paymentAmount,
                 body.paymentAmount,
                 body.paymentAmount,
+                challengeFee,
                 version,
                 tx,
               ),
@@ -1027,6 +1068,12 @@ export class AdminService {
               `update amounts -> ${body.paymentAmount.toFixed(2)} (installment 1)`,
             );
           } else {
+            const challengeFee = this.calculateAdjustedChallengeFee(
+              payment.winnings.category,
+              payment.challenge_markup,
+              body.paymentAmount,
+            );
+
             transactions.push((tx) =>
               this.updatePaymentAmount(
                 userId,
@@ -1035,6 +1082,7 @@ export class AdminService {
                 0,
                 0,
                 body.paymentAmount,
+                challengeFee,
                 version,
                 tx,
               ),
@@ -1436,6 +1484,7 @@ export class AdminService {
     netAmount: number,
     grossAmount: number,
     totalAmount: number,
+    challengeFee: number | undefined,
     currentVersion: number,
     tx?: Prisma.TransactionClient,
   ) {
@@ -1459,6 +1508,7 @@ export class AdminService {
         net_amount: netAmount,
         gross_amount: grossAmount,
         total_amount: totalAmount,
+        challenge_fee: challengeFee,
         updated_at: new Date(),
         updated_by: userId,
         version: currentVersion + 1,
