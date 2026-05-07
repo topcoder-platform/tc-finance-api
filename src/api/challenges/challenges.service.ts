@@ -148,6 +148,31 @@ export class ChallengesService {
       : WinningsCategory.REVIEW_BOARD_PAYMENT;
   }
 
+  /**
+   * Resolves the explicit payment status for task payments generated from
+   * challenge-api-v6 challenge data.
+   *
+   * @param challenge Challenge details returned by challenge-api-v6.
+   * @param category Winnings category selected for the generated payment.
+   * @param currency Prize currency selected for the generated payment.
+   * @returns OWED for USD TAAS task payments, ON_HOLD_ADMIN for other USD task
+   * payments, and undefined when standard payout-readiness rules should apply.
+   * @throws This method does not throw.
+   */
+  private getTaskPaymentStatus(
+    challenge: Challenge,
+    category: WinningsCategory,
+    currency?: PrizeType,
+  ): PaymentStatus | undefined {
+    if (!challenge.task?.isTask || currency !== PrizeType.USD) {
+      return undefined;
+    }
+
+    return category === WinningsCategory.TAAS_PAYMENT
+      ? PaymentStatus.OWED
+      : PaymentStatus.ON_HOLD_ADMIN;
+  }
+
   async getChallenge(challengeId: string) {
     if (!isUUID(challengeId)) {
       throw new BadRequestException(
@@ -232,15 +257,15 @@ export class ChallengesService {
           ? (type ?? defaultCategory)
           : WinningsCategory.POINTS_AWARD;
 
+      const status = this.getTaskPaymentStatus(challenge, winType, currency);
+
       return {
         handle: winner.handle,
         amount: prizes[winner.placement - 1].value,
         userId: winner.userId.toString(),
         type: winType,
         currency,
-        ...(challenge.task?.isTask && currency === PrizeType.USD
-          ? { status: PaymentStatus.ON_HOLD_ADMIN }
-          : {}),
+        ...(status ? { status } : {}),
         description:
           challenge.type === 'Task'
             ? challenge.name
@@ -434,6 +459,12 @@ export class ChallengesService {
               currency,
             );
 
+            const status = this.getTaskPaymentStatus(
+              challenge,
+              winType,
+              currency,
+            );
+
             return {
               handle: reviewer.memberHandle,
               userId: reviewer.memberId.toString(),
@@ -446,9 +477,7 @@ export class ChallengesService {
               ),
               type: winType,
               currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
-              ...(challenge.task?.isTask && currency === PrizeType.USD
-                ? { status: PaymentStatus.ON_HOLD_ADMIN }
-                : {}),
+              ...(status ? { status } : {}),
               description: `${challenge.name} - ${phaseReviews[0].phaseName}`,
             };
           },
@@ -513,6 +542,10 @@ export class ChallengesService {
     );
 
     return payments.map((payment) => {
+      const paymentStatus =
+        payment.status ??
+        this.getTaskPaymentStatus(challenge, payment.type, payment.currency);
+
       return {
         winnerId: payment.userId.toString(),
         type:
