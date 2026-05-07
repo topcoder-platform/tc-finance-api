@@ -557,7 +557,7 @@ export class ChallengesService {
         title: challenge.name,
         description: payment.description || challenge.name,
         externalId: challenge.id,
-        ...(paymentStatus ? { status: paymentStatus } : {}),
+        ...(payment.status ? { status: payment.status } : {}),
         details: [
           {
             totalAmount: payment.amount,
