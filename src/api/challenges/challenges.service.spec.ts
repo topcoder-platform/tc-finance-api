@@ -63,7 +63,7 @@ describe('ChallengesService', () => {
     expect(prisma.challenge_lock.create).not.toHaveBeenCalled();
   });
 
-  it('maps task challenges with taas metadata to TAAS_PAYMENT', () => {
+  it('maps task challenges with taas metadata to TAAS_PAYMENT and OWED status', () => {
     const service = new ChallengesService(
       {} as any,
       {} as any,
@@ -87,6 +87,7 @@ describe('ChallengesService', () => {
     expect(payments).toEqual([
       expect.objectContaining({
         type: WinningsCategory.TAAS_PAYMENT,
+        status: PaymentStatus.OWED,
       }),
     ]);
   });
@@ -170,7 +171,52 @@ describe('ChallengesService', () => {
     ]);
   });
 
-  it('defaults task challenge winnings to ON_HOLD_ADMIN status', async () => {
+  it('defaults TAAS task challenge winnings to OWED status', async () => {
+    const service = new ChallengesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    jest
+      .spyOn(service, 'getChallengeResources')
+      .mockResolvedValue({ winner: [] } as any);
+    jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
+      {
+        userId: '40158994',
+        amount: 500,
+        type: WinningsCategory.TAAS_PAYMENT,
+        currency: PrizeType.USD,
+      },
+    ] as any);
+    jest
+      .spyOn(service, 'generateCheckpointWinnersPayments')
+      .mockReturnValue([]);
+    jest.spyOn(service, 'generateCopilotPayment').mockReturnValue([]);
+    jest.spyOn(service, 'generateReviewersPayments').mockResolvedValue([]);
+
+    const winnings = await service.getChallengePayments({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'TAAS Task Challenge',
+      type: 'Task',
+      task: { isTask: true },
+      billing: { billingAccountId: '1234', markup: 0.2 },
+    } as any);
+
+    expect(winnings).toEqual([
+      expect.objectContaining({
+        category: WinningsCategory.TAAS_PAYMENT,
+        status: PaymentStatus.OWED,
+      }),
+    ]);
+    expect(winnings[0].attributes).toMatchObject({
+      [CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE]: true,
+    });
+  });
+
+  it('defaults non-TAAS task challenge winnings to ON_HOLD_ADMIN status', async () => {
     const service = new ChallengesService(
       {} as any,
       {} as any,
