@@ -515,6 +515,158 @@ describe('AdminService', () => {
     expect(baService.lockConsumeAmount).not.toHaveBeenCalled();
   });
 
+  it('recalculates the challenge billing-account line item when a challenge payment amount is adjusted', async () => {
+    prisma.payment.findMany
+      .mockResolvedValueOnce([
+        {
+          billing_account: '80001012',
+          currency: 'USD',
+          installment_number: 1,
+          payment_id: 'payment-1',
+          payment_status: PaymentStatus.OWED,
+          release_date: new Date('2026-04-27T00:00:00.000Z'),
+          total_amount: '100.00',
+          version: 1,
+          winnings: {
+            category: 'CONTEST_PAYMENT',
+            description: 'Challenge payment',
+            external_id: 'challenge-1',
+            type: 'PAYMENT',
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        { total_amount: '150.00' },
+        { total_amount: '25.00' },
+      ]);
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      billing: {
+        billingAccountId: '80001012',
+        markup: 0.1,
+      },
+      id: 'challenge-1',
+      status: 'COMPLETED',
+    });
+
+    const result = await service.updateWinnings(
+      {
+        paymentAmount: 150,
+        paymentId: 'payment-1',
+        winningsId: 'winning-1',
+      } as any,
+      'admin-1',
+      ['Payment Admin'],
+    );
+
+    expect(result.data).toBe('Successfully updated winnings');
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: {
+        payment_id: 'payment-1',
+        winnings_id: 'winning-1',
+        version: 1,
+        payment_status: {
+          in: [
+            PaymentStatus.CREDITED,
+            PaymentStatus.OWED,
+            PaymentStatus.ON_HOLD,
+            PaymentStatus.ON_HOLD_ADMIN,
+            PaymentStatus.PAID,
+            PaymentStatus.PROCESSING,
+          ],
+        },
+      },
+      data: {
+        challenge_fee: undefined,
+        gross_amount: 150,
+        net_amount: 150,
+        total_amount: 150,
+        updated_at: expect.any(Date),
+        updated_by: 'admin-1',
+        version: 2,
+      },
+    });
+    expect(baService.lockConsumeAmount).toHaveBeenCalledWith({
+      billingAccountId: 80001012,
+      challengeId: 'challenge-1',
+      markup: 0.1,
+      status: 'COMPLETED',
+      totalPrizesInCents: 17500,
+    });
+  });
+
+  it('updates engagement challenge fee and consumed rows when an engagement payment amount is adjusted', async () => {
+    prisma.payment.findMany
+      .mockResolvedValueOnce([
+        {
+          billing_account: '80001012',
+          challenge_markup: '0.20',
+          currency: 'USD',
+          installment_number: 1,
+          payment_id: 'payment-1',
+          payment_status: PaymentStatus.OWED,
+          release_date: new Date('2026-04-28T00:00:00.000Z'),
+          total_amount: '100.00',
+          version: 1,
+          winnings: {
+            category: 'ENGAGEMENT_PAYMENT',
+            description: 'Engagement payment',
+            external_id: 'assignment-1',
+            type: 'PAYMENT',
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          challenge_fee: '30.00',
+          total_amount: '150.00',
+        },
+      ]);
+
+    const result = await service.updateWinnings(
+      {
+        paymentAmount: 150,
+        paymentId: 'payment-1',
+        winningsId: 'winning-1',
+      } as any,
+      'admin-1',
+      ['Payment Admin'],
+    );
+
+    expect(result.data).toBe('Successfully updated winnings');
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: {
+        payment_id: 'payment-1',
+        winnings_id: 'winning-1',
+        version: 1,
+        payment_status: {
+          in: [
+            PaymentStatus.CREDITED,
+            PaymentStatus.OWED,
+            PaymentStatus.ON_HOLD,
+            PaymentStatus.ON_HOLD_ADMIN,
+            PaymentStatus.PAID,
+            PaymentStatus.PROCESSING,
+          ],
+        },
+      },
+      data: {
+        challenge_fee: 30,
+        gross_amount: 150,
+        net_amount: 150,
+        total_amount: 150,
+        updated_at: expect.any(Date),
+        updated_by: 'admin-1',
+        version: 2,
+      },
+    });
+    expect(baService.syncEngagementConsumeAmounts).toHaveBeenCalledWith({
+      amounts: [180],
+      billingAccountId: 80001012,
+      externalId: 'assignment-1',
+    });
+    expect(baService.lockConsumeAmount).not.toHaveBeenCalled();
+  });
+
   it('returns task details for task payment with projectId and approver', async () => {
     prisma.winnings.findFirst.mockResolvedValue({
       winning_id: 'winning-task',
