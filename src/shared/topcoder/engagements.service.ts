@@ -17,9 +17,11 @@ export interface TopcoderAssignmentContext {
   memberHandle: string;
   memberId: string;
   otherRemarks?: string | null;
+  paymentCycle?: string | null;
   projectId: string;
   projectName?: string;
   ratePerHour?: string | null;
+  standardHoursPerDay?: number | null;
   standardHoursPerWeek?: number | null;
   startDate?: string | null;
   status: string;
@@ -34,7 +36,9 @@ export interface TopcoderEngagementAssignment {
   memberHandle?: string | null;
   memberId?: string | number | null;
   otherRemarks?: string | null;
+  paymentCycle?: string | null;
   ratePerHour?: string | null;
+  standardHoursPerDay?: number | string | null;
   startDate?: string | null;
   standardHoursPerWeek?: number | string | null;
 }
