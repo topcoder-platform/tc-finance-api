@@ -1289,10 +1289,10 @@ export class WinningsService {
           tx,
         );
 
+      const engagementReleaseDate = isEngagementPayment
+        ? this.buildEngagementReleaseDate()
+        : undefined;
       for (const [detailIndex, detail] of (body.details || []).entries()) {
-        const engagementReleaseDate = isEngagementPayment
-          ? this.buildEngagementReleaseDate()
-          : undefined;
         const challengeFee = engagementConsumePlan
           ? this.calculateEngagementChallengeFee(
               Number(detail.totalAmount),
@@ -1315,7 +1315,9 @@ export class WinningsService {
             ? Prisma.Decimal(engagementConsumePlan.challengeMarkup)
             : null,
           challenge_fee: Prisma.Decimal(challengeFee),
-          release_date: engagementReleaseDate ?? null,
+          ...(engagementReleaseDate !== undefined
+            ? { release_date: engagementReleaseDate }
+            : {}),
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);

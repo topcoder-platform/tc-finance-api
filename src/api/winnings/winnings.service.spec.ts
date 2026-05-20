@@ -318,7 +318,10 @@ describe('WinningsService', () => {
     const persistedPayment =
       tx.winnings.create.mock.calls[0][0].data.payment.create[0];
 
-    expect(persistedPayment.release_date).toBeNull();
+    expect(persistedPayment.release_date).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(persistedPayment, 'release_date'),
+    ).toBe(false);
   });
 
   it('rejects engagement payment details that do not match the assignment billing account', async () => {
