@@ -97,6 +97,12 @@ export class ConfigEnv {
   TOPCODER_WALLET_URL = 'https://wallet.topcoder.com';
 
   @IsInt()
+  @Min(3)
+  @Max(5)
+  @IsOptional()
+  ENGAGEMENT_PAYMENT_RELEASE_WINDOW_DAYS: number = 5;
+
+  @IsInt()
   @Min(0)
   @Max(99)
   @IsOptional()
