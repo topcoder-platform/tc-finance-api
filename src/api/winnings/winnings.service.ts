@@ -69,12 +69,17 @@ interface ChallengeBillingAccountSyncPlan {
   status: string;
 }
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 /**
  * The winning service.
  */
 @Injectable()
 export class WinningsService {
   private readonly logger = new Logger(WinningsService.name);
+
+  private readonly engagementPaymentReleaseWindowDays =
+    ENV_CONFIG.ENGAGEMENT_PAYMENT_RELEASE_WINDOW_DAYS;
 
   /**
    * Constructs the admin winning service with the given dependencies.
@@ -274,6 +279,18 @@ export class WinningsService {
         : undefined;
 
     return attributes?.[CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE] === true;
+  }
+
+  /**
+   * Calculates the default release date for engagement payments.
+   *
+   * @returns A Date offset from now by the configured engagement release
+   * window.
+   */
+  private buildEngagementReleaseDate(): Date {
+    return new Date(
+      Date.now() + this.engagementPaymentReleaseWindowDays * DAY_IN_MS,
+    );
   }
 
   /**
@@ -1242,6 +1259,7 @@ export class WinningsService {
             | 'billing_account'
             | 'challenge_markup'
             | 'challenge_fee'
+            | 'release_date'
           >[],
         },
       };
@@ -1271,6 +1289,9 @@ export class WinningsService {
           tx,
         );
 
+      const engagementReleaseDate = isEngagementPayment
+        ? this.buildEngagementReleaseDate()
+        : undefined;
       for (const [detailIndex, detail] of (body.details || []).entries()) {
         const challengeFee = engagementConsumePlan
           ? this.calculateEngagementChallengeFee(
@@ -1294,6 +1315,9 @@ export class WinningsService {
             ? Prisma.Decimal(engagementConsumePlan.challengeMarkup)
             : null,
           challenge_fee: Prisma.Decimal(challengeFee),
+          ...(engagementReleaseDate !== undefined
+            ? { release_date: engagementReleaseDate }
+            : {}),
         };
 
         paymentModel.net_amount = Prisma.Decimal(detail.grossAmount);
