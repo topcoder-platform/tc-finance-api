@@ -33,7 +33,10 @@ import {
   TopcoderChallengeInfo,
   TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
-import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
+import {
+  PaymentCycle,
+  WinningPaymentDetailsDto,
+} from './dto/payment-details.dto';
 
 const PAYMENT_DECIMAL_PLACES = 2;
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
@@ -261,6 +264,13 @@ export class AdminService {
       assignment.standardHoursPerWeek !== null
         ? Number(assignment.standardHoursPerWeek)
         : undefined;
+    const standardHoursPerDay =
+      assignment?.standardHoursPerDay !== undefined &&
+      assignment.standardHoursPerDay !== null
+        ? Number(assignment.standardHoursPerDay)
+        : Number.isFinite(standardHoursPerWeek)
+          ? Number(((standardHoursPerWeek ?? 0) / 5).toFixed(2))
+          : undefined;
     const projectId = engagement.projectId ?? engagement.project?.id;
     const projectName =
       (engagement.projectName ?? engagement.project?.name)?.trim() ?? undefined;
@@ -288,6 +298,11 @@ export class AdminService {
         ? durationMonths
         : undefined,
       ratePerHour: assignment?.ratePerHour?.trim() ?? undefined,
+      paymentCycle: (assignment?.paymentCycle?.trim() ||
+        'WEEKLY') as PaymentCycle,
+      standardHoursPerDay: Number.isFinite(standardHoursPerDay)
+        ? standardHoursPerDay
+        : undefined,
       standardHoursPerWeek: Number.isFinite(standardHoursPerWeek)
         ? standardHoursPerWeek
         : undefined,
@@ -1316,6 +1331,14 @@ export class AdminService {
             : undefined,
           durationMonths: assignmentContext.durationMonths ?? undefined,
           ratePerHour: assignmentContext.ratePerHour ?? undefined,
+          paymentCycle: (assignmentContext.paymentCycle ??
+            'WEEKLY') as PaymentCycle,
+          standardHoursPerDay:
+            assignmentContext.standardHoursPerDay ??
+            (assignmentContext.standardHoursPerWeek !== undefined &&
+            assignmentContext.standardHoursPerWeek !== null
+              ? Number((assignmentContext.standardHoursPerWeek / 5).toFixed(2))
+              : undefined),
           standardHoursPerWeek:
             assignmentContext.standardHoursPerWeek ?? undefined,
           otherRemarks: assignmentContext.otherRemarks ?? undefined,

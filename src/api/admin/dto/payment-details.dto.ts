@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
+export type PaymentCycle = 'WEEKLY' | 'FORTNIGHTLY' | 'MONTHLY';
+
 export class PaymentEngagementDetailsDto {
   @ApiPropertyOptional({
     description: 'The assignment ID associated with the payment',
@@ -48,6 +50,19 @@ export class PaymentEngagementDetailsDto {
     example: '75.50',
   })
   ratePerHour?: string;
+
+  @ApiPropertyOptional({
+    description: 'Assignment payment cycle',
+    enum: ['WEEKLY', 'FORTNIGHTLY', 'MONTHLY'],
+    example: 'WEEKLY',
+  })
+  paymentCycle?: PaymentCycle;
+
+  @ApiPropertyOptional({
+    description: 'Assignment standard hours per day',
+    example: 8,
+  })
+  standardHoursPerDay?: number;
 
   @ApiPropertyOptional({
     description: 'Assignment standard hours per week',
