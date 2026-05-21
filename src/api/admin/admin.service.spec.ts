@@ -151,6 +151,119 @@ describe('AdminService', () => {
     );
   });
 
+  it('returns engagement budgetApproverHandle from winnings attributes challengeId', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {
+        challengeId: 'challenge-uuid-1',
+      },
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      engagementId: 'engagement-1',
+      engagementTitle: 'May 19 pvt eng',
+      projectId: '100575',
+      projectName: 'Ai Reviewer Wf testing',
+      ratePerHour: '2.99',
+      standardHoursPerWeek: 11,
+      startDate: '2026-05-23T12:00:00.000Z',
+      durationMonths: 2,
+    });
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      id: 'challenge-uuid-1',
+      name: 'Engagement challenge',
+      projectId: 100575,
+      approvalApprovedBy: 'kartik',
+    });
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+      'challenge-uuid-1',
+    );
+    expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
+  });
+
+  it('returns engagement budgetApproverHandle from winnings attributes directly', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {
+        budgetApproverHandle: 'kartik',
+      },
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      engagementId: 'engagement-1',
+      engagementTitle: 'May 19 pvt eng',
+      projectId: '100575',
+      ratePerHour: '2.99',
+      standardHoursPerWeek: 11,
+      startDate: '2026-05-23T12:00:00.000Z',
+      durationMonths: 2,
+    });
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(topcoderChallengesService.getChallengeById).not.toHaveBeenCalled();
+    expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
+  });
+
+  it('returns paymentApproverHandle for engagement payments from audit trail', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {},
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      engagementId: 'engagement-1',
+      engagementTitle: 'May 19 pvt eng',
+      projectId: '100575',
+      projectName: 'Ai Reviewer Wf testing',
+      ratePerHour: '2.99',
+      standardHoursPerWeek: 11,
+      startDate: '2026-05-23T12:00:00.000Z',
+      durationMonths: 2,
+    });
+    prisma.audit.findMany.mockResolvedValue([
+      {
+        id: 'audit-1',
+        winnings_id: 'winning-1',
+        user_id: '654321',
+        action: 'status updated from ON_HOLD_ADMIN to OWED',
+        note: null,
+        created_at: new Date(),
+      },
+    ]);
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(result.data?.engagementDetails?.paymentApproverHandle).toBe(
+      'payment-manager',
+    );
+    expect(result.data?.engagementDetails?.assignmentId).toBe('assignment-1');
+  });
+
   it('returns work-log and engagement details for engagement payments', async () => {
     prisma.winnings.findFirst.mockResolvedValue({
       winning_id: 'winning-1',

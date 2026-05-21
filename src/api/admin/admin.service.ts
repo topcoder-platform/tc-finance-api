@@ -127,6 +127,44 @@ export class AdminService {
     return Number.isFinite(parsedValue) ? parsedValue : undefined;
   }
 
+  private getWinningChallengeId(
+    winning: Awaited<ReturnType<AdminService['getWinningById']>>,
+    assignmentContext?: { challengeId?: string | null },
+  ): string | undefined {
+    const contextChallengeId = assignmentContext?.challengeId;
+
+    if (contextChallengeId !== undefined && contextChallengeId !== null) {
+      const normalizedContextChallengeId = String(contextChallengeId).trim();
+
+      if (normalizedContextChallengeId) {
+        return normalizedContextChallengeId;
+      }
+    }
+
+    if (
+      !winning?.attributes ||
+      typeof winning.attributes !== 'object' ||
+      Array.isArray(winning.attributes)
+    ) {
+      return undefined;
+    }
+
+    const challengeId = (winning.attributes as Record<string, unknown>)
+      .challengeId;
+
+    if (typeof challengeId === 'string') {
+      const normalizedChallengeId = challengeId.trim();
+
+      return normalizedChallengeId || undefined;
+    }
+
+    if (typeof challengeId === 'number' && Number.isFinite(challengeId)) {
+      return String(challengeId);
+    }
+
+    return undefined;
+  }
+
   private getWinningAssignmentId(
     winning: Awaited<ReturnType<AdminService['getWinningById']>>,
   ): string | undefined {
@@ -1176,6 +1214,76 @@ export class AdminService {
     return result;
   }
 
+  /**
+   * Resolves the payment approver handle from the audit entry that moved the
+   * winning from `ON_HOLD_ADMIN` to `OWED`.
+   */
+  /**
+   * Resolves the engagement budget approver from data stored on the winning row.
+   * Uses `attributes.budgetApproverHandle` when present, otherwise looks up the
+   * linked challenge via `attributes.challengeId` or assignment context.
+   */
+  private async resolveEngagementBudgetApproverHandle(
+    winning: Awaited<ReturnType<AdminService['getWinningById']>>,
+    assignmentContext?: { challengeId?: string | null },
+  ): Promise<string | undefined> {
+    const attributeBudgetApprover = this.getStringAttribute(
+      winning?.attributes ?? null,
+      'budgetApproverHandle',
+    );
+
+    if (attributeBudgetApprover) {
+      return this.getPaymentCreatorHandle(attributeBudgetApprover);
+    }
+
+    const challengeId = this.getWinningChallengeId(winning, assignmentContext);
+
+    if (!challengeId) {
+      return undefined;
+    }
+
+    try {
+      const challenge =
+        await this.topcoderChallengesService.getChallengeById(challengeId);
+
+      if (!challenge?.approvalApprovedBy) {
+        return undefined;
+      }
+
+      return this.getPaymentCreatorHandle(challenge.approvalApprovedBy);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async resolvePaymentApproverHandleFromAudit(
+    winningsId: string,
+  ): Promise<string | undefined> {
+    try {
+      const audits = await this.prisma.audit.findMany({
+        where: { winnings_id: winningsId },
+        orderBy: { created_at: 'desc' },
+        take: 200,
+      });
+      const approverAudit = audits.find(
+        (audit) =>
+          typeof audit.action === 'string' &&
+          audit.action.includes('ON_HOLD_ADMIN') &&
+          audit.action.includes('OWED') &&
+          audit.action.indexOf('ON_HOLD_ADMIN') < audit.action.indexOf('OWED'),
+      );
+
+      if (!approverAudit?.user_id) {
+        return undefined;
+      }
+
+      return this.getPaymentCreatorHandle(String(approverAudit.user_id));
+    } catch {
+      // approver is optional — ignore failures
+      return undefined;
+    }
+  }
+
   private async buildTaskDetails(
     winningsId: string,
     externalId: string | undefined,
@@ -1209,27 +1317,8 @@ export class AdminService {
       }
     }
 
-    try {
-      const audits = await this.prisma.audit.findMany({
-        where: { winnings_id: winningsId },
-        orderBy: { created_at: 'desc' },
-        take: 200,
-      });
-      const approverAudit = audits.find(
-        (a) =>
-          typeof a.action === 'string' &&
-          a.action.includes('ON_HOLD_ADMIN') &&
-          a.action.includes('OWED') &&
-          a.action.indexOf('ON_HOLD_ADMIN') < a.action.indexOf('OWED'),
-      );
-      if (approverAudit?.user_id) {
-        const userId = String(approverAudit.user_id);
-        const handle = await this.getPaymentCreatorHandle(userId);
-        taskDetails.paymentApproverHandle = handle ?? undefined;
-      }
-    } catch {
-      // approver is optional — ignore failures
-    }
+    taskDetails.paymentApproverHandle =
+      await this.resolvePaymentApproverHandleFromAudit(winningsId);
 
     return taskDetails;
   }
@@ -1283,11 +1372,19 @@ export class AdminService {
       return result;
     }
 
+    const paymentApproverHandle =
+      await this.resolvePaymentApproverHandleFromAudit(winningsId);
+
     if (assignmentLookupId) {
       try {
         const assignmentContext =
           await this.topcoderEngagementsService.getAssignmentContextById(
             assignmentLookupId,
+          );
+        const budgetApproverHandle =
+          await this.resolveEngagementBudgetApproverHandle(
+            winning,
+            assignmentContext,
           );
 
         result.data.engagementDetails = {
@@ -1304,6 +1401,8 @@ export class AdminService {
           standardHoursPerWeek:
             assignmentContext.standardHoursPerWeek ?? undefined,
           otherRemarks: assignmentContext.otherRemarks ?? undefined,
+          paymentApproverHandle,
+          budgetApproverHandle,
         };
 
         return result;
@@ -1328,11 +1427,18 @@ export class AdminService {
         assignmentId,
       );
 
-      result.data.engagementDetails = this.buildEngagementDetailsFromEngagement(
-        engagement,
-        assignment,
-        assignmentId,
-      );
+      const budgetApproverHandle =
+        await this.resolveEngagementBudgetApproverHandle(winning);
+
+      result.data.engagementDetails = {
+        ...this.buildEngagementDetailsFromEngagement(
+          engagement,
+          assignment,
+          assignmentId,
+        ),
+        paymentApproverHandle,
+        budgetApproverHandle,
+      };
     } catch (error) {
       this.logger.warn(
         `Failed to enrich winning ${winningsId} with engagement details`,

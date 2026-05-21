@@ -20,6 +20,7 @@ export interface AdminPaymentUpdateData {
 }
 
 export interface TopcoderChallengeInfo {
+  approvalApprovedBy?: string | null;
   billing?: {
     billingAccountId?: number | string | null;
     clientBillingRate?: number | string | null;

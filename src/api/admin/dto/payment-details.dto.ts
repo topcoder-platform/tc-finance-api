@@ -60,6 +60,20 @@ export class PaymentEngagementDetailsDto {
     example: 'Complete onboarding within the first week.',
   })
   otherRemarks?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The Topcoder handle of the wallet-admin user who approved this payment',
+    example: 'payment_approver_handle',
+  })
+  paymentApproverHandle?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The Topcoder handle of the user who approved the engagement budget (from winnings attributes or linked challenge)',
+    example: 'budget_approver_handle',
+  })
+  budgetApproverHandle?: string;
 }
 
 export class PaymentWorkLogDto {
