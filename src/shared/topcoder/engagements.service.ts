@@ -9,7 +9,6 @@ const { TOPCODER_API_V6_BASE_URL: TC_API_BASE } = ENV_CONFIG;
 export interface TopcoderAssignmentContext {
   agreementRate?: string | null;
   assignmentId: string;
-  challengeId?: string | null;
   billingAccountId?: number | string | null;
   durationMonths?: number | null;
   endDate?: string | null;

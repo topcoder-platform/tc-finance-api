@@ -127,44 +127,6 @@ export class AdminService {
     return Number.isFinite(parsedValue) ? parsedValue : undefined;
   }
 
-  private getWinningChallengeId(
-    winning: Awaited<ReturnType<AdminService['getWinningById']>>,
-    assignmentContext?: { challengeId?: string | null },
-  ): string | undefined {
-    const contextChallengeId = assignmentContext?.challengeId;
-
-    if (contextChallengeId !== undefined && contextChallengeId !== null) {
-      const normalizedContextChallengeId = String(contextChallengeId).trim();
-
-      if (normalizedContextChallengeId) {
-        return normalizedContextChallengeId;
-      }
-    }
-
-    if (
-      !winning?.attributes ||
-      typeof winning.attributes !== 'object' ||
-      Array.isArray(winning.attributes)
-    ) {
-      return undefined;
-    }
-
-    const attributes = winning.attributes as Record<string, unknown>;
-    const challengeId = attributes.challengeId ?? attributes.challengeGuid;
-
-    if (typeof challengeId === 'string') {
-      const normalizedChallengeId = challengeId.trim();
-
-      return normalizedChallengeId || undefined;
-    }
-
-    if (typeof challengeId === 'number' && Number.isFinite(challengeId)) {
-      return String(challengeId);
-    }
-
-    return undefined;
-  }
-
   private getWinningAssignmentId(
     winning: Awaited<ReturnType<AdminService['getWinningById']>>,
   ): string | undefined {
@@ -1215,67 +1177,9 @@ export class AdminService {
   }
 
   /**
-   * Resolves the engagement budget approver from the linked challenge's
-   * `approvalApprovedBy` field (`GET /v6/challenges/{challengeId}`).
-   */
-  private async resolveEngagementBudgetApproverHandle(
-    winning: Awaited<ReturnType<AdminService['getWinningById']>>,
-    engagementLookup?: {
-      challengeId?: string | null;
-      engagementTitle?: string;
-      projectId?: string;
-    },
-  ): Promise<string | undefined> {
-    let challengeId = this.getWinningChallengeId(winning, engagementLookup);
-
-    if (
-      !challengeId &&
-      engagementLookup?.projectId &&
-      engagementLookup?.engagementTitle
-    ) {
-      challengeId =
-        await this.topcoderChallengesService.findChallengeIdFromProjectPhases(
-          engagementLookup.projectId,
-          engagementLookup.engagementTitle,
-        );
-    }
-
-    if (
-      !challengeId &&
-      engagementLookup?.projectId &&
-      engagementLookup?.engagementTitle
-    ) {
-      const challenge =
-        await this.topcoderChallengesService.findChallengeByProjectAndTitle(
-          engagementLookup.projectId,
-          engagementLookup.engagementTitle,
-        );
-      challengeId = challenge?.id;
-    }
-
-    if (!challengeId) {
-      return undefined;
-    }
-
-    try {
-      const challenge =
-        await this.topcoderChallengesService.getChallengeById(challengeId);
-
-      if (!challenge?.approvalApprovedBy) {
-        return undefined;
-      }
-
-      return this.getPaymentCreatorHandle(challenge.approvalApprovedBy);
-    } catch {
-      return undefined;
-    }
-  }
-
-  /**
    * Resolves the payment approver handle from the audit entry that moved the
    * winning from `ON_HOLD_ADMIN` to `OWED`.
    */
-
   private async resolvePaymentApproverHandleFromAudit(
     winningsId: string,
   ): Promise<string | undefined> {
@@ -1401,12 +1305,6 @@ export class AdminService {
           await this.topcoderEngagementsService.getAssignmentContextById(
             assignmentLookupId,
           );
-        const budgetApproverHandle =
-          await this.resolveEngagementBudgetApproverHandle(
-            winning,
-            assignmentContext,
-          );
-
         result.data.engagementDetails = {
           assignmentId: assignmentContext.assignmentId,
           engagementId: assignmentContext.engagementId,
@@ -1422,7 +1320,6 @@ export class AdminService {
             assignmentContext.standardHoursPerWeek ?? undefined,
           otherRemarks: assignmentContext.otherRemarks ?? undefined,
           paymentApproverHandle,
-          budgetApproverHandle,
         };
 
         return result;
@@ -1447,21 +1344,13 @@ export class AdminService {
         assignmentId,
       );
 
-      const builtEngagementDetails = this.buildEngagementDetailsFromEngagement(
-        engagement,
-        assignment,
-        assignmentId,
-      );
-      const budgetApproverHandle =
-        await this.resolveEngagementBudgetApproverHandle(winning, {
-          engagementTitle: builtEngagementDetails.engagementTitle,
-          projectId: builtEngagementDetails.projectId,
-        });
-
       result.data.engagementDetails = {
-        ...builtEngagementDetails,
+        ...this.buildEngagementDetailsFromEngagement(
+          engagement,
+          assignment,
+          assignmentId,
+        ),
         paymentApproverHandle,
-        budgetApproverHandle,
       };
     } catch (error) {
       this.logger.warn(

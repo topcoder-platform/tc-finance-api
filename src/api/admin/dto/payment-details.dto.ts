@@ -67,13 +67,6 @@ export class PaymentEngagementDetailsDto {
     example: 'payment_approver_handle',
   })
   paymentApproverHandle?: string;
-
-  @ApiPropertyOptional({
-    description:
-      'The Topcoder handle of the user who approved the engagement budget (from challenge `approvalApprovedBy`)',
-    example: 'budget_approver_handle',
-  })
-  budgetApproverHandle?: string;
 }
 
 export class PaymentWorkLogDto {
