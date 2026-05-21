@@ -149,8 +149,8 @@ export class AdminService {
       return undefined;
     }
 
-    const challengeId = (winning.attributes as Record<string, unknown>)
-      .challengeId;
+    const attributes = winning.attributes as Record<string, unknown>;
+    const challengeId = attributes.challengeId ?? attributes.challengeGuid;
 
     if (typeof challengeId === 'string') {
       const normalizedChallengeId = challengeId.trim();
@@ -1215,28 +1215,43 @@ export class AdminService {
   }
 
   /**
-   * Resolves the payment approver handle from the audit entry that moved the
-   * winning from `ON_HOLD_ADMIN` to `OWED`.
-   */
-  /**
-   * Resolves the engagement budget approver from data stored on the winning row.
-   * Uses `attributes.budgetApproverHandle` when present, otherwise looks up the
-   * linked challenge via `attributes.challengeId` or assignment context.
+   * Resolves the engagement budget approver from the linked challenge's
+   * `approvalApprovedBy` field (`GET /v6/challenges/{challengeId}`).
    */
   private async resolveEngagementBudgetApproverHandle(
     winning: Awaited<ReturnType<AdminService['getWinningById']>>,
-    assignmentContext?: { challengeId?: string | null },
+    engagementLookup?: {
+      challengeId?: string | null;
+      engagementTitle?: string;
+      projectId?: string;
+    },
   ): Promise<string | undefined> {
-    const attributeBudgetApprover = this.getStringAttribute(
-      winning?.attributes ?? null,
-      'budgetApproverHandle',
-    );
+    let challengeId = this.getWinningChallengeId(winning, engagementLookup);
 
-    if (attributeBudgetApprover) {
-      return this.getPaymentCreatorHandle(attributeBudgetApprover);
+    if (
+      !challengeId &&
+      engagementLookup?.projectId &&
+      engagementLookup?.engagementTitle
+    ) {
+      challengeId =
+        await this.topcoderChallengesService.findChallengeIdFromProjectPhases(
+          engagementLookup.projectId,
+          engagementLookup.engagementTitle,
+        );
     }
 
-    const challengeId = this.getWinningChallengeId(winning, assignmentContext);
+    if (
+      !challengeId &&
+      engagementLookup?.projectId &&
+      engagementLookup?.engagementTitle
+    ) {
+      const challenge =
+        await this.topcoderChallengesService.findChallengeByProjectAndTitle(
+          engagementLookup.projectId,
+          engagementLookup.engagementTitle,
+        );
+      challengeId = challenge?.id;
+    }
 
     if (!challengeId) {
       return undefined;
@@ -1255,6 +1270,11 @@ export class AdminService {
       return undefined;
     }
   }
+
+  /**
+   * Resolves the payment approver handle from the audit entry that moved the
+   * winning from `ON_HOLD_ADMIN` to `OWED`.
+   */
 
   private async resolvePaymentApproverHandleFromAudit(
     winningsId: string,
@@ -1427,15 +1447,19 @@ export class AdminService {
         assignmentId,
       );
 
+      const builtEngagementDetails = this.buildEngagementDetailsFromEngagement(
+        engagement,
+        assignment,
+        assignmentId,
+      );
       const budgetApproverHandle =
-        await this.resolveEngagementBudgetApproverHandle(winning);
+        await this.resolveEngagementBudgetApproverHandle(winning, {
+          engagementTitle: builtEngagementDetails.engagementTitle,
+          projectId: builtEngagementDetails.projectId,
+        });
 
       result.data.engagementDetails = {
-        ...this.buildEngagementDetailsFromEngagement(
-          engagement,
-          assignment,
-          assignmentId,
-        ),
+        ...builtEngagementDetails,
         paymentApproverHandle,
         budgetApproverHandle,
       };

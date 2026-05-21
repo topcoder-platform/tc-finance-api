@@ -87,6 +87,8 @@ describe('AdminService', () => {
     getHandlesByUserIds: jest.Mock;
   };
   let topcoderChallengesService: {
+    findChallengeByProjectAndTitle: jest.Mock;
+    findChallengeIdFromProjectPhases: jest.Mock;
     getChallengeById: jest.Mock;
     getProjectById: jest.Mock;
   };
@@ -136,6 +138,8 @@ describe('AdminService', () => {
       }),
     };
     topcoderChallengesService = {
+      findChallengeByProjectAndTitle: jest.fn().mockResolvedValue(undefined),
+      findChallengeIdFromProjectPhases: jest.fn().mockResolvedValue(undefined),
       getChallengeById: jest.fn().mockResolvedValue(undefined),
       getProjectById: jest.fn().mockResolvedValue(undefined),
     };
@@ -149,6 +153,138 @@ describe('AdminService', () => {
       tcMembersService as any,
       topcoderChallengesService as any,
     );
+  });
+
+  it('returns engagement budgetApproverHandle from challenge approvalApprovedBy', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {},
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      challengeId: 'da8b0e8b-f56a-419b-9e4e-b8afe06375e2',
+      engagementId: 'engagement-1',
+      engagementTitle: 'Software Developer I',
+      projectId: '100575',
+      projectName: 'Ai Reviewer Wf testing',
+      ratePerHour: '15.5',
+      standardHoursPerWeek: 12,
+      startDate: '2026-04-30T12:00:00.000Z',
+      durationMonths: 1,
+    });
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      id: 'da8b0e8b-f56a-419b-9e4e-b8afe06375e2',
+      name: 'Software Developer I',
+      projectId: 100575,
+      approvalApprovedBy: 'kartik',
+    });
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+      'da8b0e8b-f56a-419b-9e4e-b8afe06375e2',
+    );
+    expect(
+      topcoderChallengesService.findChallengeIdFromProjectPhases,
+    ).not.toHaveBeenCalled();
+    expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
+  });
+
+  it('returns engagement budgetApproverHandle via project phase challengeGuid', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {},
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      engagementId: 'engagement-1',
+      engagementTitle: 'Software Developer I',
+      projectId: '100575',
+      ratePerHour: '15.5',
+      standardHoursPerWeek: 12,
+      startDate: '2026-04-30T12:00:00.000Z',
+      durationMonths: 1,
+    });
+    topcoderChallengesService.findChallengeIdFromProjectPhases.mockResolvedValue(
+      'da8b0e8b-f56a-419b-9e4e-b8afe06375e2',
+    );
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      id: 'da8b0e8b-f56a-419b-9e4e-b8afe06375e2',
+      name: 'Software Developer I',
+      projectId: 100575,
+      approvalApprovedBy: 'kartik',
+    });
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(
+      topcoderChallengesService.findChallengeIdFromProjectPhases,
+    ).toHaveBeenCalledWith('100575', 'Software Developer I');
+    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+      'da8b0e8b-f56a-419b-9e4e-b8afe06375e2',
+    );
+    expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
+  });
+
+  it('returns engagement budgetApproverHandle via project and title search', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {},
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      engagementId: 'engagement-1',
+      engagementTitle: 'Software Developer I',
+      projectId: '100575',
+      projectName: 'Ai Reviewer Wf testing',
+      ratePerHour: '15.5',
+      standardHoursPerWeek: 12,
+      startDate: '2026-04-30T12:00:00.000Z',
+      durationMonths: 1,
+    });
+    topcoderChallengesService.findChallengeByProjectAndTitle.mockResolvedValue({
+      id: 'challenge-uuid-1',
+      name: 'Software Developer I',
+      projectId: 100575,
+      approvalApprovedBy: 'kartik',
+    });
+    topcoderChallengesService.getChallengeById.mockResolvedValue({
+      id: 'challenge-uuid-1',
+      name: 'Software Developer I',
+      projectId: 100575,
+      approvalApprovedBy: 'kartik',
+    });
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(
+      topcoderChallengesService.findChallengeByProjectAndTitle,
+    ).toHaveBeenCalledWith('100575', 'Software Developer I');
+    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+      'challenge-uuid-1',
+    );
+    expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
   });
 
   it('returns engagement budgetApproverHandle from winnings attributes challengeId', async () => {
@@ -188,37 +324,6 @@ describe('AdminService', () => {
     expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
       'challenge-uuid-1',
     );
-    expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
-  });
-
-  it('returns engagement budgetApproverHandle from winnings attributes directly', async () => {
-    prisma.winnings.findFirst.mockResolvedValue({
-      winning_id: 'winning-1',
-      category: 'ENGAGEMENT_PAYMENT',
-      created_by: '654321',
-      external_id: 'assignment-1',
-      attributes: {
-        budgetApproverHandle: 'kartik',
-      },
-    });
-    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
-      assignmentId: 'assignment-1',
-      engagementId: 'engagement-1',
-      engagementTitle: 'May 19 pvt eng',
-      projectId: '100575',
-      ratePerHour: '2.99',
-      standardHoursPerWeek: 11,
-      startDate: '2026-05-23T12:00:00.000Z',
-      durationMonths: 2,
-    });
-
-    const result = await service.getWinningPaymentDetails(
-      'winning-1',
-      '123456',
-      ['Payment Admin'],
-    );
-
-    expect(topcoderChallengesService.getChallengeById).not.toHaveBeenCalled();
     expect(result.data?.engagementDetails?.budgetApproverHandle).toBe('kartik');
   });
 
