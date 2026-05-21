@@ -40,6 +40,7 @@ import {
   TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
 import { TopcoderM2MHttpError } from 'src/shared/topcoder/topcoder-m2m.service';
+import { resolveChallengeMemberPaymentAmount } from 'src/shared/payments/challenge-payment-amount.util';
 
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
 const PAYMENT_DECIMAL_PLACES = 2;
@@ -539,14 +540,14 @@ export class WinningsService {
   }
 
   /**
-   * Sums non-cancelled persisted USD payment rows for a challenge and billing
-   * account.
+   * Sums non-cancelled persisted USD member-payment rows for a challenge and
+   * billing account.
    *
    * @param tx active Prisma transaction.
    * @param challengeId challenge external id stored on winnings.
    * @param billingAccountId billing account stored on payment rows.
-   * @returns Payment-scale total USD amount for active challenge payments on
-   * that billing account.
+   * @returns Payment-scale member-payment amount for active challenge payments
+   * on that billing account.
    */
   private async getPersistedChallengePaymentTotal(
     tx: Prisma.TransactionClient,
@@ -554,7 +555,10 @@ export class WinningsService {
     billingAccountId: number,
   ): Promise<number> {
     const payments = await tx.payment.findMany({
-      select: { total_amount: true },
+      select: {
+        gross_amount: true,
+        total_amount: true,
+      },
       where: {
         billing_account: String(billingAccountId),
         currency: PrizeType.USD,
@@ -567,7 +571,12 @@ export class WinningsService {
     });
     const totalAmount = payments.reduce(
       (sum, paymentRow) =>
-        sum.plus(new Prisma.Decimal(paymentRow.total_amount ?? 0)),
+        sum.plus(
+          resolveChallengeMemberPaymentAmount({
+            grossAmount: paymentRow.gross_amount,
+            totalAmount: paymentRow.total_amount,
+          }),
+        ),
       new Prisma.Decimal(0),
     );
 
