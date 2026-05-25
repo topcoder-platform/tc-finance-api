@@ -91,14 +91,95 @@ export class WinningsRepository {
     return filterDate;
   }
 
+  private parseFilterDate(value: string): Date | undefined {
+    const trimmed = value.trim();
+    const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+
+    if (dateOnlyMatch) {
+      const year = Number(dateOnlyMatch[1]);
+      const month = Number(dateOnlyMatch[2]) - 1;
+      const day = Number(dateOnlyMatch[3]);
+      const parsed = new Date(year, month, day);
+
+      return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+    }
+
+    const parsed = new Date(trimmed);
+
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  private generateFilterDateRange(
+    dateFrom?: string,
+    dateTo?: string,
+  ): { gte?: Date; lte?: Date } | undefined {
+    if (!dateFrom && !dateTo) {
+      return undefined;
+    }
+
+    const range: { gte?: Date; lte?: Date } = {};
+
+    if (dateFrom) {
+      const start = this.parseFilterDate(dateFrom);
+
+      if (start) {
+        start.setHours(0, 0, 0, 0);
+        range.gte = start;
+      }
+    }
+
+    if (dateTo) {
+      const end = this.parseFilterDate(dateTo);
+
+      if (end) {
+        end.setHours(23, 59, 59, 999);
+        range.lte = end;
+      }
+    }
+
+    if (!range.gte && !range.lte) {
+      return undefined;
+    }
+
+    return range;
+  }
+
+  private resolveCreatedAtFilter(
+    date?: DateFilterType,
+    dateFrom?: string,
+    dateTo?: string,
+  ): object | undefined {
+    const customRange = this.generateFilterDateRange(dateFrom, dateTo);
+
+    if (customRange) {
+      return customRange;
+    }
+
+    return this.generateFilterDate(date);
+  }
+
+  private normalizeStatusFilter(
+    status?: PaymentStatus | PaymentStatus[],
+  ): PaymentStatus[] | undefined {
+    if (status === undefined) {
+      return undefined;
+    }
+
+    const values = Array.isArray(status) ? status : [status];
+
+    return values.length > 0 ? values : undefined;
+  }
+
   private getWinningsQueryFilters(
     type?: string,
     category?: string,
     categories?: string[],
-    status?: string,
+    status?: PaymentStatus | PaymentStatus[],
     winnerIds?: string[],
     externalIds?: string[],
     date?: DateFilterType,
+    dateFrom?: string,
+    dateTo?: string,
   ): Prisma.winningsWhereInput {
     const typeFilter = type
       ? {
@@ -127,25 +208,36 @@ export class WinningsRepository {
             }
           : undefined,
       type: typeFilter,
-      payment: status
-        ? {
+      payment: (() => {
+        const statuses = this.normalizeStatusFilter(status);
+
+        if (statuses?.length) {
+          return {
             some: {
-              payment_status: {
-                equals: status as payment_status,
-              },
+              payment_status:
+                statuses.length === 1
+                  ? {
+                      equals: statuses[0] as payment_status,
+                    }
+                  : {
+                      in: statuses as payment_status[],
+                    },
               installment_number: {
                 equals: 1,
               },
             },
-          }
-        : {
-            some: {
-              installment_number: {
-                equals: 1,
-              },
+          };
+        }
+
+        return {
+          some: {
+            installment_number: {
+              equals: 1,
             },
           },
-      created_at: this.generateFilterDate(date),
+        };
+      })(),
+      created_at: this.resolveCreatedAtFilter(date, dateFrom, dateTo),
     };
   }
 
@@ -229,6 +321,8 @@ export class WinningsRepository {
         winnerIds,
         externalIds,
         searchProps.date,
+        searchProps.dateFrom,
+        searchProps.dateTo,
       );
 
       if (searchProps.billingAccounts) {
@@ -356,6 +450,8 @@ export class WinningsRepository {
         undefined,
         undefined,
         [externalId],
+        undefined,
+        undefined,
         undefined,
       );
 
