@@ -286,7 +286,8 @@ describe('WinningsService', () => {
       tx.winnings.create.mock.calls[0][0].data.payment.create[0];
 
     const releaseDate = new Date(persistedPayment.release_date).getTime();
-    const daysUntilRelease = (releaseDate - beforeCreate) / (24 * 60 * 60 * 1000);
+    const daysUntilRelease =
+      (releaseDate - beforeCreate) / (24 * 60 * 60 * 1000);
 
     expect(daysUntilRelease).toBeGreaterThanOrEqual(4.99);
     expect(daysUntilRelease).toBeLessThanOrEqual(5.01);

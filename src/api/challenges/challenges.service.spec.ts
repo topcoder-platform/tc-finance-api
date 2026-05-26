@@ -260,6 +260,53 @@ describe('ChallengesService', () => {
     });
   });
 
+  it.each([
+    ['regular', undefined],
+    ['TAAS', [{ name: 'payment_type', value: 'taas' }]],
+    ['Topgear', [{ name: 'payment_type', value: 'topgear' }]],
+  ])(
+    'defaults %s task copilot payments to OWED status',
+    async (_, metadata) => {
+      const service = new ChallengesService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+
+      jest.spyOn(service, 'getChallengeResources').mockResolvedValue({
+        copilot: [{ memberHandle: 'copilot', memberId: '40158995' }],
+      } as any);
+      jest.spyOn(service, 'getChallengeReviews').mockResolvedValue([]);
+
+      const winnings = await service.getChallengePayments({
+        id: '11111111-1111-1111-1111-111111111111',
+        name: 'Task Challenge',
+        type: 'Task',
+        task: { isTask: true },
+        billing: { billingAccountId: '1234', markup: 0.2 },
+        metadata,
+        winners: [],
+        checkpointWinners: [],
+        reviewers: [],
+        phases: [],
+        prizeSets: [
+          { type: 'PLACEMENT', prizes: [{ type: PrizeType.USD, value: 500 }] },
+          { type: 'COPILOT', prizes: [{ type: PrizeType.USD, value: 100 }] },
+        ],
+      } as any);
+
+      expect(winnings).toEqual([
+        expect.objectContaining({
+          category: WinningsCategory.COPILOT_PAYMENT,
+          status: PaymentStatus.OWED,
+          winnerId: '40158995',
+        }),
+      ]);
+    },
+  );
+
   it('does not force ON_HOLD_ADMIN status for non-task challenge winnings', async () => {
     const service = new ChallengesService(
       {} as any,

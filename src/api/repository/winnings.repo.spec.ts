@@ -49,7 +49,8 @@ describe('WinningsRepository', () => {
       includePayoutStatus: false,
     });
 
-    return findManyMock.mock.calls.at(-1)?.[0]?.where;
+    const calls = findManyMock.mock.calls;
+    return calls[calls.length - 1]?.[0]?.where;
   }
 
   async function getCreatedAtFilter(date: DateFilterType): Promise<any> {

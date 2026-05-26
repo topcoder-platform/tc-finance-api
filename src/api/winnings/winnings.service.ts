@@ -1247,7 +1247,7 @@ export class WinningsService {
         ),
         created_by: userId,
         payment: {
-          create: [] as Pick<
+          create: [] as (Pick<
             payment,
             | 'gross_amount'
             | 'total_amount'
@@ -1259,8 +1259,8 @@ export class WinningsService {
             | 'billing_account'
             | 'challenge_markup'
             | 'challenge_fee'
-            | 'release_date'
-          >[],
+          > &
+            Partial<Pick<payment, 'release_date'>>)[],
         },
       };
 

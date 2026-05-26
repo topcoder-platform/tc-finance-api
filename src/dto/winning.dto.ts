@@ -200,12 +200,13 @@ export class WinningRequestDto extends SortPagination {
   })
   @IsOptional()
   @IsEnum(PaymentStatus, { each: true })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }): PaymentStatus[] | undefined => {
     if (value === undefined || value === null || value === '') {
       return undefined;
     }
 
-    return Array.isArray(value) ? value : [value];
+    const values = Array.isArray(value) ? value : [value];
+    return values.map((status) => status as PaymentStatus);
   })
   status?: PaymentStatus[];
 
@@ -219,7 +220,8 @@ export class WinningRequestDto extends SortPagination {
   date?: DateFilterType;
 
   @ApiProperty({
-    description: 'Inclusive start date for created_at filter (YYYY-MM-DD or ISO-8601)',
+    description:
+      'Inclusive start date for created_at filter (YYYY-MM-DD or ISO-8601)',
     example: '2026-04-30',
   })
   @IsOptional()
@@ -227,7 +229,8 @@ export class WinningRequestDto extends SortPagination {
   dateFrom?: string;
 
   @ApiProperty({
-    description: 'Inclusive end date for created_at filter (YYYY-MM-DD or ISO-8601)',
+    description:
+      'Inclusive end date for created_at filter (YYYY-MM-DD or ISO-8601)',
     example: '2026-05-25',
   })
   @IsOptional()
