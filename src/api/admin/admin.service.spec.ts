@@ -449,8 +449,8 @@ describe('AdminService', () => {
         },
       ])
       .mockResolvedValueOnce([
-        { total_amount: '12.00' },
-        { total_amount: '27.50' },
+        { gross_amount: '12.00', total_amount: '15.96' },
+        { gross_amount: '27.50', total_amount: '36.58' },
       ]);
     topcoderChallengesService.getChallengeById.mockResolvedValue({
       billing: {
@@ -487,7 +487,10 @@ describe('AdminService', () => {
       },
     });
     expect(prisma.payment.findMany).toHaveBeenNthCalledWith(2, {
-      select: { total_amount: true },
+      select: {
+        gross_amount: true,
+        total_amount: true,
+      },
       where: {
         billing_account: '80001012',
         currency: 'USD',
@@ -584,8 +587,8 @@ describe('AdminService', () => {
         },
       ])
       .mockResolvedValueOnce([
-        { total_amount: '150.00' },
-        { total_amount: '25.00' },
+        { gross_amount: '150.00', total_amount: '199.50' },
+        { gross_amount: '25.00', total_amount: '33.25' },
       ]);
     topcoderChallengesService.getChallengeById.mockResolvedValue({
       billing: {

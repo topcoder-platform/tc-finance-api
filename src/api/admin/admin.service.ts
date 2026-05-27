@@ -33,6 +33,7 @@ import {
   TopcoderChallengeInfo,
   TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
+import { resolveChallengeMemberPaymentAmount } from 'src/shared/payments/challenge-payment-amount.util';
 import {
   PaymentCycle,
   WinningPaymentDetailsDto,
@@ -588,12 +589,14 @@ export class AdminService {
   }
 
   /**
-   * Sums non-cancelled USD payment rows for a challenge and billing account.
+   * Sums non-cancelled USD member-payment rows for a challenge and billing
+   * account.
    *
    * @param challengeId challenge external id stored on winnings.
    * @param billingAccountId billing account stored on payment rows.
-   * @returns total member-payment amount that should remain locked or consumed
-   * for the challenge billing-account line item.
+   * @returns Total member-payment amount that should remain locked or consumed
+   * for the challenge billing-account line item. `gross_amount` is used before
+   * `total_amount` so fee-inclusive totals are not marked up again.
    * @throws Prisma errors when the aggregate query fails.
    */
   private async getActiveChallengePaymentTotal(
@@ -601,7 +604,10 @@ export class AdminService {
     billingAccountId: number,
   ): Promise<number> {
     const payments = await this.prisma.payment.findMany({
-      select: { total_amount: true },
+      select: {
+        gross_amount: true,
+        total_amount: true,
+      },
       where: {
         billing_account: String(billingAccountId),
         currency: PrizeType.USD,
@@ -614,7 +620,12 @@ export class AdminService {
     });
     const totalAmount = payments.reduce(
       (sum, paymentRow) =>
-        sum.plus(new Prisma.Decimal(paymentRow.total_amount ?? 0)),
+        sum.plus(
+          resolveChallengeMemberPaymentAmount({
+            grossAmount: paymentRow.gross_amount,
+            totalAmount: paymentRow.total_amount,
+          }),
+        ),
       new Prisma.Decimal(0),
     );
 
