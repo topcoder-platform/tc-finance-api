@@ -151,6 +151,48 @@ describe('AdminService', () => {
     );
   });
 
+  it('returns paymentApproverHandle for engagement payments from audit trail', async () => {
+    prisma.winnings.findFirst.mockResolvedValue({
+      winning_id: 'winning-1',
+      category: 'ENGAGEMENT_PAYMENT',
+      created_by: '654321',
+      external_id: 'assignment-1',
+      attributes: {},
+    });
+    topcoderEngagementsService.getAssignmentContextById.mockResolvedValue({
+      assignmentId: 'assignment-1',
+      engagementId: 'engagement-1',
+      engagementTitle: 'May 19 pvt eng',
+      projectId: '100575',
+      projectName: 'Ai Reviewer Wf testing',
+      ratePerHour: '2.99',
+      standardHoursPerWeek: 11,
+      startDate: '2026-05-23T12:00:00.000Z',
+      durationMonths: 2,
+    });
+    prisma.audit.findMany.mockResolvedValue([
+      {
+        id: 'audit-1',
+        winnings_id: 'winning-1',
+        user_id: '654321',
+        action: 'status updated from ON_HOLD_ADMIN to OWED',
+        note: null,
+        created_at: new Date(),
+      },
+    ]);
+
+    const result = await service.getWinningPaymentDetails(
+      'winning-1',
+      '123456',
+      ['Payment Admin'],
+    );
+
+    expect(result.data?.engagementDetails?.paymentApproverHandle).toBe(
+      'payment-manager',
+    );
+    expect(result.data?.engagementDetails?.assignmentId).toBe('assignment-1');
+  });
+
   it('returns work-log and engagement details for engagement payments', async () => {
     prisma.winnings.findFirst.mockResolvedValue({
       winning_id: 'winning-1',
@@ -200,9 +242,12 @@ describe('AdminService', () => {
         engagementId: 'engagement-1',
         engagementTitle: 'Senior Frontend Engineer',
         otherRemarks: 'Complete onboarding within the first week.',
+        paymentApproverHandle: undefined,
+        paymentCycle: 'WEEKLY',
         projectId: 'project-1',
         projectName: 'Platform Modernization',
         ratePerHour: '75.50',
+        standardHoursPerDay: 8,
         standardHoursPerWeek: 40,
       },
       paymentCreatorHandle: 'payment-manager',
@@ -296,9 +341,12 @@ describe('AdminService', () => {
         engagementId: 'engagement-1',
         engagementTitle: 'Senior Frontend Engineer',
         otherRemarks: 'Working EST overlap.',
+        paymentApproverHandle: undefined,
+        paymentCycle: 'WEEKLY',
         projectId: 'project-1',
         projectName: 'Platform Modernization',
         ratePerHour: '82.50',
+        standardHoursPerDay: 7,
         standardHoursPerWeek: 35,
       },
       paymentCreatorHandle: 'payment-manager',

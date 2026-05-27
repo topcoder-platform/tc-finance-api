@@ -63,6 +63,11 @@ const PAYMENT_TYPE_TO_CATEGORY: Record<string, WinningsCategory> = {
   taas: WinningsCategory.TAAS_PAYMENT,
   topgear: WinningsCategory.TOPGEAR_PAYMENT,
 };
+const OWED_TASK_PAYMENT_CATEGORIES = new Set<WinningsCategory>([
+  WinningsCategory.TAAS_PAYMENT,
+  WinningsCategory.COPILOT_PAYMENT,
+  WinningsCategory.TASK_COPILOT_PAYMENT,
+]);
 
 const CANCELLED_CHALLENGE_STATUSES = [
   ChallengeStatuses.Canceled,
@@ -155,8 +160,9 @@ export class ChallengesService {
    * @param challenge Challenge details returned by challenge-api-v6.
    * @param category Winnings category selected for the generated payment.
    * @param currency Prize currency selected for the generated payment.
-   * @returns OWED for USD TAAS task payments, ON_HOLD_ADMIN for other USD task
-   * payments, and undefined when standard payout-readiness rules should apply.
+   * @returns OWED for USD TAAS task payments and task copilot payments,
+   * ON_HOLD_ADMIN for other USD task payments, and undefined when standard
+   * payout-readiness rules should apply.
    * @throws This method does not throw.
    */
   private getTaskPaymentStatus(
@@ -168,7 +174,7 @@ export class ChallengesService {
       return undefined;
     }
 
-    return category === WinningsCategory.TAAS_PAYMENT
+    return OWED_TASK_PAYMENT_CATEGORIES.has(category)
       ? PaymentStatus.OWED
       : PaymentStatus.ON_HOLD_ADMIN;
   }
