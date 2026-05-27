@@ -1,5 +1,6 @@
 jest.mock('src/config', () => ({
   ENV_CONFIG: {
+    ENGAGEMENT_PAYMENT_RELEASE_WINDOW_DAYS: 5,
     SENDGRID_TEMPLATE_ID_PAYMENT_SETUP_NOTIFICATION: 'template-id',
     TGBillingAccounts: [80000062, 80002800],
     TOPCODER_WALLET_URL: 'https://wallet.topcoder.com',
@@ -254,6 +255,74 @@ describe('WinningsService', () => {
         },
       ],
     });
+  });
+
+  it('applies a short release window to engagement payments', async () => {
+    const beforeCreate = Date.now();
+
+    await service.createWinningWithPayments(
+      {
+        winnerId: 'user-1',
+        type: WinningsType.PAYMENT,
+        origin: 'Topcoder',
+        category: WinningsCategory.ENGAGEMENT_PAYMENT,
+        title: 'Engagement work',
+        description: 'Engagement payment',
+        externalId: 'assignment-1',
+        details: [
+          {
+            totalAmount: 100,
+            grossAmount: 100,
+            installmentNumber: 1,
+            currency: PrizeType.USD,
+            billingAccount: '123456',
+          },
+        ],
+      } as any,
+      'creator-1',
+    );
+
+    const persistedPayment =
+      tx.winnings.create.mock.calls[0][0].data.payment.create[0];
+
+    const releaseDate = new Date(persistedPayment.release_date).getTime();
+    const daysUntilRelease =
+      (releaseDate - beforeCreate) / (24 * 60 * 60 * 1000);
+
+    expect(daysUntilRelease).toBeGreaterThanOrEqual(4.99);
+    expect(daysUntilRelease).toBeLessThanOrEqual(5.01);
+  });
+
+  it('keeps the default release window for non-engagement payments', async () => {
+    await service.createWinningWithPayments(
+      {
+        winnerId: 'user-1',
+        type: WinningsType.PAYMENT,
+        origin: 'Topcoder',
+        category: WinningsCategory.CONTEST_PAYMENT,
+        title: 'Contest payout',
+        description: 'Contest payment',
+        externalId: 'challenge-1',
+        details: [
+          {
+            totalAmount: 100,
+            grossAmount: 100,
+            installmentNumber: 1,
+            currency: PrizeType.USD,
+            billingAccount: '80001012',
+          },
+        ],
+      } as any,
+      'creator-1',
+    );
+
+    const persistedPayment =
+      tx.winnings.create.mock.calls[0][0].data.payment.create[0];
+
+    expect(persistedPayment.release_date).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(persistedPayment, 'release_date'),
+    ).toBe(false);
   });
 
   it('rejects engagement payment details that do not match the assignment billing account', async () => {

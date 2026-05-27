@@ -10,10 +10,11 @@ import {
   ValidateNested,
   IsNumber,
   Min,
+  IsDateString,
 } from 'class-validator';
 import { PaginationInfo, SortPagination } from './sort-pagination.dto';
 import { DateFilterType } from './date-filter.type';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   PaymentStatus,
   PaymentCreateRequestDto,
@@ -192,13 +193,22 @@ export class WinningRequestDto extends SortPagination {
   type?: WinningsType;
 
   @ApiProperty({
-    description: 'The payment status',
+    description: 'Filter by one or more payment statuses',
     enum: PaymentStatus,
-    example: PaymentStatus.OWED,
+    isArray: true,
+    example: [PaymentStatus.ON_HOLD_ADMIN, PaymentStatus.PAID],
   })
   @IsOptional()
-  @IsEnum(PaymentStatus)
-  status?: PaymentStatus;
+  @IsEnum(PaymentStatus, { each: true })
+  @Transform(({ value }: { value: unknown }): PaymentStatus[] | undefined => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    const values = Array.isArray(value) ? value : [value];
+    return values.map((status) => status as PaymentStatus);
+  })
+  status?: PaymentStatus[];
 
   @ApiProperty({
     description: 'The filter date',
@@ -208,6 +218,24 @@ export class WinningRequestDto extends SortPagination {
   @IsOptional()
   @IsEnum(DateFilterType)
   date?: DateFilterType;
+
+  @ApiProperty({
+    description:
+      'Inclusive start date for created_at filter (YYYY-MM-DD or ISO-8601)',
+    example: '2026-04-30',
+  })
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @ApiProperty({
+    description:
+      'Inclusive end date for created_at filter (YYYY-MM-DD or ISO-8601)',
+    example: '2026-05-25',
+  })
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
 
   @ApiProperty({
     description: 'The array of billing account ids',

@@ -33,8 +33,11 @@ import {
   TopcoderChallengeInfo,
   TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
-import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
 import { resolveChallengeMemberPaymentAmount } from 'src/shared/payments/challenge-payment-amount.util';
+import {
+  PaymentCycle,
+  WinningPaymentDetailsDto,
+} from './dto/payment-details.dto';
 
 const PAYMENT_DECIMAL_PLACES = 2;
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
@@ -262,6 +265,13 @@ export class AdminService {
       assignment.standardHoursPerWeek !== null
         ? Number(assignment.standardHoursPerWeek)
         : undefined;
+    const standardHoursPerDay =
+      assignment?.standardHoursPerDay !== undefined &&
+      assignment.standardHoursPerDay !== null
+        ? Number(assignment.standardHoursPerDay)
+        : Number.isFinite(standardHoursPerWeek)
+          ? Number(((standardHoursPerWeek ?? 0) / 5).toFixed(2))
+          : undefined;
     const projectId = engagement.projectId ?? engagement.project?.id;
     const projectName =
       (engagement.projectName ?? engagement.project?.name)?.trim() ?? undefined;
@@ -289,6 +299,11 @@ export class AdminService {
         ? durationMonths
         : undefined,
       ratePerHour: assignment?.ratePerHour?.trim() ?? undefined,
+      paymentCycle: (assignment?.paymentCycle?.trim() ||
+        'WEEKLY') as PaymentCycle,
+      standardHoursPerDay: Number.isFinite(standardHoursPerDay)
+        ? standardHoursPerDay
+        : undefined,
       standardHoursPerWeek: Number.isFinite(standardHoursPerWeek)
         ? standardHoursPerWeek
         : undefined,
@@ -1187,6 +1202,38 @@ export class AdminService {
     return result;
   }
 
+  /**
+   * Resolves the payment approver handle from the audit entry that moved the
+   * winning from `ON_HOLD_ADMIN` to `OWED`.
+   */
+  private async resolvePaymentApproverHandleFromAudit(
+    winningsId: string,
+  ): Promise<string | undefined> {
+    try {
+      const audits = await this.prisma.audit.findMany({
+        where: { winnings_id: winningsId },
+        orderBy: { created_at: 'desc' },
+        take: 200,
+      });
+      const approverAudit = audits.find(
+        (audit) =>
+          typeof audit.action === 'string' &&
+          audit.action.includes('ON_HOLD_ADMIN') &&
+          audit.action.includes('OWED') &&
+          audit.action.indexOf('ON_HOLD_ADMIN') < audit.action.indexOf('OWED'),
+      );
+
+      if (!approverAudit?.user_id) {
+        return undefined;
+      }
+
+      return this.getPaymentCreatorHandle(String(approverAudit.user_id));
+    } catch {
+      // approver is optional — ignore failures
+      return undefined;
+    }
+  }
+
   private async buildTaskDetails(
     winningsId: string,
     externalId: string | undefined,
@@ -1220,27 +1267,8 @@ export class AdminService {
       }
     }
 
-    try {
-      const audits = await this.prisma.audit.findMany({
-        where: { winnings_id: winningsId },
-        orderBy: { created_at: 'desc' },
-        take: 200,
-      });
-      const approverAudit = audits.find(
-        (a) =>
-          typeof a.action === 'string' &&
-          a.action.includes('ON_HOLD_ADMIN') &&
-          a.action.includes('OWED') &&
-          a.action.indexOf('ON_HOLD_ADMIN') < a.action.indexOf('OWED'),
-      );
-      if (approverAudit?.user_id) {
-        const userId = String(approverAudit.user_id);
-        const handle = await this.getPaymentCreatorHandle(userId);
-        taskDetails.paymentApproverHandle = handle ?? undefined;
-      }
-    } catch {
-      // approver is optional — ignore failures
-    }
+    taskDetails.paymentApproverHandle =
+      await this.resolvePaymentApproverHandleFromAudit(winningsId);
 
     return taskDetails;
   }
@@ -1294,13 +1322,15 @@ export class AdminService {
       return result;
     }
 
+    const paymentApproverHandle =
+      await this.resolvePaymentApproverHandleFromAudit(winningsId);
+
     if (assignmentLookupId) {
       try {
         const assignmentContext =
           await this.topcoderEngagementsService.getAssignmentContextById(
             assignmentLookupId,
           );
-
         result.data.engagementDetails = {
           assignmentId: assignmentContext.assignmentId,
           engagementId: assignmentContext.engagementId,
@@ -1312,9 +1342,18 @@ export class AdminService {
             : undefined,
           durationMonths: assignmentContext.durationMonths ?? undefined,
           ratePerHour: assignmentContext.ratePerHour ?? undefined,
+          paymentCycle: (assignmentContext.paymentCycle ??
+            'WEEKLY') as PaymentCycle,
+          standardHoursPerDay:
+            assignmentContext.standardHoursPerDay ??
+            (assignmentContext.standardHoursPerWeek !== undefined &&
+            assignmentContext.standardHoursPerWeek !== null
+              ? Number((assignmentContext.standardHoursPerWeek / 5).toFixed(2))
+              : undefined),
           standardHoursPerWeek:
             assignmentContext.standardHoursPerWeek ?? undefined,
           otherRemarks: assignmentContext.otherRemarks ?? undefined,
+          paymentApproverHandle,
         };
 
         return result;
@@ -1339,11 +1378,14 @@ export class AdminService {
         assignmentId,
       );
 
-      result.data.engagementDetails = this.buildEngagementDetailsFromEngagement(
-        engagement,
-        assignment,
-        assignmentId,
-      );
+      result.data.engagementDetails = {
+        ...this.buildEngagementDetailsFromEngagement(
+          engagement,
+          assignment,
+          assignmentId,
+        ),
+        paymentApproverHandle,
+      };
     } catch (error) {
       this.logger.warn(
         `Failed to enrich winning ${winningsId} with engagement details`,
