@@ -519,8 +519,8 @@ describe('WinningsService', () => {
       status: 'COMPLETED',
     });
     tx.payment.findMany.mockResolvedValue([
-      { total_amount: '75.00' },
-      { total_amount: '25.00' },
+      { gross_amount: '75.00', total_amount: '99.75' },
+      { gross_amount: '25.00', total_amount: '33.25' },
     ]);
 
     await service.createWinningWithPayments(
@@ -546,7 +546,10 @@ describe('WinningsService', () => {
     );
 
     expect(tx.payment.findMany).toHaveBeenCalledWith({
-      select: { total_amount: true },
+      select: {
+        gross_amount: true,
+        total_amount: true,
+      },
       where: {
         billing_account: '80001012',
         currency: PrizeType.USD,
@@ -615,8 +618,8 @@ describe('WinningsService', () => {
       status: 'DRAFT',
     });
     tx.payment.findMany.mockResolvedValue([
-      { total_amount: '100.00' },
-      { total_amount: '50.25' },
+      { gross_amount: '100.00', total_amount: '120.00' },
+      { gross_amount: '50.25', total_amount: '60.30' },
     ]);
 
     await service.createWinningWithPayments(
@@ -645,7 +648,10 @@ describe('WinningsService', () => {
       'challenge-id',
     );
     expect(tx.payment.findMany).toHaveBeenCalledWith({
-      select: { total_amount: true },
+      select: {
+        gross_amount: true,
+        total_amount: true,
+      },
       where: {
         billing_account: '80001012',
         currency: PrizeType.USD,
