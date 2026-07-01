@@ -9,7 +9,7 @@
 --
 -- Calculation:
 --   - payment.challenge_markup = challenges.ChallengeBilling.markup,
---     rounded to the payment column scale.
+--     rounded to the challenge-markup column scale.
 --   - payment.challenge_fee = payment.challenge_markup * payment.total_amount
 --
 -- Run this against the PostgreSQL database that contains these schemas:
@@ -39,10 +39,10 @@ WITH calculated AS (
     p.payment_id,
     p.winnings_id,
     w.external_id AS "challengeId",
-    ROUND(cb."markup"::numeric, 2) AS "challengeMarkup",
+    ROUND(cb."markup"::numeric, 4) AS "challengeMarkup",
     CASE
       WHEN p.total_amount IS NULL THEN NULL
-      ELSE ROUND(p.total_amount * ROUND(cb."markup"::numeric, 2), 2)
+      ELSE ROUND(p.total_amount * ROUND(cb."markup"::numeric, 4), 2)
     END AS "challengeFee",
     p.challenge_markup AS "currentChallengeMarkup",
     p.challenge_fee AS "currentChallengeFee"
@@ -69,10 +69,10 @@ FROM candidates;
 WITH calculated AS (
   SELECT
     p.payment_id,
-    ROUND(cb."markup"::numeric, 2) AS "challengeMarkup",
+    ROUND(cb."markup"::numeric, 4) AS "challengeMarkup",
     CASE
       WHEN p.total_amount IS NULL THEN NULL
-      ELSE ROUND(p.total_amount * ROUND(cb."markup"::numeric, 2), 2)
+      ELSE ROUND(p.total_amount * ROUND(cb."markup"::numeric, 4), 2)
     END AS "challengeFee"
   FROM "finance"."payment" p
   INNER JOIN "finance"."winnings" w
