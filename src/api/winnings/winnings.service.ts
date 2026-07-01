@@ -43,6 +43,7 @@ import { TopcoderM2MHttpError } from 'src/shared/topcoder/topcoder-m2m.service';
 
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
 const PAYMENT_DECIMAL_PLACES = 2;
+const PAYMENT_MARKUP_DECIMAL_PLACES = 4;
 export const CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE = 'skipChallengeBudgetSync';
 
 interface EngagementBillingAccountConsume {
@@ -720,11 +721,25 @@ export class WinningsService {
   }
 
   /**
-   * Normalizes the engagement billing-account markup to the payment column
-   * scale used by `payment.challenge_markup`.
+   * Quantizes a payment markup to the persisted challenge-markup scale.
+   *
+   * Finance stores `payment.challenge_markup` at the same four-decimal scale as
+   * billing-accounts-api-v6 markup values so fee calculations do not round the
+   * rate to cents before multiplication.
+   *
+   * @param markup Decimal markup to normalize.
+   * @returns JavaScript number rounded to the challenge-markup column scale.
+   */
+  private toPaymentMarkup(markup: Prisma.Decimal): number {
+    return this.toScaledAmount(markup, PAYMENT_MARKUP_DECIMAL_PLACES);
+  }
+
+  /**
+   * Normalizes the engagement billing-account markup for payment persistence
+   * while preserving billing-account precision for downstream fee math.
    *
    * @param markup billing-account markup returned by billing-accounts-api-v6.
-   * @returns Rounded markup suitable for persistence on payment rows.
+   * @returns Four-decimal markup suitable for persistence on payment rows.
    * @throws InternalServerErrorException when the markup is not finite.
    */
   private calculateEngagementChallengeMarkup(markup: number): number {
@@ -734,16 +749,15 @@ export class WinningsService {
       );
     }
 
-    return this.toPaymentAmount(new Prisma.Decimal(markup));
+    return this.toPaymentMarkup(new Prisma.Decimal(markup));
   }
 
   /**
-   * Computes the persisted engagement challenge fee using the rounded payment
-   * markup scale.
+   * Computes the persisted engagement challenge fee using the normalized
+   * billing-account markup.
    *
    * @param totalAmount payment detail total amount.
-   * @param challengeMarkup rounded billing-account markup persisted on the
-   * payment row.
+   * @param challengeMarkup billing-account markup persisted on the payment row.
    * @param detailIndex zero-based detail index for error reporting.
    * @returns Payment-scale challenge fee.
    * @throws BadRequestException when the detail amount is invalid.
@@ -784,8 +798,7 @@ export class WinningsService {
    * Computes an engagement consume amount with decimal-safe arithmetic.
    *
    * @param totalAmount payment detail total amount.
-   * @param challengeMarkup rounded billing-account markup persisted on the
-   * payment row.
+   * @param challengeMarkup billing-account markup persisted on the payment row.
    * @param detailIndex zero-based detail index for error reporting.
    * @returns Ledger-scale consume amount including markup.
    * @throws BadRequestException when the detail amount is invalid.
@@ -843,8 +856,8 @@ export class WinningsService {
    *
    * @param body incoming winning creation request.
    * @returns assignment id, trusted billing account id, and typed consume
-   * requests to execute for non-TopGear billing accounts, plus the rounded
-   * challenge markup persisted on the created payment rows.
+   * requests to execute for non-TopGear billing accounts, plus the normalized
+   * four-decimal challenge markup persisted on the created payment rows.
    * @throws BadRequestException when engagement payment input is invalid.
    * @throws InternalServerErrorException when billing-account metadata cannot
    * be normalized into a finite markup.

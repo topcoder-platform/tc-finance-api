@@ -13,7 +13,7 @@
 --
 -- Calculation:
 --   - payment.challenge_markup = billing account markup, rounded to the
---     payment column scale.
+--     challenge-markup column scale.
 --   - payment.challenge_fee = payment.total_amount * payment.challenge_markup.
 --   - "billing-accounts"."ConsumedAmount".amount = payment.total_amount +
 --     payment.challenge_fee, rounded to the billing ledger scale.
@@ -75,10 +75,10 @@ WITH calculated AS (
     p.winnings_id,
     w.external_id AS "assignmentId",
     p.billing_account AS "billingAccount",
-    ROUND(ba.markup::numeric, 2) AS "challengeMarkup",
+    ROUND(ba.markup::numeric, 4) AS "challengeMarkup",
     CASE
       WHEN p.total_amount IS NULL THEN NULL
-      ELSE ROUND(p.total_amount * ROUND(ba.markup::numeric, 2), 2)
+      ELSE ROUND(p.total_amount * ROUND(ba.markup::numeric, 4), 2)
     END AS "challengeFee",
     p.challenge_markup AS "currentChallengeMarkup",
     p.challenge_fee AS "currentChallengeFee"
@@ -106,10 +106,10 @@ FROM candidates;
 WITH calculated AS (
   SELECT
     p.payment_id,
-    ROUND(ba.markup::numeric, 2) AS "challengeMarkup",
+    ROUND(ba.markup::numeric, 4) AS "challengeMarkup",
     CASE
       WHEN p.total_amount IS NULL THEN NULL
-      ELSE ROUND(p.total_amount * ROUND(ba.markup::numeric, 2), 2)
+      ELSE ROUND(p.total_amount * ROUND(ba.markup::numeric, 4), 2)
     END AS "challengeFee"
   FROM "finance"."payment" p
   INNER JOIN "finance"."winnings" w
@@ -167,7 +167,7 @@ WITH finance_payment_rows AS (
     ROUND(
       (
         p.total_amount
-        + ROUND(p.total_amount * ROUND(ba.markup::numeric, 2), 2)
+        + ROUND(p.total_amount * ROUND(ba.markup::numeric, 4), 2)
       )::numeric,
       4
     ) AS "expectedConsumedAmount"
@@ -242,7 +242,7 @@ WITH finance_payment_rows AS (
     ROUND(
       (
         p.total_amount
-        + ROUND(p.total_amount * ROUND(ba.markup::numeric, 2), 2)
+        + ROUND(p.total_amount * ROUND(ba.markup::numeric, 4), 2)
       )::numeric,
       4
     ) AS "expectedConsumedAmount"
