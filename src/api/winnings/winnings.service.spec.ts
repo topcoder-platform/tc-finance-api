@@ -212,10 +212,10 @@ describe('WinningsService', () => {
     ]);
   });
 
-  it('rounds engagement challenge markup before persisting the payment fee', async () => {
+  it('preserves engagement challenge markup precision before calculating the payment fee', async () => {
     billingAccountsService.getBillingAccountById.mockResolvedValue({
       id: 123456,
-      markup: 0.236,
+      markup: 0.3989,
     });
 
     await service.createWinningWithPayments(
@@ -243,12 +243,12 @@ describe('WinningsService', () => {
     const persistedPayment =
       tx.winnings.create.mock.calls[0][0].data.payment.create[0];
 
-    expect(Number(persistedPayment.challenge_markup)).toBe(0.24);
-    expect(Number(persistedPayment.challenge_fee)).toBe(24);
+    expect(Number(persistedPayment.challenge_markup)).toBe(0.3989);
+    expect(Number(persistedPayment.challenge_fee)).toBe(39.89);
     expect(billingAccountsService.consumeAmounts).toHaveBeenCalledWith({
       consumes: [
         {
-          amount: 124,
+          amount: 139.89,
           billingAccountId: 123456,
           externalId: 'assignment-1',
           externalType: 'ENGAGEMENT',
