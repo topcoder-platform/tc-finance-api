@@ -406,6 +406,16 @@ export class WinningsRepository {
               releaseDate: paymentItem.release_date as Date,
               category: item.category as string,
               billingAccount: paymentItem.billing_account,
+              challengeFee:
+                paymentItem.challenge_fee === null ||
+                paymentItem.challenge_fee === undefined
+                  ? undefined
+                  : Number(paymentItem.challenge_fee),
+              challengeMarkup:
+                paymentItem.challenge_markup === null ||
+                paymentItem.challenge_markup === undefined
+                  ? undefined
+                  : Number(paymentItem.challenge_markup),
             })),
             createdAt: item.created_at as Date,
             updatedAt: (item.payment?.[0].date_paid ??
@@ -507,6 +517,16 @@ export class WinningsRepository {
             releaseDate: paymentItem.release_date as Date,
             category: item.category as string,
             billingAccount: paymentItem.billing_account,
+            challengeFee:
+              paymentItem.challenge_fee === null ||
+              paymentItem.challenge_fee === undefined
+                ? undefined
+                : Number(paymentItem.challenge_fee),
+            challengeMarkup:
+              paymentItem.challenge_markup === null ||
+              paymentItem.challenge_markup === undefined
+                ? undefined
+                : Number(paymentItem.challenge_markup),
           })),
           createdAt: item.created_at as Date,
           updatedAt: (item.payment?.[0].date_paid ??
