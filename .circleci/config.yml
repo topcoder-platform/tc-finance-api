@@ -77,6 +77,8 @@ workflows:
                               - engagements
                               - PM-4789_payment-migrations
                               - PM-5149
+                      tags:
+                        only: /^dev-.*/
             - 'build-prod':
                   context: org-global
                   filters:
