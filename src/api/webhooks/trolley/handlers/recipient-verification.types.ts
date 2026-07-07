@@ -5,6 +5,7 @@ export enum RecipientVerificationWebhookEvent {
 export enum RecipientVerificationType {
   phone = 'phone',
   individual = 'individual',
+  business = 'business',
 }
 
 interface VerifiedIdentityData {
