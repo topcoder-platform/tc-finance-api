@@ -34,6 +34,22 @@ export class PaymentDetailDto {
   releaseDate: Date;
   category: string;
   billingAccount: string;
+
+  @ApiProperty({
+    description:
+      'Persisted billing-account challenge fee for this payment detail. Engagement payments use this value to reconcile finance payment splits with billing-account consumed rows.',
+    example: 386.94,
+    required: false,
+  })
+  challengeFee?: number;
+
+  @ApiProperty({
+    description:
+      'Persisted billing-account markup used when the challenge fee was calculated.',
+    example: 0.71,
+    required: false,
+  })
+  challengeMarkup?: number;
 }
 
 export class PaymentCreateRequestDto {

@@ -29,6 +29,7 @@ describe('WinningsRepository', () => {
     findManyMock = jest.fn().mockResolvedValue([]);
 
     const prismaMock = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       winnings: {
         findMany: findManyMock,
       },
@@ -161,5 +162,53 @@ describe('WinningsRepository', () => {
       in: ['ext-123'],
     });
     expect(findManyArgs.where.winner_id).toBeUndefined();
+  });
+
+  it('returns persisted challenge fee and markup for external-id payment history', async () => {
+    const createdAt = new Date('2026-06-15T13:28:18.662Z');
+
+    findManyMock.mockResolvedValueOnce([
+      {
+        attributes: {},
+        category: 'ENGAGEMENT_PAYMENT',
+        created_at: createdAt,
+        description: 'Wipro - UHG - Power BI resources',
+        external_id: 'assignment-1',
+        origin: {
+          origin_name: 'Topcoder',
+        },
+        payment: [
+          {
+            billing_account: '80004405',
+            challenge_fee: 386.94,
+            challenge_markup: 0.71,
+            currency: 'USD',
+            date_paid: createdAt,
+            gross_amount: 544.99,
+            installment_number: 1,
+            net_amount: 0,
+            payment_id: '8fbb836d-3d6b-4e19-a4cc-871e0e1bc12d',
+            payment_status: 'PAID',
+            release_date: createdAt,
+            total_amount: 544.99,
+            updated_at: createdAt,
+          },
+        ],
+        title: 'Wipro - UHG - Power BI resources',
+        type: 'PAYMENT',
+        updated_at: createdAt,
+        winner_id: '500013447',
+        winning_id: 'winning-1',
+      },
+    ]);
+
+    const result = await winningsRepo.getWinningsByExternalId('assignment-1');
+
+    expect(result.data?.[0].details[0]).toMatchObject({
+      billingAccount: '80004405',
+      challengeFee: 386.94,
+      challengeMarkup: 0.71,
+      totalAmount: 544.99,
+    });
   });
 });
