@@ -27,9 +27,14 @@ export class RecipientVerificationHandler {
       where: { trolley_id: payload.recipientId },
     });
 
-    if (payload.type !== RecipientVerificationType.individual) {
+    if (
+      ![
+        RecipientVerificationType.individual,
+        RecipientVerificationType.business,
+      ].includes(payload.type)
+    ) {
       this.logger.log(
-        `Handling only individual status updates, ignoring phone verification for recipient ${payload.recipientId}. Verification type: ${payload.type}.`,
+        `Handling only individual/business status updates, ignoring phone verification for recipient ${payload.recipientId}. Verification type: ${payload.type}.`,
       );
       return;
     }
