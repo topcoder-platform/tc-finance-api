@@ -28,6 +28,77 @@ import { PaymentStatus } from 'src/dto/payment.dto';
 import { CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE } from '../winnings/winnings.service';
 
 describe('ChallengesService', () => {
+  it.each([
+    {
+      expectedToSkip: true,
+      label: 'enabled',
+      metadata: [{ name: 'is_test_challenge', value: 'true' }],
+    },
+    {
+      expectedToSkip: false,
+      label: 'disabled',
+      metadata: [{ name: 'is_test_challenge', value: 'false' }],
+    },
+    {
+      expectedToSkip: false,
+      label: 'absent',
+      metadata: undefined,
+    },
+    {
+      expectedToSkip: false,
+      label: 'uppercase value',
+      metadata: [{ name: 'is_test_challenge', value: 'TRUE' }],
+    },
+    {
+      expectedToSkip: false,
+      label: 'non-string value',
+      metadata: [{ name: 'is_test_challenge', value: true }],
+    },
+    {
+      expectedToSkip: false,
+      label: 'uppercase name',
+      metadata: [{ name: 'IS_TEST_CHALLENGE', value: 'true' }],
+    },
+  ])(
+    '$label test-challenge metadata: expectedToSkip=$expectedToSkip',
+    async ({ expectedToSkip, metadata }) => {
+      const prisma = {
+        challenge_lock: {
+          create: jest.fn().mockResolvedValue({}),
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+      const service = new ChallengesService(
+        prisma as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
+      const challenge = {
+        id: '11111111-1111-1111-1111-111111111111',
+        metadata,
+        name: 'Payment exclusion test',
+        status: ChallengeStatuses.Completed,
+      };
+      const createPaymentsSpy = jest
+        .spyOn(service as any, 'createPayments')
+        .mockResolvedValue(undefined);
+
+      jest.spyOn(service, 'getChallenge').mockResolvedValue(challenge as any);
+
+      await service.generateChallengePayments(challenge.id, 'test-user');
+
+      expect(createPaymentsSpy).toHaveBeenCalledTimes(expectedToSkip ? 0 : 1);
+      expect(prisma.challenge_lock.create).toHaveBeenCalledTimes(
+        expectedToSkip ? 0 : 1,
+      );
+      expect(prisma.challenge_lock.deleteMany).toHaveBeenCalledTimes(
+        expectedToSkip ? 0 : 1,
+      );
+    },
+  );
+
   it('skips creating payments for fun challenges', async () => {
     const prisma = {
       challenge_lock: {

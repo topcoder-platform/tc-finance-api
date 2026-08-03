@@ -39,6 +39,7 @@ import {
 } from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { PrismaService } from 'src/shared/global/prisma.service';
+import { isTestChallenge } from 'src/shared/topcoder/challenges.service';
 
 interface PaymentPayload {
   handle: string;
@@ -648,7 +649,11 @@ export class ChallengesService {
     await Promise.all(
       payments.map(async (p) => {
         try {
-          await this.winningsService.createWinningWithPayments(p, userId);
+          await this.winningsService.createWinningWithPayments(
+            p,
+            userId,
+            challenge,
+          );
         } catch (e) {
           this.logger.log(
             `Failed to create winnings payment for user ${p.winnerId}!`,
@@ -662,6 +667,19 @@ export class ChallengesService {
     await this.baService.lockConsumeAmount(baValidation);
   }
 
+  /**
+   * Creates the winnings and nested payments generated from a payable
+   * challenge. Challenges explicitly marked with the exact metadata entry
+   * `{ name: 'is_test_challenge', value: 'true' }` return before payment locks,
+   * winnings, or billing-account budget records are created.
+   *
+   * @param challengeId Challenge UUID to load from challenge-api-v6.
+   * @param userId Finance user responsible for the generated payment rows.
+   * @returns A promise that resolves after payment creation, or immediately for
+   * a test or fun challenge.
+   * @throws Error when the challenge is missing, is not payable, or payment
+   * generation fails; ConflictException when another generation lock exists.
+   */
   async generateChallengePayments(challengeId: string, userId: string) {
     const challenge = await this.getChallenge(challengeId);
     this.logger.log(`Fetched challenge ${challengeId}`);
@@ -674,6 +692,13 @@ export class ChallengesService {
     this.logger.log(
       `Challenge ${challenge.id} - "${challenge.name}" with status "${challenge.status}" retrieved`,
     );
+
+    if (isTestChallenge(challenge)) {
+      this.logger.log(
+        `Skipping payment generation for test challenge ${challenge.id} (${challenge.name}).`,
+      );
+      return;
+    }
 
     const isPayableStatus =
       challenge.status.toLowerCase() ===

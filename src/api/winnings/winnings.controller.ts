@@ -49,7 +49,7 @@ export class WinningsController {
   @ApiOperation({
     summary: 'Create winning with payments.',
     description:
-      'User must have "create:payments" scope or Payment Admin, Payment Editor, Project Manager, Task Manager, or Talent Manager role to access.',
+      'User must have "create:payments" scope or Payment Admin, Payment Editor, Project Manager, Task Manager, or Talent Manager role to access. When externalId resolves to a challenge with the exact metadata entry `{ name: "is_test_challenge", value: "true" }`, the request is ignored without creating winnings or payments. A non-404 challenge lookup failure aborts before payment creation.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -57,13 +57,19 @@ export class WinningsController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Create winnings successfully.',
+    description:
+      'Create winnings successfully, or skip creation for a test challenge.',
     type: ResponseDto<string>,
   })
   @ApiResponse({
     status: 400,
     description:
       'Invalid winning request or insufficient remaining funds on the billing account.',
+  })
+  @ApiResponse({
+    status: 500,
+    description:
+      'Challenge verification failed before the winning or payment could be created.',
   })
   @HttpCode(HttpStatus.CREATED)
   async createWinnings(
