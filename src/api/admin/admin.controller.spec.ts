@@ -133,7 +133,7 @@ describe('AdminController', () => {
     });
 
     const output = await controller.exportWinnings(
-      { type: WinningsType.PAYMENT } as WinningRequestDto,
+      { type: WinningsType.PAYMENT },
       { id: 'admin-user', roles: ['Payment Admin'] },
     );
 

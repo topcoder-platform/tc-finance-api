@@ -32,11 +32,7 @@ import {
   CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE,
   WinningsService,
 } from '../winnings/winnings.service';
-import {
-  WinningRequestDto,
-  WinningsCategory,
-  WinningsType,
-} from 'src/dto/winning.dto';
+import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { isTestChallenge } from 'src/shared/topcoder/challenges.service';
@@ -187,7 +183,7 @@ export class ChallengesService {
       );
     }
 
-    const requestUrl = `${TC_API_BASE}/challenges/${challengeId}`;
+    const requestUrl = `${TC_API_BASE}/challenges/${encodeURIComponent(challengeId)}`;
 
     try {
       const challenge = await this.m2MService.m2mFetch<Challenge>(requestUrl);
@@ -591,7 +587,7 @@ export class ChallengesService {
     const existingPayments = (
       await this.winningsRepo.searchWinnings({
         externalIds: [challenge.id],
-      } as WinningRequestDto)
+      })
     )?.data?.winnings;
 
     if (existingPayments?.length > 0) {

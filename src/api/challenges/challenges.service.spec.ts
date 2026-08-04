@@ -253,7 +253,7 @@ describe('ChallengesService', () => {
 
     jest
       .spyOn(service, 'getChallengeResources')
-      .mockResolvedValue({ winner: [] } as any);
+      .mockResolvedValue({ winner: [] });
     jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
       {
         userId: '40158994',
@@ -298,7 +298,7 @@ describe('ChallengesService', () => {
 
     jest
       .spyOn(service, 'getChallengeResources')
-      .mockResolvedValue({ winner: [] } as any);
+      .mockResolvedValue({ winner: [] });
     jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
       {
         userId: '40158994',
@@ -389,7 +389,7 @@ describe('ChallengesService', () => {
 
     jest
       .spyOn(service, 'getChallengeResources')
-      .mockResolvedValue({ winner: [] } as any);
+      .mockResolvedValue({ winner: [] });
     jest.spyOn(service, 'generatePlacementWinnersPayments').mockReturnValue([
       {
         userId: '40158994',

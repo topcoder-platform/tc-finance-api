@@ -22,6 +22,16 @@ describe('TopcoderChallengesService', () => {
     service = new TopcoderChallengesService(m2MService as any);
   });
 
+  it('encodes an untrusted challenge id as one URL path segment', async () => {
+    m2MService.m2mFetch.mockResolvedValue({ id: 'challenge-id' });
+
+    await service.getChallengeById('challenge/../../admin?scope=*#fragment');
+
+    expect(m2MService.m2mFetch).toHaveBeenCalledWith(
+      'https://api.topcoder-dev.com/v6/challenges/challenge%2F..%2F..%2Fadmin%3Fscope%3D*%23fragment',
+    );
+  });
+
   it('treats a definitive 404 as a non-challenge in strict lookup mode', async () => {
     m2MService.m2mFetch.mockRejectedValue(
       new TopcoderM2MHttpError({

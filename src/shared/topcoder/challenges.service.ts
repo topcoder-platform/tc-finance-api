@@ -101,7 +101,7 @@ export class TopcoderChallengesService {
   ): Promise<TopcoderChallengeInfo | undefined> {
     try {
       return await this.m2MService.m2mFetch<TopcoderChallengeInfo>(
-        `${TC_API_V6_BASE}/challenges/${challengeId}`,
+        `${TC_API_V6_BASE}/challenges/${encodeURIComponent(challengeId)}`,
       );
     } catch (error) {
       this.logger.warn(
@@ -124,7 +124,7 @@ export class TopcoderChallengesService {
   ): Promise<TopcoderProjectInfo | undefined> {
     try {
       return await this.m2MService.m2mFetch<TopcoderProjectInfo>(
-        `${TC_API_V6_BASE}/projects/${projectId}`,
+        `${TC_API_V6_BASE}/projects/${encodeURIComponent(String(projectId))}`,
       );
     } catch (error) {
       this.logger.warn(

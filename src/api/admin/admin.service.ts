@@ -975,7 +975,7 @@ export class AdminService {
             `update status ${payment.payment_status} -> ${body.paymentStatus}`,
           );
 
-          paymentStatus = body.paymentStatus as PaymentStatus;
+          paymentStatus = body.paymentStatus;
 
           if (body.paymentStatus === PaymentStatus.OWED) {
             needsReconciliation = true;
