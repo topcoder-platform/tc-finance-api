@@ -637,9 +637,9 @@ export class BillingAccountsService {
 
     try {
       return await this.m2MService
-        .m2mFetch<
-          { tcBillingAccountId: string }[]
-        >(`${TOPCODER_API_V6_BASE_URL}/billing-accounts/users/${userId}`)
+        .m2mFetch<{ tcBillingAccountId: string }[]>(
+          `${TOPCODER_API_V6_BASE_URL}/billing-accounts/users/${userId}`,
+        )
         .then((r) => r.map((b) => `${b.tcBillingAccountId}`));
     } catch (err: any) {
       this.logger.error(

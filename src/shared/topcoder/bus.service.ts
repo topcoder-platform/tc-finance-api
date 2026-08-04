@@ -64,7 +64,7 @@ export class TopcoderBusService {
         this.logger.debug(`Sent event to bus-api for bus topic ${topic}`);
         this.logger.debug(`Response status: ${response.status}`);
 
-        if (response.status !== (HttpStatus.NO_CONTENT as number)) {
+        if (response.status !== Number(HttpStatus.NO_CONTENT)) {
           const responseData = await response.json();
           this.logger.debug(`Response data: ${JSON.stringify(responseData)}`);
         }

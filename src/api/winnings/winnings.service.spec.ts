@@ -277,7 +277,7 @@ describe('WinningsService', () => {
             billingAccount: '123456',
           },
         ],
-      } as any,
+      },
       'creator-1',
     );
 
@@ -620,7 +620,7 @@ describe('WinningsService', () => {
             billingAccount: '80000062',
           },
         ],
-      } as any,
+      },
       'creator-1',
     );
 
@@ -827,7 +827,7 @@ describe('WinningsService', () => {
             billingAccount: '80001012',
           },
         ],
-      } as any,
+      },
       'creator-1',
     );
 

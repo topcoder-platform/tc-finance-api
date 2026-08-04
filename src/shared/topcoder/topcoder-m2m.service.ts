@@ -57,6 +57,125 @@ export class TopcoderM2MHttpError extends Error {
 export class TopcoderM2MService {
   private readonly logger = new Logger(TopcoderM2MService.name);
 
+  private readonly topcoderApiBaseUrl = this.parseTopcoderApiBaseUrl();
+
+  /**
+   * Parses the configured Topcoder API base URL used as the M2M request
+   * allow-list boundary.
+   *
+   * @returns A normalized HTTP(S) URL without credentials, query, or fragment.
+   * @throws Error when the configured base URL is not safe to use.
+   */
+  private parseTopcoderApiBaseUrl(): URL {
+    let baseUrl: URL;
+
+    try {
+      baseUrl = new URL(ENV_CONFIG.TOPCODER_API_V6_BASE_URL);
+    } catch {
+      throw new Error('TOPCODER_API_V6_BASE_URL must be a valid URL');
+    }
+
+    if (
+      !['http:', 'https:'].includes(baseUrl.protocol) ||
+      baseUrl.username ||
+      baseUrl.password ||
+      baseUrl.search ||
+      baseUrl.hash
+    ) {
+      throw new Error('TOPCODER_API_V6_BASE_URL must be a safe HTTP(S) URL');
+    }
+
+    return baseUrl;
+  }
+
+  /**
+   * Rejects raw or percent-encoded dot segments before the URL is normalized,
+   * along with encoded query or fragment delimiters that could make different
+   * URL decoders disagree about the path boundary. This prevents
+   * user-controlled values from selecting a sibling route.
+   *
+   * @param rawUrl Unparsed absolute request URL.
+   * @throws Error when the path is malformed or contains traversal segments.
+   */
+  private assertNoPathTraversal(rawUrl: string): void {
+    let decodedPath = rawUrl.split(/[?#]/, 1)[0].replace(/\\/g, '/');
+
+    for (let decodeDepth = 0; decodeDepth <= 5; decodeDepth += 1) {
+      if (
+        decodedPath.split('/').some((segment) => ['.', '..'].includes(segment))
+      ) {
+        throw new Error('M2M request URL path traversal is not allowed');
+      }
+
+      let nextDecodedPath: string;
+      try {
+        nextDecodedPath = decodeURIComponent(decodedPath).replace(/\\/g, '/');
+      } catch {
+        throw new Error('M2M request URL contains invalid percent encoding');
+      }
+
+      if (/[?#]/.test(nextDecodedPath)) {
+        throw new Error('M2M request URL contains an encoded path delimiter');
+      }
+
+      if (nextDecodedPath === decodedPath) {
+        return;
+      }
+
+      if (decodeDepth === 5) {
+        throw new Error('M2M request URL is excessively percent encoded');
+      }
+      decodedPath = nextDecodedPath;
+    }
+  }
+
+  /**
+   * Validates and reconstructs an M2M request URL from the configured origin.
+   * Only the configured API base path and its descendants are permitted.
+   *
+   * @param url Candidate request URL.
+   * @returns A new credential-free URL constrained to the configured API.
+   * @throws Error when the URL is invalid or outside the allow-list boundary.
+   */
+  private toSafeM2MUrl(url: string | URL): URL {
+    const rawUrl = String(url);
+    this.assertNoPathTraversal(rawUrl);
+
+    let candidateUrl: URL;
+    try {
+      candidateUrl = new URL(rawUrl);
+    } catch {
+      throw new Error('M2M request URL must be a valid absolute URL');
+    }
+
+    if (
+      candidateUrl.username ||
+      candidateUrl.password ||
+      candidateUrl.hash ||
+      candidateUrl.origin !== this.topcoderApiBaseUrl.origin
+    ) {
+      throw new Error('M2M request URL is outside the configured API origin');
+    }
+
+    const configuredBasePath =
+      this.topcoderApiBaseUrl.pathname.replace(/\/+$/, '') || '/';
+    const isWithinConfiguredBasePath =
+      configuredBasePath === '/' ||
+      candidateUrl.pathname === configuredBasePath ||
+      candidateUrl.pathname.startsWith(`${configuredBasePath}/`);
+
+    if (!isWithinConfiguredBasePath) {
+      throw new Error(
+        'M2M request URL is outside the configured API base path',
+      );
+    }
+
+    const safeUrl = new URL(this.topcoderApiBaseUrl.origin);
+    safeUrl.pathname = candidateUrl.pathname;
+    safeUrl.search = candidateUrl.search;
+    return safeUrl;
+  }
+
   /**
    * Retrieves a Machine-to-Machine (M2M) token from the Auth0 service.
    *
@@ -117,6 +236,10 @@ export class TopcoderM2MService {
   }
 
   async m2mFetch<T = unknown>(url: string | URL, options = {} as RequestInit) {
+    // Validate before retrieving the token so credentials are never acquired or
+    // attached for a caller-controlled destination.
+    const safeUrl = this.toSafeM2MUrl(url);
+
     let m2mToken: string | undefined;
     try {
       m2mToken = await this.getToken();
@@ -139,9 +262,12 @@ export class TopcoderM2MService {
     const finalOptions: RequestInit = {
       ...options,
       headers,
+      // Do not allow an approved endpoint to redirect the bearer token to a
+      // destination that has not passed the origin and base-path checks.
+      redirect: 'error',
     };
 
-    const response = await fetch(url, finalOptions);
+    const response = await fetch(safeUrl, finalOptions);
 
     if (!response.ok) {
       let responseBody: unknown;
@@ -175,7 +301,7 @@ export class TopcoderM2MService {
       }
 
       this.logger.error('M2M fetch failed', {
-        url: String(url),
+        url: safeUrl.toString(),
         method: finalOptions.method ?? 'GET',
         status: response.status,
         statusText: response.statusText,
@@ -189,7 +315,7 @@ export class TopcoderM2MService {
         status: response.status,
         statusText: response.statusText,
         upstreamMessage,
-        url: String(url),
+        url: safeUrl.toString(),
       });
     }
 

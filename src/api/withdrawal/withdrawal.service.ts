@@ -17,6 +17,7 @@ import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
 import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
 import { Logger } from 'src/shared/global';
 import { OtpService } from 'src/shared/global/otp.service';
+import { isWiproEmail } from './withdrawal.utils';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =
   ENV_CONFIG.TROLLEY_MINIMUM_PAYMENT_AMOUNT;
@@ -233,7 +234,7 @@ export class WithdrawalService {
       throw new Error('Failed to fetch UserInfo for withdrawal!');
     }
 
-    if (userInfo.email.toLowerCase().indexOf('wipro.com') > -1) {
+    if (isWiproEmail(userInfo.email)) {
       this.logger.error(
         `User ${userHandle}(${userId}) attempted withdrawal but is restricted due to email domain '${userInfo.email}'.`,
       );

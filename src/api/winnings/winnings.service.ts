@@ -1344,8 +1344,7 @@ export class WinningsService {
       this.logger.debug('Constructed winning model', { winningModel });
 
       const requestAttributes = body.attributes as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const payrollPayment = requestAttributes?.payroll === true;
       const isPointsAward = body.category === WinningsCategory.POINTS_AWARD;
       const requestedStatus = body.status as payment_status | undefined;
