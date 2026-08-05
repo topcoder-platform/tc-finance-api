@@ -45,7 +45,7 @@ describe('WinningsRepository', () => {
   async function getSearchWhere(
     searchProps: Record<string, unknown>,
   ): Promise<any> {
-    await winningsRepo.searchWinnings(searchProps as any, {
+    await winningsRepo.searchWinnings(searchProps, {
       includeCount: false,
       includePayoutStatus: false,
     });

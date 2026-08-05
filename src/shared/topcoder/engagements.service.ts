@@ -71,7 +71,7 @@ export class TopcoderEngagementsService {
   async getAssignmentContextById(
     assignmentId: string,
   ): Promise<TopcoderAssignmentContext> {
-    const requestUrl = `${TC_API_BASE}/engagements/engagements/assignments/${assignmentId}/context`;
+    const requestUrl = `${TC_API_BASE}/engagements/engagements/assignments/${encodeURIComponent(assignmentId)}/context`;
 
     try {
       return await this.m2MService.m2mFetch<TopcoderAssignmentContext>(
@@ -98,7 +98,7 @@ export class TopcoderEngagementsService {
   async getEngagementById(
     engagementId: string,
   ): Promise<TopcoderEngagementDetails> {
-    const requestUrl = `${TC_API_BASE}/engagements/engagements/${engagementId}`;
+    const requestUrl = `${TC_API_BASE}/engagements/engagements/${encodeURIComponent(engagementId)}`;
 
     try {
       return await this.m2MService.m2mFetch<TopcoderEngagementDetails>(

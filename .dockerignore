@@ -3,3 +3,13 @@ deployment/
 docker-compose.yml
 scripts/
 .circleci/
+.git/
+.github/
+node_modules/
+dist/
+packages/
+coverage/
+.env
+.env.*
+!.env.sample
+*.log

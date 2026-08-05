@@ -31,7 +31,8 @@ export class ChallengesController {
   @AllowedM2mScope(M2mScope.CreatePayments)
   @ApiOperation({
     summary: 'Create all winnings with payments for a challenge.',
-    description: 'User must have "create:payments" scope to access.',
+    description:
+      'User must have "create:payments" scope to access. Challenges with the exact metadata entry `{ name: "is_test_challenge", value: "true" }` are ignored without creating winnings or payments.',
   })
   @ApiParam({
     name: 'challengeId',
@@ -40,7 +41,8 @@ export class ChallengesController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Create winnings successfully.',
+    description:
+      'Create winnings successfully, or skip creation for a test challenge.',
     type: ResponseDto<string>,
   })
   @HttpCode(HttpStatus.CREATED)

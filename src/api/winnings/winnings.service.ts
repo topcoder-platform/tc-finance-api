@@ -36,6 +36,7 @@ import { PrizeType } from '../challenges/models';
 import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
 import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.service';
 import {
+  isTestChallenge,
   TopcoderChallengeInfo,
   TopcoderChallengesService,
 } from 'src/shared/topcoder/challenges.service';
@@ -502,8 +503,9 @@ export class WinningsService {
    * generated payments are attempted.
    *
    * @param body incoming winning creation request.
+   * @param challenge resolved challenge context for the request.
    * @returns Billing-account sync plan, or `undefined` when the request is not
-   * a challenge payment.
+   * a challenge payment or does not require budget synchronization.
    * @throws BadRequestException when a challenge payment detail has an invalid
    * billing account. When the challenge exposes a billing account, that account
    * is used as the source of truth for the sync.
@@ -511,6 +513,7 @@ export class WinningsService {
    */
   private async buildChallengeBillingAccountSyncPlan(
     body: WinningCreateRequestDto,
+    challenge: TopcoderChallengeInfo | undefined,
   ): Promise<ChallengeBillingAccountSyncPlan | undefined> {
     const challengeId = String(body.externalId ?? '').trim();
 
@@ -528,9 +531,6 @@ export class WinningsService {
     if (billingAccountIds.length === 0) {
       return undefined;
     }
-
-    const challenge =
-      await this.topcoderChallengesService.getChallengeById(challengeId);
 
     if (!challenge?.id || !challenge.status) {
       return undefined;
@@ -555,6 +555,40 @@ export class WinningsService {
       challengeId,
       status: challenge.status,
     };
+  }
+
+  /**
+   * Resolves challenge context used to suppress test-challenge payments and to
+   * synchronize challenge billing-account totals. Challenge-generated batches
+   * pass their already-fetched challenge, while generic winnings requests are
+   * checked against challenge-api-v6 by external ID. Engagement payments are
+   * assignment-backed and are not treated as challenge payments.
+   *
+   * @param body Incoming winning creation request.
+   * @param suppliedChallenge Optional challenge already fetched by the batch
+   * payment workflow.
+   * @returns The matching challenge when `externalId` identifies one, or
+   * `undefined` for engagement and non-challenge payments.
+   * @throws The original challenge lookup error for authentication, network,
+   * or non-404 upstream failures so generic payment creation fails closed.
+   */
+  private async resolveChallengePaymentContext(
+    body: WinningCreateRequestDto,
+    suppliedChallenge?: TopcoderChallengeInfo,
+  ): Promise<TopcoderChallengeInfo | undefined> {
+    const challengeId = String(body.externalId ?? '').trim();
+
+    if (body.category === WinningsCategory.ENGAGEMENT_PAYMENT || !challengeId) {
+      return undefined;
+    }
+
+    if (suppliedChallenge?.id === challengeId) {
+      return suppliedChallenge;
+    }
+
+    return this.topcoderChallengesService.getChallengeById(challengeId, {
+      throwOnNonNotFoundError: true,
+    });
   }
 
   /**
@@ -1162,17 +1196,23 @@ export class WinningsService {
    * consumption before the transaction can complete. Challenge payment
    * requests that point to a challenge synchronize the aggregate persisted USD
    * payment total back to billing-account locked or consumed rows based on the
-   * current challenge status.
+   * current challenge status. Requests associated with a challenge whose
+   * `is_test_challenge` metadata value is exactly the string `'true'` are
+   * ignored before a database transaction begins.
    *
    * @param body the request body
    * @param userId the request userId
+   * @param suppliedChallenge optional challenge already fetched by the
+   * challenge batch-payment workflow.
    * @returns the Promise with response result
    * @throws BadRequestException when billing-account budget sync fails or
-   * payment input is invalid.
+   * payment input is invalid. Non-404 challenge lookup errors are also
+   * propagated before a database transaction begins.
    */
   async createWinningWithPayments(
     body: WinningCreateRequestDto,
     userId: string,
+    suppliedChallenge?: TopcoderChallengeInfo,
   ): Promise<ResponseDto<string>> {
     const result = new ResponseDto<string>();
     const isEngagementPayment =
@@ -1180,8 +1220,23 @@ export class WinningsService {
     const engagementConsumePlan = isEngagementPayment
       ? await this.buildEngagementBillingAccountConsumePlan(body)
       : undefined;
+    const challengePaymentContext = await this.resolveChallengePaymentContext(
+      body,
+      suppliedChallenge,
+    );
+
+    if (challengePaymentContext && isTestChallenge(challengePaymentContext)) {
+      this.logger.log(
+        `Skipping payment creation for test challenge ${challengePaymentContext.id}.`,
+      );
+      return result;
+    }
+
     const challengeBillingAccountSyncPlan =
-      await this.buildChallengeBillingAccountSyncPlan(body);
+      await this.buildChallengeBillingAccountSyncPlan(
+        body,
+        challengePaymentContext,
+      );
     let setupEmailNotificationAmount: number | undefined;
 
     this.logger.debug(
@@ -1289,8 +1344,7 @@ export class WinningsService {
       this.logger.debug('Constructed winning model', { winningModel });
 
       const requestAttributes = body.attributes as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const payrollPayment = requestAttributes?.payroll === true;
       const isPointsAward = body.category === WinningsCategory.POINTS_AWARD;
       const requestedStatus = body.status as payment_status | undefined;

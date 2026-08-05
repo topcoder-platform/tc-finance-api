@@ -112,6 +112,135 @@ describe('WinningsService', () => {
     );
   });
 
+  it.each([
+    {
+      expectedToSkip: true,
+      label: 'enabled',
+      metadata: [{ name: 'is_test_challenge', value: 'true' }],
+    },
+    {
+      expectedToSkip: false,
+      label: 'disabled',
+      metadata: [{ name: 'is_test_challenge', value: 'false' }],
+    },
+    {
+      expectedToSkip: false,
+      label: 'absent',
+      metadata: undefined,
+    },
+  ])(
+    '$label test-challenge metadata: expectedToSkip=$expectedToSkip for generic winnings creation',
+    async ({ expectedToSkip, metadata }) => {
+      topcoderChallengesService.getChallengeById.mockResolvedValue({
+        billing: {
+          billingAccountId: '80001012',
+          markup: 0.2,
+        },
+        id: 'challenge-id',
+        metadata,
+        status: 'COMPLETED',
+      });
+
+      await service.createWinningWithPayments(
+        {
+          winnerId: 'user-1',
+          type: WinningsType.PAYMENT,
+          origin: 'Topcoder',
+          category: WinningsCategory.CONTEST_PAYMENT,
+          title: 'Challenge payment',
+          description: 'Challenge payment',
+          externalId: 'challenge-id',
+          details: [
+            {
+              totalAmount: 100,
+              grossAmount: 100,
+              installmentNumber: 1,
+              currency: PrizeType.USD,
+              billingAccount: '80001012',
+            },
+          ],
+        } as any,
+        'creator-1',
+      );
+
+      expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+        'challenge-id',
+        { throwOnNonNotFoundError: true },
+      );
+      expect(prisma.$transaction).toHaveBeenCalledTimes(expectedToSkip ? 0 : 1);
+      expect(tx.winnings.create).toHaveBeenCalledTimes(expectedToSkip ? 0 : 1);
+      expect(billingAccountsService.lockConsumeAmount).toHaveBeenCalledTimes(
+        expectedToSkip ? 0 : 1,
+      );
+    },
+  );
+
+  it('aborts before payment creation when challenge verification fails', async () => {
+    const lookupError = new Error('Challenge API unavailable');
+    topcoderChallengesService.getChallengeById.mockRejectedValue(lookupError);
+
+    await expect(
+      service.createWinningWithPayments(
+        {
+          winnerId: 'user-1',
+          type: WinningsType.PAYMENT,
+          origin: 'Topcoder',
+          category: WinningsCategory.CONTEST_PAYMENT,
+          title: 'Unverified challenge payment',
+          description: 'Unverified challenge payment',
+          externalId: 'challenge-id',
+          details: [
+            {
+              totalAmount: 100,
+              grossAmount: 100,
+              installmentNumber: 1,
+              currency: PrizeType.USD,
+              billingAccount: '80001012',
+            },
+          ],
+        } as any,
+        'creator-1',
+      ),
+    ).rejects.toBe(lookupError);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.winnings.create).not.toHaveBeenCalled();
+    expect(billingAccountsService.lockConsumeAmount).not.toHaveBeenCalled();
+  });
+
+  it('continues payment creation when challenge lookup reports not found', async () => {
+    topcoderChallengesService.getChallengeById.mockResolvedValue(undefined);
+
+    await service.createWinningWithPayments(
+      {
+        winnerId: 'user-1',
+        type: WinningsType.PAYMENT,
+        origin: 'Topcoder',
+        category: WinningsCategory.ONE_OFF_PAYMENT,
+        title: 'Non-challenge payment',
+        description: 'Non-challenge payment',
+        externalId: 'non-challenge-id',
+        details: [
+          {
+            totalAmount: 100,
+            grossAmount: 100,
+            installmentNumber: 1,
+            currency: PrizeType.USD,
+            billingAccount: '80001012',
+          },
+        ],
+      } as any,
+      'creator-1',
+    );
+
+    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+      'non-challenge-id',
+      { throwOnNonNotFoundError: true },
+    );
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.winnings.create).toHaveBeenCalledTimes(1);
+  });
+
   it('validates the trusted engagement billing account and consumes in one batch', async () => {
     await service.createWinningWithPayments(
       {
@@ -148,7 +277,7 @@ describe('WinningsService', () => {
             billingAccount: '123456',
           },
         ],
-      } as any,
+      },
       'creator-1',
     );
 
@@ -491,7 +620,7 @@ describe('WinningsService', () => {
             billingAccount: '80000062',
           },
         ],
-      } as any,
+      },
       'creator-1',
     );
 
@@ -609,7 +738,7 @@ describe('WinningsService', () => {
     expect(billingAccountsService.lockConsumeAmount).not.toHaveBeenCalled();
   });
 
-  it('locks the aggregate billing-account amount for draft challenge payments', async () => {
+  it('uses supplied challenge context to lock the aggregate draft payment amount', async () => {
     topcoderChallengesService.getChallengeById.mockResolvedValue({
       billing: {
         markup: 0.2,
@@ -642,11 +771,15 @@ describe('WinningsService', () => {
         ],
       } as any,
       'creator-1',
+      {
+        billing: { markup: 0.2 },
+        id: 'challenge-id',
+        metadata: [{ name: 'is_test_challenge', value: 'false' }],
+        status: 'DRAFT',
+      } as any,
     );
 
-    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
-      'challenge-id',
-    );
+    expect(topcoderChallengesService.getChallengeById).not.toHaveBeenCalled();
     expect(tx.payment.findMany).toHaveBeenCalledWith({
       select: {
         gross_amount: true,
@@ -694,11 +827,14 @@ describe('WinningsService', () => {
             billingAccount: '80001012',
           },
         ],
-      } as any,
+      },
       'creator-1',
     );
 
-    expect(topcoderChallengesService.getChallengeById).not.toHaveBeenCalled();
+    expect(topcoderChallengesService.getChallengeById).toHaveBeenCalledWith(
+      'challenge-id',
+      { throwOnNonNotFoundError: true },
+    );
     expect(billingAccountsService.lockConsumeAmount).not.toHaveBeenCalled();
     expect(tx.winnings.create.mock.calls[0][0].data.attributes).toEqual({
       billingAccountId: '80001012',
