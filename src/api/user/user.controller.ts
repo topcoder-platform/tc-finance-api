@@ -20,6 +20,7 @@ import { Role } from 'src/core/auth/auth.constants';
 import { Roles, User } from 'src/core/auth/decorators';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { PaymentStatus } from 'src/dto/payment.dto';
 import { SearchWinningResult, WinningRequestDto } from 'src/dto/winning.dto';
 import { UserInfo } from 'src/dto/user.type';
 import { UserWinningRequestDto } from './dto/user.dto';
@@ -80,9 +81,17 @@ export class UserController {
       } as ResponseDto<SearchWinningResult>;
     }
 
-    const result = await this.winningsRepo.searchWinnings(
-      body as WinningRequestDto,
-    );
+    // Member Wallet shows ON_HOLD_ADMIN task/engagement payments as "Created".
+    // Include them when filtering by On Hold so those records are visible.
+    const searchBody = { ...body } as WinningRequestDto;
+    if (body.status === PaymentStatus.ON_HOLD) {
+      searchBody.status = [
+        PaymentStatus.ON_HOLD,
+        PaymentStatus.ON_HOLD_ADMIN,
+      ];
+    }
+
+    const result = await this.winningsRepo.searchWinnings(searchBody);
 
     result.status = ResponseStatusType.SUCCESS;
     if (result.error) {
