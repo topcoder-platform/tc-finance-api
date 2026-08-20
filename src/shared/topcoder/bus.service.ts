@@ -69,7 +69,7 @@ export class TopcoderBusService {
             const responseData = await response.text();
             this.logger.debug(`Response data: ${responseData}`);
           } catch (e) {
-            this.logger.error(e.message)
+            this.logger.error(e.message);
           }
         }
       }
