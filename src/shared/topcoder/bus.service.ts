@@ -65,8 +65,12 @@ export class TopcoderBusService {
         this.logger.debug(`Response status: ${response.status}`);
 
         if (response.status !== Number(HttpStatus.NO_CONTENT)) {
-          const responseData = await response.json();
-          this.logger.debug(`Response data: ${JSON.stringify(responseData)}`);
+          try {
+            const responseData = await response.json();
+            this.logger.debug(`Response data: ${JSON.stringify(responseData)}`);
+          } catch {
+            this.logger.debug(`Response data: ${await response.text()}`);
+          }
         }
       }
     } catch (error) {
