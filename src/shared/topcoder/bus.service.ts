@@ -3,7 +3,7 @@ import { ENV_CONFIG } from 'src/config';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 import { Logger } from '../global';
 
-const { TOPCODER_API_V5_BASE_URL: TC_API_BASE } = ENV_CONFIG;
+const { TOPCODER_API_V6_BASE_URL: TC_API_BASE } = ENV_CONFIG;
 
 @Injectable()
 export class TopcoderBusService {
@@ -65,8 +65,12 @@ export class TopcoderBusService {
         this.logger.debug(`Response status: ${response.status}`);
 
         if (response.status !== Number(HttpStatus.NO_CONTENT)) {
-          const responseData = await response.json();
-          this.logger.debug(`Response data: ${JSON.stringify(responseData)}`);
+          try {
+            const responseData = await response.text();
+            this.logger.debug(`Response data: ${responseData}`);
+          } catch (e) {
+            this.logger.error(e.message);
+          }
         }
       }
     } catch (error) {
