@@ -110,6 +110,10 @@ export class PayoutStatus {
   taxFormSetupComplete: boolean;
 }
 
+/**
+ * Winning read model used by Wallet, CSV exports and external-ID consumers.
+ * Monetary summaries describe installment face values, not payout eligibility.
+ */
 export class WinningDto {
   id: string;
   type: string;
@@ -122,6 +126,18 @@ export class WinningDto {
   externalId: string;
   attributes: object;
   hoursWorked?: number;
+  @ApiProperty({
+    description:
+      'Sum of gross member amounts across all current numbered installment rows, including cancelled installments for historical display. Excludes billing markup and is not a withdrawable balance.',
+    example: 3680,
+  })
+  grossAmount: number;
+
+  @ApiProperty({
+    description:
+      'Current payment rows ordered by installment number, preserving separate rows that share a number. Amounts and statuses remain specific to each row; totalAmount can repeat the full winning amount and must not be summed.',
+    type: [PaymentDetailDto],
+  })
   details: PaymentDetailDto[];
   paymentStatus: PayoutStatus;
   createdAt: Date;
