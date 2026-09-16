@@ -70,6 +70,7 @@ describe('AdminController', () => {
               title: 'Engagement payment',
               description: 'Monthly engagement payment',
               externalId: 'assignment-1',
+              grossAmount: 1200,
               details: [
                 {
                   status: PaymentStatus.OWED,
@@ -93,6 +94,7 @@ describe('AdminController', () => {
               title: 'One-off payment',
               description: 'Non-engagement payment',
               externalId: 'task-1',
+              grossAmount: 500,
               details: [
                 {
                   status: PaymentStatus.PAID,
@@ -156,7 +158,6 @@ describe('AdminController', () => {
       {
         includeCount: false,
         includePayoutStatus: false,
-        latestPaymentOnly: true,
       },
     );
     expect(tcMembersService.getHandlesByUserIds).toHaveBeenCalledWith([
@@ -190,5 +191,56 @@ describe('AdminController', () => {
     ]);
     expect(engagementRow[14]).toBe('creator-handle');
     expect(nonEngagementRow[14]).toBe('');
+  });
+
+  it('exports the installment gross summary without truncating or doubling the payment', async () => {
+    accessControlService.applyFilters.mockResolvedValue({});
+    tcMembersService.getHandlesByUserIds.mockResolvedValue({});
+    winningsRepo.searchWinnings.mockResolvedValueOnce({
+      data: {
+        winnings: [
+          {
+            id: 'split-winning',
+            winnerId: '90221384',
+            category: WinningsCategory.TASK_PAYMENT,
+            grossAmount: 3680,
+            details: [
+              {
+                grossAmount: 2760,
+                totalAmount: 3680,
+                status: PaymentStatus.PAID,
+              },
+              {
+                grossAmount: 920,
+                totalAmount: 3680,
+                status: PaymentStatus.PAID,
+              },
+            ],
+            createdAt: new Date('2024-02-27T21:15:17.000Z'),
+          },
+          {
+            id: 'marked-up-winning',
+            winnerId: '90221384',
+            category: WinningsCategory.TASK_PAYMENT,
+            grossAmount: 100,
+            details: [{ grossAmount: 100, totalAmount: 125 }],
+            createdAt: new Date('2024-02-27T21:15:17.000Z'),
+          },
+        ],
+      },
+    });
+
+    const csv = await controller.exportWinnings(
+      {},
+      { id: 'admin-user', roles: ['Payment Admin'] },
+    );
+    const [, splitRow, markedUpRow] = csv.trim().split(/\r?\n/);
+
+    expect(splitRow.split(',')[9]).toBe('3680');
+    expect(markedUpRow.split(',')[9]).toBe('100');
+    expect(winningsRepo.searchWinnings.mock.calls[0][1]).toEqual({
+      includeCount: false,
+      includePayoutStatus: false,
+    });
   });
 });

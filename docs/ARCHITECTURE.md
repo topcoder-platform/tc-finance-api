@@ -194,6 +194,23 @@ Controllers handle HTTP requests and route them to appropriate services:
 - Pagination and sorting
 - Join operations with payments
 
+Wallet searches, external-ID lookups and CSV exports read all current payment
+rows with positive installment numbers, ordered with installment 1 first. Rows
+are updated in place: `version` is an optimistic lock, not a history key. Separate
+payment rows may share an installment number and must all be preserved. The winning's
+`grossAmount` is the decimal sum of those installments' member gross amounts.
+`details` retains each installment's amount, status and dates; a repeated
+`details[].totalAmount` is not an additive amount. For example, historical
+installments of $2,760 and $920 both carry `totalAmount: 3680`, and the winning's
+`grossAmount` is $3,680, not $7,360. The CSV **Total Amount** column uses this gross
+summary so it matches Wallet Admin.
+
+The summary includes all installment statuses, including cancelled amounts for
+historical display. It is not a withdrawable balance. Existing primary-installment
+filters, payout eligibility and payment mutations are unchanged. Wallet clients
+should use `grossAmount` for the member amount and `details` for the breakdown;
+billing markup must not be added to the member amount.
+
 **PaymentMethodRepository**
 
 - Payment method CRUD
