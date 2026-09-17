@@ -18,6 +18,8 @@ import { Logger } from 'src/shared/global';
 import {
   Challenge,
   ChallengeResource,
+  ChallengeTrack,
+  ChallengeType,
   ChallengeReview,
   Prize,
   PrizeType,
@@ -79,6 +81,7 @@ const CANCELLED_CHALLENGE_STATUSES = [
 ].map((status) => status.toLowerCase());
 
 const DESIGN_TRACK = 'DESIGN';
+const TASK_CHALLENGE_TYPE = 'TASK';
 const SCREENING_PHASE_NAME = 'screening';
 
 const {
@@ -103,13 +106,53 @@ function isCancelledChallengeStatus(status?: string): boolean {
 }
 
 /**
+ * Resolves a challenge track to the canonical uppercase track token.
+ *
+ * challenge-api-v6 serializes the track as a `{ id, name, track }` object by
+ * default and only as a plain string when the response is requested as a
+ * string, so both shapes are accepted here.
+ *
+ * @param track Challenge track relation or display value returned by challenge-api-v6.
+ * @returns Normalized uppercase track token, or an empty string when unknown.
+ */
+function normalizeTrackToken(track?: ChallengeTrack): string {
+  if (typeof track === 'string') {
+    return track.trim().toUpperCase();
+  }
+
+  if (!track || typeof track !== 'object') {
+    return '';
+  }
+
+  const value = [track.track, track.name, track.abbreviation].find(
+    (candidate) => typeof candidate === 'string' && candidate.trim().length > 0,
+  );
+
+  return (value ?? '').trim().toUpperCase();
+}
+
+/**
  * Determines whether a challenge belongs to the Design track.
  *
- * @param track Challenge track display value or token returned by challenge-api-v6.
+ * @param track Challenge track relation or display value returned by challenge-api-v6.
  * @returns True when the track is the Design track.
  */
-function isDesignTrack(track?: string): boolean {
-  return (track ?? '').trim().toUpperCase() === DESIGN_TRACK;
+function isDesignTrack(track?: ChallengeTrack): boolean {
+  return normalizeTrackToken(track) === DESIGN_TRACK;
+}
+
+/**
+ * Determines whether a challenge is of the Task type.
+ *
+ * @param type Challenge type relation or display value returned by challenge-api-v6.
+ * @returns True when the challenge type is Task.
+ */
+function isTaskChallengeType(type?: ChallengeType): boolean {
+  if (typeof type === 'string') {
+    return type.trim().toUpperCase() === TASK_CHALLENGE_TYPE;
+  }
+
+  return (type?.name ?? '').trim().toUpperCase() === TASK_CHALLENGE_TYPE;
 }
 
 /**
@@ -120,7 +163,9 @@ function isDesignTrack(track?: string): boolean {
  * @returns True when the phase is the screening phase.
  */
 function isScreeningPhase(phaseName?: string): boolean {
-  return (phaseName ?? '').trim().toLowerCase() === SCREENING_PHASE_NAME;
+  return typeof phaseName === 'string'
+    ? phaseName.trim().toLowerCase() === SCREENING_PHASE_NAME
+    : false;
 }
 
 @Injectable()
@@ -299,10 +344,9 @@ export class ChallengesService {
         type: winType,
         currency,
         ...(status ? { status } : {}),
-        description:
-          challenge.type === 'Task'
-            ? challenge.name
-            : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
+        description: isTaskChallengeType(challenge.type)
+          ? challenge.name
+          : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
       };
     });
   }
