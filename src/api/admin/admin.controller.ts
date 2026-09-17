@@ -153,7 +153,7 @@ export class AdminController {
   @ApiOperation({
     summary: 'Export search winnings result in csv file format',
     description:
-      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Engagement payment exports include the Payment Creator column.',
+      'Roles: Payment Admin, Payment BA Admin, Payment Approver, Wipro TaaS Admin, Payment Editor, Payment Viewer. Total Amount is the gross member amount across current installments. Engagement payment exports include the Payment Creator column.',
   })
   @ApiBody({
     description: 'Winning request body',
@@ -192,7 +192,6 @@ export class AdminController {
         {
           includeCount: false,
           includePayoutStatus: false,
-          latestPaymentOnly: true,
         },
       );
 
@@ -239,7 +238,7 @@ export class AdminController {
         description: item.description,
         externalId: item.externalId,
         status: payment?.status,
-        totalAmount: payment?.totalAmount,
+        totalAmount: item.grossAmount,
         datePaid: payment?.datePaid?.toISOString() ?? '',
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt?.toISOString() ?? '',

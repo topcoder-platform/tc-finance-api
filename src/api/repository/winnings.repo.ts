@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
+  payment,
   payment_status,
   Prisma,
   winnings,
@@ -21,17 +22,49 @@ import { Logger } from 'src/shared/global';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
+// Rows are updated in place: version is an optimistic lock, not a history key.
+// Keep installment 1 first and preserve separate rows sharing an installment.
+const CURRENT_INSTALLMENTS = {
+  where: { installment_number: { gte: 1 } },
+  orderBy: [
+    { installment_number: 'asc' },
+    { created_at: 'desc' },
+    { payment_id: 'asc' },
+  ],
+} satisfies Prisma.paymentFindManyArgs;
+
 interface SearchWinningsOptions {
   includeCount?: boolean;
   includePayoutStatus?: boolean;
-  latestPaymentOnly?: boolean;
 }
 
+/**
+ * Reads winnings for member/admin Wallet listings, exports and external-ID
+ * consumers, preserving current installment details and their gross total.
+ */
 @Injectable()
 export class WinningsRepository {
   private readonly logger = new Logger(WinningsRepository.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Totals the member gross amounts of the current installments for display.
+   *
+   * @param payments Current payment rows for all installments in one winning.
+   * @returns Decimal-safe gross total across all statuses, including cancelled
+   * installments for historical display; this is not a withdrawable balance.
+   * @throws Decimal errors for invalid stored amounts; read methods report them
+   * through their existing error response. Null amounts contribute zero.
+   */
+  private getGrossAmount(payments: Pick<payment, 'gross_amount'>[]): number {
+    return payments
+      .reduce(
+        (total, installment) => total.plus(installment.gross_amount ?? 0),
+        new Prisma.Decimal(0),
+      )
+      .toNumber();
+  }
 
   /**
    * Extracts the optional hours-worked value from winning attributes.
@@ -289,9 +322,12 @@ export class WinningsRepository {
   }
 
   /**
-   * Search winnings with parameters
-   * @param searchProps the request body
-   * @returns the Promise with response result
+   * Searches winnings with every current numbered installment payment row.
+   *
+   * @param searchProps Listing filters and pagination from the request body.
+   * @param options Controls count and payout-setup lookups for batched exports.
+   * @returns Winnings with installment details and a gross member-payment total.
+   * @throws This method reports query/serialization failures in result.error.
    */
   async searchWinnings(
     searchProps: WinningRequestDto,
@@ -300,7 +336,6 @@ export class WinningsRepository {
     const result = new ResponseDto<SearchWinningResult>();
     const includeCount = options.includeCount ?? true;
     const includePayoutStatus = options.includePayoutStatus ?? true;
-    const latestPaymentOnly = options.latestPaymentOnly ?? false;
 
     try {
       let winnerIds: string[] | undefined;
@@ -347,17 +382,7 @@ export class WinningsRepository {
       const winningsPromise = this.prisma.winnings.findMany({
         where: queryWhere,
         include: {
-          payment: {
-            where: {
-              installment_number: 1,
-            },
-            orderBy: [
-              {
-                created_at: 'desc',
-              },
-            ],
-            take: latestPaymentOnly ? 1 : undefined,
-          },
+          payment: CURRENT_INSTALLMENTS,
           origin: true,
         },
         orderBy,
@@ -394,6 +419,7 @@ export class WinningsRepository {
             externalId: item.external_id as string,
             attributes,
             hoursWorked: this.getHoursWorked(item.attributes),
+            grossAmount: this.getGrossAmount(item.payment),
             details: item.payment?.map((paymentItem) => ({
               id: paymentItem.payment_id,
               netAmount: Number(paymentItem.net_amount),
@@ -447,6 +473,13 @@ export class WinningsRepository {
     return result;
   }
 
+  /**
+   * Reads winnings for a challenge/assignment with all current installments.
+   *
+   * @param externalId Challenge or assignment identifier linked to winnings.
+   * @returns Matching winnings with installment details and gross display totals.
+   * @throws This method reports query/serialization failures in result.error.
+   */
   async getWinningsByExternalId(
     externalId: string,
   ): Promise<ResponseDto<WinningDto[]>> {
@@ -468,16 +501,7 @@ export class WinningsRepository {
       const winnings = await this.prisma.winnings.findMany({
         where: queryWhere,
         include: {
-          payment: {
-            where: {
-              installment_number: 1,
-            },
-            orderBy: [
-              {
-                created_at: 'desc',
-              },
-            ],
-          },
+          payment: CURRENT_INSTALLMENTS,
           origin: true,
         },
         orderBy: [
@@ -505,6 +529,7 @@ export class WinningsRepository {
           externalId: item.external_id as string,
           attributes,
           hoursWorked: this.getHoursWorked(item.attributes),
+          grossAmount: this.getGrossAmount(item.payment),
           details: item.payment?.map((paymentItem) => ({
             id: paymentItem.payment_id,
             netAmount: Number(paymentItem.net_amount),
