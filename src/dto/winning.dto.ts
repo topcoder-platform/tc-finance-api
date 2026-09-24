@@ -371,6 +371,59 @@ export class WinningCreateRequestDto {
   details: PaymentCreateRequestDto[];
 }
 
+/**
+ * Identifier payload returned when a winning and its payment rows are created.
+ *
+ * `id` is the winning id alias used by downstream callers that treat winnings
+ * as payment records. `paymentId` is the first numbered installment payment id
+ * (normally installment 1). The snake_case fields are included for legacy
+ * compatibility.
+ */
+export class WinningCreateResponseDto {
+  @ApiProperty({
+    description: 'Winning id alias for callers expecting an id field',
+    example: '8f14e45f-ceea-467a-9c3d-2b1a5f6c7d8e',
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'Created winning id',
+    example: '8f14e45f-ceea-467a-9c3d-2b1a5f6c7d8e',
+  })
+  winningId: string;
+
+  @ApiProperty({
+    description: 'Legacy snake_case alias of winningId',
+    example: '8f14e45f-ceea-467a-9c3d-2b1a5f6c7d8e',
+  })
+  winning_id: string;
+
+  @ApiProperty({
+    description:
+      'First numbered installment payment id, or null when no numbered payment row exists',
+    example: '9a9a5f4d-2a3b-4e9c-a1b2-3c4d5e6f7a8b',
+    nullable: true,
+    required: false,
+  })
+  paymentId: string | null;
+
+  @ApiProperty({
+    description: 'Legacy snake_case alias of paymentId',
+    example: '9a9a5f4d-2a3b-4e9c-a1b2-3c4d5e6f7a8b',
+    nullable: true,
+    required: false,
+  })
+  payment_id: string | null;
+
+  @ApiProperty({
+    description: 'All created numbered installment payment ids in sort order',
+    type: String,
+    isArray: true,
+    example: ['9a9a5f4d-2a3b-4e9c-a1b2-3c4d5e6f7a8b'],
+  })
+  paymentIds: string[];
+}
+
 export class SearchWinningResult {
   winnings: WinningDto[];
   pagination: PaginationInfo;
