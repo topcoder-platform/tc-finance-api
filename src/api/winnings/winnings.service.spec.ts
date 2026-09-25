@@ -241,6 +241,47 @@ describe('WinningsService', () => {
     expect(tx.winnings.create).toHaveBeenCalledTimes(1);
   });
 
+  it('returns winning and payment identifiers for post-payment reconciliation', async () => {
+    tx.winnings.create.mockResolvedValue({
+      payment: [
+        { payment_id: 'payment-1' },
+        { payment_id: 'payment-2' },
+      ],
+      winning_id: 'winning-1',
+    });
+
+    const result = await service.createWinningWithPayments(
+      {
+        winnerId: 'user-1',
+        type: WinningsType.PAYMENT,
+        origin: 'Topcoder',
+        category: WinningsCategory.CONTEST_PAYMENT,
+        title: 'Contest payout',
+        description: 'Contest payment',
+        externalId: 'challenge-1',
+        details: [
+          {
+            totalAmount: 100,
+            grossAmount: 100,
+            installmentNumber: 1,
+            currency: PrizeType.USD,
+            billingAccount: '80001012',
+          },
+        ],
+      } as any,
+      'creator-1',
+    );
+
+    expect(result.data).toEqual({
+      id: 'winning-1',
+      paymentId: 'payment-1',
+      paymentIds: ['payment-1', 'payment-2'],
+      payment_id: 'payment-1',
+      winningId: 'winning-1',
+      winning_id: 'winning-1',
+    });
+  });
+
   it('validates the trusted engagement billing account and consumes in one batch', async () => {
     await service.createWinningWithPayments(
       {

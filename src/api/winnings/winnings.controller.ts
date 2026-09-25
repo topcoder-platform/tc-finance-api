@@ -21,6 +21,7 @@ import { AllowedM2mScope, User, Roles, M2M } from 'src/core/auth/decorators';
 import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
 import { UserInfo } from 'src/dto/user.type';
 import {
+  WinningCreateResponseDto,
   WinningCreateRequestDto,
   WinningRequestDto,
   WinningDto,
@@ -59,7 +60,7 @@ export class WinningsController {
     status: 201,
     description:
       'Create winnings successfully, or skip creation for a test challenge.',
-    type: ResponseDto<string>,
+    type: ResponseDto<WinningCreateResponseDto>,
   })
   @ApiResponse({
     status: 400,
@@ -75,7 +76,7 @@ export class WinningsController {
   async createWinnings(
     @Body() body: WinningCreateRequestDto,
     @User() user: UserInfo,
-  ): Promise<ResponseDto<string>> {
+  ): Promise<ResponseDto<WinningCreateResponseDto>> {
     const result = await this.winningsService.createWinningWithPayments(
       body,
       user.id,
