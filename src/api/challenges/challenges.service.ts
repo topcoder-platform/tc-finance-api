@@ -18,6 +18,8 @@ import { Logger } from 'src/shared/global';
 import {
   Challenge,
   ChallengeResource,
+  ChallengeTrack,
+  ChallengeType,
   ChallengeReview,
   Prize,
   PrizeType,
@@ -78,7 +80,17 @@ const CANCELLED_CHALLENGE_STATUSES = [
   ChallengeStatuses.CancelledPaymentFailed,
 ].map((status) => status.toLowerCase());
 
-const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
+const DESIGN_TRACK = 'DESIGN';
+const TASK_CHALLENGE_TYPE = 'TASK';
+const SCREENING_PHASE_NAME = 'screening';
+
+const {
+  TOPCODER_API_V6_BASE_URL: TC_API_BASE,
+  TGBillingAccounts,
+  // Design challenge screeners are paid this flat fee, regardless of the
+  // payment coefficients configured on the challenge reviewer entry.
+  DESIGN_SCREENER_FEE,
+} = ENV_CONFIG;
 
 /**
  * Determines whether a challenge status represents a cancelled challenge.
@@ -90,6 +102,69 @@ const { TOPCODER_API_V6_BASE_URL: TC_API_BASE, TGBillingAccounts } = ENV_CONFIG;
 function isCancelledChallengeStatus(status?: string): boolean {
   return status
     ? CANCELLED_CHALLENGE_STATUSES.includes(status.toLowerCase())
+    : false;
+}
+
+/**
+ * Resolves a challenge track to the canonical uppercase track token.
+ *
+ * challenge-api-v6 serializes the track as a `{ id, name, track }` object by
+ * default and only as a plain string when the response is requested as a
+ * string, so both shapes are accepted here.
+ *
+ * @param track Challenge track relation or display value returned by challenge-api-v6.
+ * @returns Normalized uppercase track token, or an empty string when unknown.
+ */
+function normalizeTrackToken(track?: ChallengeTrack): string {
+  if (typeof track === 'string') {
+    return track.trim().toUpperCase();
+  }
+
+  if (!track || typeof track !== 'object') {
+    return '';
+  }
+
+  const value = [track.track, track.name, track.abbreviation].find(
+    (candidate) => typeof candidate === 'string' && candidate.trim().length > 0,
+  );
+
+  return (value ?? '').trim().toUpperCase();
+}
+
+/**
+ * Determines whether a challenge belongs to the Design track.
+ *
+ * @param track Challenge track relation or display value returned by challenge-api-v6.
+ * @returns True when the track is the Design track.
+ */
+function isDesignTrack(track?: ChallengeTrack): boolean {
+  return normalizeTrackToken(track) === DESIGN_TRACK;
+}
+
+/**
+ * Determines whether a challenge is of the Task type.
+ *
+ * @param type Challenge type relation or display value returned by challenge-api-v6.
+ * @returns True when the challenge type is Task.
+ */
+function isTaskChallengeType(type?: ChallengeType): boolean {
+  if (typeof type === 'string') {
+    return type.trim().toUpperCase() === TASK_CHALLENGE_TYPE;
+  }
+
+  return (type?.name ?? '').trim().toUpperCase() === TASK_CHALLENGE_TYPE;
+}
+
+/**
+ * Determines whether a challenge phase is the screening phase handled by the
+ * challenge screener.
+ *
+ * @param phaseName Phase name returned by challenge-api-v6.
+ * @returns True when the phase is the screening phase.
+ */
+function isScreeningPhase(phaseName?: string): boolean {
+  return typeof phaseName === 'string'
+    ? phaseName.trim().toLowerCase() === SCREENING_PHASE_NAME
     : false;
 }
 
@@ -269,10 +344,9 @@ export class ChallengesService {
         type: winType,
         currency,
         ...(status ? { status } : {}),
-        description:
-          challenge.type === 'Task'
-            ? challenge.name
-            : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
+        description: isTaskChallengeType(challenge.type)
+          ? challenge.name
+          : `${challenge.name} - ${type === WinningsCategory.CONTEST_CHECKPOINT_PAYMENT ? 'Checkpoint ' : ''}${placeToOrdinal(winner.placement)} Place`,
       };
     });
   }
@@ -468,16 +542,28 @@ export class ChallengesService {
               currency,
             );
 
+            // Design challenge screeners are always paid the flat screener fee
+            // instead of the coefficient based amount, which resolves to $0
+            // when no payment coefficients are configured for the phase.
+            const isDesignScreening =
+              currency === PrizeType.USD &&
+              isDesignTrack(challenge.track) &&
+              isScreeningPhase(phaseReviews[0].phaseName);
+
+            const amount = isDesignScreening
+              ? DESIGN_SCREENER_FEE
+              : Math.ceil(
+                  (challengeReviewer.fixedAmount ?? 0) +
+                    (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
+                    (challengeReviewer.incrementalCoefficient ?? 0) *
+                      firstPlacePrize *
+                      phaseReviews.length,
+                );
+
             return {
               handle: reviewer.memberHandle,
               userId: reviewer.memberId.toString(),
-              amount: Math.ceil(
-                (challengeReviewer.fixedAmount ?? 0) +
-                  (challengeReviewer.baseCoefficient ?? 0) * firstPlacePrize +
-                  (challengeReviewer.incrementalCoefficient ?? 0) *
-                    firstPlacePrize *
-                    phaseReviews.length,
-              ),
+              amount,
               type: winType,
               currency: placementPrizes?.[0]?.type ?? PrizeType.USD,
               ...(status ? { status } : {}),

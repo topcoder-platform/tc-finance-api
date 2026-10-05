@@ -17,6 +17,7 @@ import {
 import { PrismaService } from 'src/shared/global/prisma.service';
 
 import {
+  WinningCreateResponseDto,
   WinningCreateRequestDto,
   WinningsCategory,
   WinningsType,
@@ -1213,8 +1214,8 @@ export class WinningsService {
     body: WinningCreateRequestDto,
     userId: string,
     suppliedChallenge?: TopcoderChallengeInfo,
-  ): Promise<ResponseDto<string>> {
-    const result = new ResponseDto<string>();
+  ): Promise<ResponseDto<WinningCreateResponseDto>> {
+    const result = new ResponseDto<WinningCreateResponseDto>();
     const isEngagementPayment =
       body.category === WinningsCategory.ENGAGEMENT_PAYMENT;
     const engagementConsumePlan = isEngagementPayment
@@ -1436,6 +1437,24 @@ export class WinningsService {
       this.logger.debug('Attempting to create winning with nested payments.');
       const createdWinning = await tx.winnings.create({
         data: winningModel,
+        select: {
+          winning_id: true,
+          payment: {
+            where: {
+              installment_number: {
+                gte: 1,
+              },
+            },
+            orderBy: [
+              { installment_number: 'asc' },
+              { created_at: 'desc' },
+              { payment_id: 'asc' },
+            ],
+            select: {
+              payment_id: true,
+            },
+          },
+        },
       });
 
       if (!createdWinning) {
@@ -1447,6 +1466,19 @@ export class WinningsService {
         return result;
       } else {
         this.logger.debug('Successfully created winning', { createdWinning });
+        const paymentIds = (createdWinning.payment || []).map(
+          (paymentRow) => paymentRow.payment_id,
+        );
+        const primaryPaymentId = paymentIds.length ? paymentIds[0] : null;
+
+        result.data = {
+          id: createdWinning.winning_id,
+          paymentId: primaryPaymentId,
+          paymentIds,
+          payment_id: primaryPaymentId,
+          winningId: createdWinning.winning_id,
+          winning_id: createdWinning.winning_id,
+        };
       }
 
       if (engagementConsumePlan) {

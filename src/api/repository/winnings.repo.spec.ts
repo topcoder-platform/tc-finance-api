@@ -1,5 +1,6 @@
 import { DateFilterType } from 'src/dto/date-filter.type';
 import { PaymentStatus } from 'src/dto/payment.dto';
+import { payment, Prisma } from '@prisma/client';
 
 jest.mock('src/shared/global', () => ({
   Logger: class {
@@ -16,6 +17,41 @@ jest.mock('src/shared/global', () => ({
 }));
 
 import { WinningsRepository } from './winnings.repo';
+
+/**
+ * Builds a historical winning for repository read regressions.
+ * @param installments Overrides for each current payment installment.
+ * @returns A Prisma-shaped winning with the supplied payment rows.
+ * @throws This fixture does not throw for valid payment overrides.
+ */
+function splitWinning(installments: Partial<payment>[]) {
+  const createdAt = new Date('2024-02-27T21:15:17.000Z');
+  return {
+    winning_id: 'winning-split',
+    winner_id: '90221384',
+    type: 'PAYMENT',
+    category: 'TASK_PAYMENT',
+    title: 'TaaS payment',
+    description: 'Week ending 2/10/2024',
+    external_id: 'challenge-split',
+    attributes: {},
+    created_at: createdAt,
+    payment: installments.map((overrides, index) => ({
+      payment_id: `installment-${index + 1}`,
+      installment_number: index + 1,
+      gross_amount: new Prisma.Decimal(0),
+      net_amount: new Prisma.Decimal(0),
+      total_amount: new Prisma.Decimal(3680),
+      currency: 'USD',
+      payment_status: 'PAID',
+      version: 4,
+      created_at: createdAt,
+      updated_at: createdAt,
+      date_paid: new Date('2024-03-20T14:19:07.000Z'),
+      ...overrides,
+    })),
+  };
+}
 
 describe('WinningsRepository', () => {
   const ONE_DAY = 24 * 60 * 60 * 1000;
@@ -162,6 +198,131 @@ describe('WinningsRepository', () => {
       in: ['ext-123'],
     });
     expect(findManyArgs.where.winner_id).toBeUndefined();
+  });
+
+  it.each(['search', 'external-id'])(
+    'returns both paid installments and a $3,680 gross total through %s',
+    async (endpoint) => {
+      findManyMock.mockResolvedValueOnce([
+        splitWinning([
+          { gross_amount: new Prisma.Decimal(2760) },
+          { gross_amount: new Prisma.Decimal(920) },
+        ]),
+      ]);
+
+      const result =
+        endpoint === 'search'
+          ? await winningsRepo.searchWinnings(
+              {},
+              { includeCount: false, includePayoutStatus: false },
+            )
+          : await winningsRepo.getWinningsByExternalId('challenge-split');
+      expect(result.error).toBeUndefined();
+      const winning = Array.isArray(result.data)
+        ? result.data[0]
+        : result.data?.winnings[0];
+
+      expect(winning?.grossAmount).toBe(3680);
+      expect(winning?.details).toEqual([
+        expect.objectContaining({
+          installmentNumber: 1,
+          grossAmount: 2760,
+          totalAmount: 3680,
+          status: PaymentStatus.PAID,
+        }),
+        expect.objectContaining({
+          installmentNumber: 2,
+          grossAmount: 920,
+          totalAmount: 3680,
+          status: PaymentStatus.PAID,
+        }),
+      ]);
+
+      // Include every current installment without restricting the whole winning
+      // to one row or deduplicating independent payments sharing a number.
+      const paymentQuery = findManyMock.mock.calls[0][0].include.payment;
+      expect(paymentQuery).toEqual({
+        where: { installment_number: { gte: 1 } },
+        orderBy: [
+          { installment_number: 'asc' },
+          { created_at: 'desc' },
+          { payment_id: 'asc' },
+        ],
+      });
+    },
+  );
+
+  it('preserves a single installment gross amount without adding billing markup', async () => {
+    findManyMock.mockResolvedValueOnce([
+      splitWinning([
+        {
+          gross_amount: new Prisma.Decimal('544.99'),
+          total_amount: new Prisma.Decimal('931.93'),
+          challenge_fee: new Prisma.Decimal('386.94'),
+        },
+      ]),
+    ]);
+
+    const result =
+      await winningsRepo.getWinningsByExternalId('challenge-split');
+
+    expect(result.error).toBeUndefined();
+    expect(result.data?.[0].grossAmount).toBe(544.99);
+    expect(result.data?.[0].details[0].totalAmount).toBe(931.93);
+  });
+
+  it('preserves independent payment rows sharing an installment number and differing versions', async () => {
+    findManyMock.mockResolvedValueOnce([
+      splitWinning([
+        {
+          installment_number: 1,
+          version: 1,
+          gross_amount: new Prisma.Decimal(100),
+        },
+        {
+          installment_number: 1,
+          version: 9,
+          gross_amount: new Prisma.Decimal(50),
+        },
+        {
+          installment_number: 2,
+          version: 2,
+          gross_amount: new Prisma.Decimal('0.10'),
+        },
+      ]),
+    ]);
+
+    const result =
+      await winningsRepo.getWinningsByExternalId('challenge-split');
+
+    expect(result.error).toBeUndefined();
+    expect(result.data?.[0].grossAmount).toBe(150.1);
+    expect(result.data?.[0].details.map((detail) => detail.id)).toEqual([
+      'installment-1',
+      'installment-2',
+      'installment-3',
+    ]);
+  });
+
+  it('totals decimal amounts exactly while retaining mixed installment statuses', async () => {
+    findManyMock.mockResolvedValueOnce([
+      splitWinning([
+        { gross_amount: new Prisma.Decimal('0.10'), payment_status: 'PAID' },
+        { gross_amount: new Prisma.Decimal('0.20'), payment_status: 'OWED' },
+        { gross_amount: null, payment_status: 'CANCELLED' },
+      ]),
+    ]);
+
+    const result =
+      await winningsRepo.getWinningsByExternalId('challenge-split');
+
+    expect(result.error).toBeUndefined();
+    expect(result.data?.[0].grossAmount).toBe(0.3);
+    expect(result.data?.[0].details.map((detail) => detail.status)).toEqual([
+      PaymentStatus.PAID,
+      PaymentStatus.OWED,
+      PaymentStatus.CANCELLED,
+    ]);
   });
 
   it('returns persisted challenge fee and markup for external-id payment history', async () => {

@@ -29,8 +29,8 @@ export interface Challenge {
   terms: any[]; // Replace with type if available
   skills: Skill[];
   attachments: any[]; // Replace with type if available
-  track: string;
-  type: string;
+  track: ChallengeTrack;
+  type: ChallengeType;
   legacy: Legacy;
   billing: Billing;
   task: Task;
@@ -43,6 +43,32 @@ export interface Challenge {
   numOfCheckpointSubmissions: number;
   numOfRegistrants: number;
 }
+
+/**
+ * Challenge track as returned by challenge-api-v6. The API serializes the
+ * track relation as an object by default and as a plain string only when the
+ * response is requested as a string.
+ */
+export type ChallengeTrack =
+  | string
+  | {
+      id?: string;
+      name?: string;
+      track?: string;
+      abbreviation?: string;
+    };
+
+/**
+ * Challenge type as returned by challenge-api-v6. Like the track, the type
+ * relation is serialized as an object by default and as a plain string only
+ * when the response is requested as a string.
+ */
+export type ChallengeType =
+  | string
+  | {
+      id?: string;
+      name?: string;
+    };
 
 export interface MetadataItem {
   name: string;
