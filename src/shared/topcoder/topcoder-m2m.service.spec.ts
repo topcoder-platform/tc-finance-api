@@ -1,3 +1,7 @@
+jest.mock('tc-core-library-js', () => ({
+  auth: { m2m: jest.fn(() => ({ getMachineToken: jest.fn() })) },
+}));
+
 jest.mock('src/config', () => ({
   ENV_CONFIG: {
     AUTH0_M2M_AUDIENCE: 'https://api.topcoder-dev.com/',

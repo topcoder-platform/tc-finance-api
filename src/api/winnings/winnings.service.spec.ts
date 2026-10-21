@@ -243,10 +243,7 @@ describe('WinningsService', () => {
 
   it('returns winning and payment identifiers for post-payment reconciliation', async () => {
     tx.winnings.create.mockResolvedValue({
-      payment: [
-        { payment_id: 'payment-1' },
-        { payment_id: 'payment-2' },
-      ],
+      payment: [{ payment_id: 'payment-1' }, { payment_id: 'payment-2' }],
       winning_id: 'winning-1',
     });
 

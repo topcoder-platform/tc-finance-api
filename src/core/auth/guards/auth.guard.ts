@@ -5,15 +5,18 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { auth } from 'tc-core-library-js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { IS_M2M_KEY } from '../decorators/m2m.decorator';
 import { M2mScope } from '../auth.constants';
 import { SCOPES_KEY } from '../decorators/m2mScope.decorator';
 
+/** Preserves Finance public/member/service route policy with shared machine classification and scopes. */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
+  /** Evaluate current handler metadata and verified request identity; throws for missing required authentication. */
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -36,7 +39,8 @@ export class AuthGuard implements CanActivate {
       };
     }
 
-    const tokenIsM2M = Boolean(req.m2mTokenScope);
+    const tokenIsM2M =
+      req.authUser?.kind === 'service' && req.authUser?.isMachine === true;
 
     // If route explicitly requires M2M, enforce M2M + scope
     if (routeM2MOnly) {
@@ -48,8 +52,10 @@ export class AuthGuard implements CanActivate {
         SCOPES_KEY,
         [context.getHandler(), context.getClass()],
       );
-      const reqScopes = String(req.m2mTokenScope || '').split(' ');
-      return reqScopes.some((s) => allowedM2mScopes.includes(s as M2mScope));
+      return (
+        !!allowedM2mScopes?.length &&
+        auth.hasScopes(req.authUser, allowedM2mScopes, 'any')
+      );
     }
 
     // Hybrid (default) route behavior: allow either
@@ -74,7 +80,6 @@ export class AuthGuard implements CanActivate {
       // No scopes declared for this route, do not allow M2M by default
       return false;
     }
-    const reqScopes = String(req.m2mTokenScope || '').split(' ');
-    return reqScopes.some((s) => allowedM2mScopes.includes(s as M2mScope));
+    return auth.hasScopes(req.authUser, allowedM2mScopes, 'any');
   }
 }

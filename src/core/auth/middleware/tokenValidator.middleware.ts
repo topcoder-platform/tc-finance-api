@@ -3,57 +3,42 @@ import {
   NestMiddleware,
   UnauthorizedException,
 } from '@nestjs/common';
-import * as jwt from 'jsonwebtoken';
-import { ENV_CONFIG } from 'src/config';
-import { getSigningKey } from '../jwt';
-import { Logger } from 'src/shared/global';
+import { auth } from 'tc-core-library-js';
 
-const logger = new Logger(`Auth/TokenValidatorMiddleware`);
-
+/** Adapts the common verified principal to Finance's existing request fields. */
 @Injectable()
 export class TokenValidatorMiddleware implements NestMiddleware {
-  async use(req: any, res: Response, next: (error?: any) => void) {
-    const [type, idToken] = req.headers.authorization?.split(' ') ?? [];
+  private readonly validator = auth.createValidator();
 
-    if (type !== 'Bearer' || !idToken) {
-      return next();
-    }
-
-    let decoded: any;
+  /**
+   * Verify an optional bearer header and populate Finance's user or machine fields.
+   * @param req Current HTTP request.
+   * @param _res HTTP response, unused by this adapter.
+   * @param next Continue the request, optionally with a sanitized authentication error.
+   * @returns Nothing after invoking next.
+   * @throws UnauthorizedException when supplied credentials are invalid.
+   */
+  async use(req: any, _res: Response, next: (error?: any) => void) {
+    if (!req.headers.authorization) return next();
+    const match = /^Bearer ([^\s]+)$/i.exec(req.headers.authorization);
+    if (!match) throw new UnauthorizedException('Invalid or expired JWT!');
     try {
-      const signingKey = await getSigningKey(idToken);
-      decoded = jwt.verify(idToken, signingKey);
-    } catch (error) {
-      logger.error('Error verifying JWT', error);
+      const principal = await this.validator.verify(match[1]);
+      req.authUser = principal;
+      req.idTokenVerified = true;
+      req.isM2M = principal.isMachine;
+      if (principal.isMachine) {
+        req.m2mTokenScope = principal.scopes.join(' ');
+        req.m2mTokenAudience = principal.aud;
+        req.m2mClientId = principal.clientId;
+        req.m2mUserId = principal.sub;
+      } else {
+        req.email = principal.email;
+        req.auth0User = principal;
+      }
+      return next();
+    } catch {
       throw new UnauthorizedException('Invalid or expired JWT!');
     }
-
-    if (!decoded) {
-      req.idTokenVerified = false;
-      return next();
-    }
-
-    req.isM2M = !!decoded.scope;
-    const aud = req.isM2M
-      ? ENV_CONFIG.AUTH0_M2M_AUDIENCE
-      : ENV_CONFIG.AUTH0_CLIENT_ID;
-
-    if (decoded.aud !== aud) {
-      req.idTokenVerified = false;
-      return next();
-    }
-
-    req.idTokenVerified = true;
-    if (decoded.scope) {
-      req.m2mTokenScope = decoded.scope;
-      req.m2mTokenAudience = decoded.aud;
-      req.m2mClientId = decoded.azp;
-      req.m2mUserId = decoded.sub;
-    } else {
-      req.email = decoded?.email;
-      req.auth0User = decoded;
-    }
-
-    return next();
   }
 }

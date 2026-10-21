@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  Equals,
   IsBoolean,
   IsInt,
   IsNotEmpty,
@@ -10,6 +11,7 @@ import {
   Min,
 } from 'class-validator';
 
+/** Validates deployment settings for Finance; Keycloak is mandatory on this migration branch. */
 export class ConfigEnv {
   @IsString()
   @IsOptional()
@@ -24,23 +26,23 @@ export class ConfigEnv {
   @IsString()
   TOPCODER_API_V6_BASE_URL!: string;
 
-  @IsString()
-  AUTH0_M2M_AUDIENCE!: string;
+  @Equals('keycloak')
+  M2M_PROVIDER!: string;
 
   @IsString()
-  AUTH0_TC_PROXY_URL!: string;
+  KEYCLOAK_ISSUER!: string;
 
   @IsString()
-  AUTH0_M2M_CLIENT_ID!: string;
+  KEYCLOAK_AUDIENCE!: string;
 
   @IsString()
-  AUTH0_M2M_SECRET!: string;
+  KEYCLOAK_TOKEN_URL!: string;
 
   @IsString()
-  AUTH0_M2M_TOKEN_URL!: string;
+  KEYCLOAK_CLIENT_ID!: string;
 
   @IsString()
-  AUTH0_M2M_GRANT_TYPE!: string;
+  KEYCLOAK_CLIENT_SECRET!: string;
 
   @IsString()
   AUTH0_CLIENT_ID!: string;

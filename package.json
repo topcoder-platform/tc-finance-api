@@ -44,7 +44,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "trolleyhq": "^1.2.0",
-    "winston": "^3.18.3"
+    "winston": "^3.18.3",
+    "tc-core-library-js": "github:topcoder-platform/tc-core-library-js#c262f4aca971904f308085bdeaaed35cdf3cfa7d"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
@@ -101,7 +102,8 @@
   "pnpm": {
     "overrides": {
       "axios@<1.0.0": "0.33.0",
-      "@nestjs/swagger@11.4.6>js-yaml": "5.2.2"
+      "@nestjs/swagger@11.4.6>js-yaml": "5.2.2",
+      "tc-core-library-js": "github:topcoder-platform/tc-core-library-js#c262f4aca971904f308085bdeaaed35cdf3cfa7d"
     }
   }
 }
