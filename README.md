@@ -207,7 +207,8 @@ The application requires several environment variables to be configured. See [EN
 **Authentication**:
 
 - `AUTH0_CLIENT_ID` - Auth0 client ID for user authentication
-- `AUTH0_M2M_CLIENT_ID`, `AUTH0_M2M_SECRET` - Auth0 M2M credentials
+- `USE_KEYCLOAK` - M2M provider switch: `true` uses Keycloak (`KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_TOKEN_URL`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`); unset or `false` uses Auth0 (see [Keycloak M2M](./docs/keycloak-m2m.md))
+- `AUTH0_M2M_CLIENT_ID`, `AUTH0_M2M_SECRET` - Auth0 M2M credentials (with `AUTH0_M2M_AUDIENCE`, `AUTH0_M2M_TOKEN_URL`, `AUTH0_M2M_GRANT_TYPE` and `AUTH0_TC_PROXY_URL`), used when `USE_KEYCLOAK` is not true
 - `AUTH0_CERT` - RSA public key for JWT verification
 
 **Trolley Integration**:

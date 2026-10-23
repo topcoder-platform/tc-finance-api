@@ -1,5 +1,10 @@
+// The real USE_KEYCLOAK rule; only the Keycloak token provider is replaced.
+const mockM2m = jest.fn(() => ({ getMachineToken: jest.fn() }));
 jest.mock('tc-core-library-js', () => ({
-  auth: { m2m: jest.fn(() => ({ getMachineToken: jest.fn() })) },
+  auth: {
+    m2m: (...args: unknown[]) => mockM2m(...(args as [])),
+    useKeycloak: jest.requireActual('tc-core-library-js').auth.useKeycloak,
+  },
 }));
 
 jest.mock('src/config', () => ({
@@ -20,6 +25,7 @@ jest.mock('src/shared/global', () => ({
   },
 }));
 
+import { ENV_CONFIG } from 'src/config';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 
 describe('TopcoderM2MService.m2mFetch', () => {
@@ -112,6 +118,74 @@ describe('TopcoderM2MService.m2mFetch', () => {
     await expect(service.m2mFetch(requestUrl)).rejects.toThrow();
 
     expect(getTokenSpy).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('TopcoderM2MService.getToken provider selection (USE_KEYCLOAK)', () => {
+  const originalFetch = global.fetch;
+  let fetchMock: jest.MockedFunction<typeof fetch>;
+
+  beforeEach(() => {
+    fetchMock = jest.fn();
+    global.fetch = fetchMock;
+    mockM2m.mockClear();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    delete ENV_CONFIG.USE_KEYCLOAK;
+  });
+
+  it('requests the token from the Auth0 proxy with the AUTH0_M2M_* settings when USE_KEYCLOAK=false', async () => {
+    ENV_CONFIG.USE_KEYCLOAK = 'false';
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ access_token: 'auth0-token' }),
+    } as unknown as Response);
+
+    await expect(new TopcoderM2MService().getToken()).resolves.toBe(
+      'auth0-token',
+    );
+
+    expect(mockM2m).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://auth-proxy.topcoder-dev.com/token',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({
+      auth0_url: 'https://topcoder-dev.auth0.com/oauth/token',
+      client_id: 'client-id',
+      client_secret: 'client-secret',
+      audience: 'https://api.topcoder-dev.com/',
+      grant_type: 'client_credentials',
+    });
+  });
+
+  it('resolves undefined when the Auth0 proxy rejects the request, as before the migration', async () => {
+    delete ENV_CONFIG.USE_KEYCLOAK;
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      json: jest.fn().mockResolvedValue({ error: 'access_denied' }),
+    } as unknown as Response);
+
+    await expect(new TopcoderM2MService().getToken()).resolves.toBeUndefined();
+    expect(mockM2m).not.toHaveBeenCalled();
+  });
+
+  it('uses the shared Keycloak provider and never calls the Auth0 proxy when USE_KEYCLOAK=true', async () => {
+    ENV_CONFIG.USE_KEYCLOAK = 'true';
+    const getMachineToken = jest.fn().mockResolvedValue('keycloak-token');
+    mockM2m.mockReturnValueOnce({ getMachineToken });
+
+    await expect(new TopcoderM2MService().getToken()).resolves.toBe(
+      'keycloak-token',
+    );
+
+    expect(mockM2m).toHaveBeenCalledWith();
+    expect(getMachineToken).toHaveBeenCalledWith();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

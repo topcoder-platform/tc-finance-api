@@ -1,6 +1,5 @@
 import { Transform } from 'class-transformer';
 import {
-  Equals,
   IsBoolean,
   IsInt,
   IsNotEmpty,
@@ -9,9 +8,26 @@ import {
   IsString,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
+import { auth } from 'tc-core-library-js';
 
-/** Validates deployment settings for Finance; Keycloak is mandatory on this migration branch. */
+/**
+ * Reports whether the settings being validated select Keycloak for M2M, using the shared
+ * tc-core-library-js rule (`auth.useKeycloak`): "true" selects Keycloak; missing, empty or
+ * "false" selects Auth0. Used by the `ValidateIf` conditions below.
+ * @param env Settings being validated.
+ * @returns True when Keycloak is selected.
+ * @throws TypeError for any other USE_KEYCLOAK value, so startup fails before serving.
+ */
+function keycloakSelected(env: ConfigEnv): boolean {
+  return auth.useKeycloak({ USE_KEYCLOAK: env.USE_KEYCLOAK });
+}
+
+/**
+ * Validates deployment settings for Finance. USE_KEYCLOAK=true requires the KEYCLOAK_*
+ * M2M settings; otherwise the pre-migration AUTH0_M2M_* settings are required.
+ */
 export class ConfigEnv {
   @IsString()
   @IsOptional()
@@ -26,23 +42,56 @@ export class ConfigEnv {
   @IsString()
   TOPCODER_API_V6_BASE_URL!: string;
 
-  @Equals('keycloak')
-  M2M_PROVIDER!: string;
+  /** M2M provider switch: "true" = Keycloak, unset/empty/"false" = Auth0. */
+  @IsOptional()
+  @IsString()
+  USE_KEYCLOAK?: string;
 
+  // Keycloak M2M settings, required when USE_KEYCLOAK=true
+  @ValidateIf(keycloakSelected)
   @IsString()
   KEYCLOAK_ISSUER!: string;
 
+  @ValidateIf(keycloakSelected)
   @IsString()
   KEYCLOAK_AUDIENCE!: string;
 
+  @ValidateIf(keycloakSelected)
   @IsString()
   KEYCLOAK_TOKEN_URL!: string;
 
+  @ValidateIf(keycloakSelected)
   @IsString()
   KEYCLOAK_CLIENT_ID!: string;
 
+  @ValidateIf(keycloakSelected)
   @IsString()
   KEYCLOAK_CLIENT_SECRET!: string;
+
+  // Auth0 M2M settings, required when USE_KEYCLOAK is not true
+  @ValidateIf((env: ConfigEnv) => !keycloakSelected(env))
+  @IsString()
+  AUTH0_M2M_AUDIENCE!: string;
+
+  @ValidateIf((env: ConfigEnv) => !keycloakSelected(env))
+  @IsString()
+  AUTH0_TC_PROXY_URL!: string;
+
+  @ValidateIf((env: ConfigEnv) => !keycloakSelected(env))
+  @IsString()
+  AUTH0_M2M_CLIENT_ID!: string;
+
+  @ValidateIf((env: ConfigEnv) => !keycloakSelected(env))
+  @IsString()
+  AUTH0_M2M_SECRET!: string;
+
+  @ValidateIf((env: ConfigEnv) => !keycloakSelected(env))
+  @IsString()
+  AUTH0_M2M_TOKEN_URL!: string;
+
+  @ValidateIf((env: ConfigEnv) => !keycloakSelected(env))
+  @IsString()
+  AUTH0_M2M_GRANT_TYPE!: string;
 
   @IsString()
   AUTH0_CLIENT_ID!: string;

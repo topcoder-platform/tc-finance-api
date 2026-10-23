@@ -29,6 +29,20 @@ All environment variables should be defined in a `.env` file in the project root
   - Include SSL mode for production environments
   - Connection pooling is handled by Prisma
 
+### M2M provider
+
+#### `USE_KEYCLOAK`
+
+- **Type**: Boolean string
+- **Required**: No
+- **Default**: unset (Auth0)
+- **Description**: Selects the provider of this service's M2M token. `true` (any case) uses
+  Keycloak and requires `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_TOKEN_URL`,
+  `KEYCLOAK_CLIENT_ID` and `KEYCLOAK_CLIENT_SECRET`. Unset, empty or `false` uses Auth0 and
+  requires the `AUTH0_M2M_*` settings and `AUTH0_TC_PROXY_URL` below. Any other value fails startup.
+- **Notes**: Roll back to Auth0 by setting `false` and forcing a new deployment. See
+  [Keycloak M2M](./keycloak-m2m.md).
+
 ### Auth0 Configuration
 
 #### `AUTH0_CLIENT_ID`
@@ -50,7 +64,7 @@ All environment variables should be defined in a `.env` file in the project root
 #### `AUTH0_M2M_CLIENT_ID`
 
 - **Type**: String (UUID)
-- **Required**: Yes
+- **Required**: Yes, when `USE_KEYCLOAK` is not true
 - **Description**: Auth0 Machine-to-Machine client ID
 - **Notes**: Used for M2M authentication with Topcoder APIs
 - **How to get**: Auth0 Dashboard → Applications → Machine to Machine Application → Client ID
@@ -58,7 +72,7 @@ All environment variables should be defined in a `.env` file in the project root
 #### `AUTH0_M2M_SECRET`
 
 - **Type**: String
-- **Required**: Yes
+- **Required**: Yes, when `USE_KEYCLOAK` is not true
 - **Description**: Auth0 M2M client secret
 - **Example**: `your-m2m-secret-here`
 - **Notes**: Keep this secret secure, never commit to version control
@@ -67,7 +81,7 @@ All environment variables should be defined in a `.env` file in the project root
 #### `AUTH0_M2M_AUDIENCE`
 
 - **Type**: String (URL)
-- **Required**: Yes
+- **Required**: Yes, when `USE_KEYCLOAK` is not true
 - **Description**: Auth0 M2M API audience identifier
 - **Example**: `https://m2m.topcoder-dev.com/`
 - **Notes**: Identifies the API that the M2M token is for
@@ -75,7 +89,7 @@ All environment variables should be defined in a `.env` file in the project root
 #### `AUTH0_M2M_TOKEN_URL`
 
 - **Type**: String (URL)
-- **Required**: Yes
+- **Required**: Yes, when `USE_KEYCLOAK` is not true
 - **Description**: Auth0 token endpoint for M2M authentication
 - **Example**: `https://topcoder-dev.auth0.com/oauth/token`
 - **Format**: `https://{auth0-domain}/oauth/token`
@@ -83,7 +97,7 @@ All environment variables should be defined in a `.env` file in the project root
 #### `AUTH0_M2M_GRANT_TYPE`
 
 - **Type**: String
-- **Required**: Yes
+- **Required**: Yes, when `USE_KEYCLOAK` is not true
 - **Description**: OAuth2 grant type for M2M authentication
 - **Example**: `client_credentials`
 - **Default**: `client_credentials`
@@ -92,7 +106,7 @@ All environment variables should be defined in a `.env` file in the project root
 #### `AUTH0_TC_PROXY_URL`
 
 - **Type**: String (URL)
-- **Required**: Yes
+- **Required**: Yes, when `USE_KEYCLOAK` is not true
 - **Description**: Topcoder Auth0 proxy URL
 - **Example**: `https://topcoder-dev.auth0.com`
 - **Notes**: Used for additional Auth0 operations

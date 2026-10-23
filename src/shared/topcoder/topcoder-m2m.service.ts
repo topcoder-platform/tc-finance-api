@@ -54,10 +54,20 @@ export class TopcoderM2MHttpError extends Error {
   }
 }
 
-/** Calls allowlisted Topcoder APIs with verified, cached Keycloak service tokens. */
+/**
+ * Calls allowlisted Topcoder APIs with this service's M2M token, from the provider
+ * selected by USE_KEYCLOAK: verified, cached Keycloak tokens when true, otherwise the
+ * pre-migration Auth0 proxy request (see getToken).
+ */
 @Injectable()
 export class TopcoderM2MService {
-  private readonly tokenProvider = auth.m2m();
+  // Keycloak provider (KEYCLOAK_* settings) only when USE_KEYCLOAK=true; invalid Keycloak
+  // settings or USE_KEYCLOAK values throw when the service is constructed.
+  private readonly tokenProvider = auth.useKeycloak({
+    USE_KEYCLOAK: ENV_CONFIG.USE_KEYCLOAK,
+  })
+    ? auth.m2m()
+    : undefined;
   private readonly logger = new Logger(TopcoderM2MService.name);
 
   private readonly topcoderApiBaseUrl = this.parseTopcoderApiBaseUrl();
@@ -180,12 +190,84 @@ export class TopcoderM2MService {
   }
 
   /**
-   * Return a verified Keycloak token through the shared provider and its isolated cache.
-   * @returns The service access token.
-   * @throws Error for missing Keycloak configuration or failed issuance.
+   * Returns this service's M2M token from the provider selected by USE_KEYCLOAK.
+   * Used by m2mFetch, TopcoderBusService and TopcoderMembersService.
+   *
+   * - USE_KEYCLOAK=true: a verified token from the shared Keycloak provider and its isolated
+   *   cache (KEYCLOAK_TOKEN_URL, KEYCLOAK_AUDIENCE, KEYCLOAK_CLIENT_ID/SECRET).
+   * - Otherwise: a token from the Auth0 proxy, exactly as before the Keycloak migration
+   *   (see getAuth0Token).
+   *
+   * @returns {Promise<string | undefined>} The access token; in Auth0 mode undefined when the
+   * request fails (the failure is logged).
+   * @throws {Error} In Keycloak mode, rejects for missing credentials or failed issuance.
    */
-  async getToken(): Promise<string> {
-    return this.tokenProvider.getMachineToken();
+  async getToken(): Promise<string | undefined> {
+    if (this.tokenProvider) {
+      return this.tokenProvider.getMachineToken();
+    }
+    return this.getAuth0Token();
+  }
+
+  /**
+   * Retrieves a Machine-to-Machine (M2M) token from the Auth0 service. Used by getToken
+   * when USE_KEYCLOAK is not true; unchanged from before the Keycloak migration.
+   *
+   * @returns {Promise<string | undefined>} A promise that resolves to the M2M token as a string,
+   * or undefined when the request fails.
+   *
+   * @throws Never; failures are logged and resolve to undefined.
+   *
+   * Environment Variables:
+   * - `AUTH0_TC_PROXY_URL`: The base URL for the Auth0 proxy.
+   * - `AUTH0_M2M_TOKEN_URL`: The URL for obtaining the M2M token.
+   * - `AUTH0_M2M_CLIENT_ID`: The client ID for the M2M application.
+   * - `AUTH0_M2M_SECRET`: The client secret for the M2M application.
+   * - `AUTH0_M2M_AUDIENCE`: The audience for the M2M token.
+   * - `AUTH0_M2M_GRANT_TYPE`: The grant type for the M2M token request.
+   */
+  private async getAuth0Token(): Promise<string | undefined> {
+    const tokenURL = `${ENV_CONFIG.AUTH0_TC_PROXY_URL}/token`;
+    try {
+      const response = await fetch(tokenURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auth0_url: `${ENV_CONFIG.AUTH0_M2M_TOKEN_URL}/oauth/token`,
+          client_id: ENV_CONFIG.AUTH0_M2M_CLIENT_ID,
+          client_secret: ENV_CONFIG.AUTH0_M2M_SECRET,
+          audience: ENV_CONFIG.AUTH0_M2M_AUDIENCE,
+          grant_type: ENV_CONFIG.AUTH0_M2M_GRANT_TYPE,
+          // fresh_token: true,
+        }),
+      });
+
+      if (!response.ok) {
+        let jsonError: any;
+        try {
+          jsonError = await response.json();
+        } catch {
+          jsonError = null;
+        }
+
+        this.logger.error(
+          'Failed to fetch M2M token',
+          tokenURL,
+          response.status,
+          response.statusText,
+          jsonError,
+        );
+        return undefined;
+      }
+
+      const jsonResponse = await response.json();
+      const m2mToken = jsonResponse.access_token as string;
+
+      return m2mToken;
+    } catch (error) {
+      this.logger.error('Failed fetching TC M2M Token!', error);
+      return undefined;
+    }
   }
 
   async m2mFetch<T = unknown>(url: string | URL, options = {} as RequestInit) {
