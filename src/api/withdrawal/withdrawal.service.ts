@@ -7,6 +7,7 @@ import { IdentityVerificationRepository } from '../repository/identity-verificat
 import {
   payment_releases,
   payment_status,
+  Prisma,
   reference_type,
   winnings_type,
 } from '@prisma/client';
@@ -57,18 +58,29 @@ export class WithdrawalService {
     });
   }
 
+  /**
+   * Loads and validates the winnings requested for withdrawal.
+   *
+   * @param prismaClient - Pass a transaction client together with `lock` to
+   *   lock the payment rows until that transaction ends. A row lock taken
+   *   outside a transaction is released as soon as the statement completes.
+   * @param lock - Lock the rows with `FOR UPDATE NOWAIT`; a concurrent
+   *   withdrawal holding the lock makes this fail fast with 55P03.
+   */
   private async getReleasableWinningsForUserId(
+    prismaClient: Prisma.TransactionClient,
     userId: string,
     winningsIds: string[],
+    lock = false,
   ) {
-    const winnings = await this.prisma.$queryRaw<ReleasableWinningRow[]>`
+    const winnings = await prismaClient.$queryRaw<ReleasableWinningRow[]>`
       SELECT p.payment_id as "paymentId", p.total_amount as amount, p.version, w.title, w.external_id as "externalId", p.payment_status as status, p.release_date as "releaseDate", p.date_paid as "datePaid", p.currency as "currency", w.type as "type"
       FROM payment p
       INNER JOIN winnings w on p.winnings_id = w.winning_id AND p.installment_number = 1
       WHERE
         p.winnings_id = ANY(${winningsIds}::uuid[])
         AND w.winner_id = ${userId}
-      FOR UPDATE NOWAIT
+      ${lock ? Prisma.sql`FOR UPDATE OF p NOWAIT` : Prisma.empty}
     `;
 
     if (winnings.length < winningsIds.length) {
@@ -123,6 +135,7 @@ export class WithdrawalService {
   }
 
   private async createDbPaymentRelease(
+    prismaClient: Prisma.TransactionClient,
     userId: string,
     totalAmount: number,
     paymentMethodId: number,
@@ -131,7 +144,7 @@ export class WithdrawalService {
     metadata: any,
   ) {
     try {
-      const paymentRelease = await this.prisma.payment_releases.create({
+      const paymentRelease = await prismaClient.payment_releases.create({
         data: {
           user_id: userId,
           total_net_amount: totalAmount,
@@ -244,10 +257,7 @@ export class WithdrawalService {
     }
 
     // check winnings before even sending otp code
-    const winnings = await this.getReleasableWinningsForUserId(
-      userId,
-      winningsIds,
-    );
+    await this.getReleasableWinningsForUserId(this.prisma, userId, winningsIds);
 
     if (!otpCode) {
       const otpError = await this.otpService.generateOtpCode(
@@ -282,131 +292,96 @@ export class WithdrawalService {
       }
     }
 
-    try {
-      this.logger.log(
-        `Begin processing payments for user ${userHandle}(${userId})`,
-        winnings,
+    const dbTrolleyRecipient = await this.getDbTrolleyRecipientByUserId(userId);
+
+    if (!dbTrolleyRecipient) {
+      throw new Error(
+        `Trolley recipient not found for user ${userHandle}(${userId})!`,
+      );
+    }
+
+    const trolleyRecipientPayoutDetails =
+      await this.trolleyService.getRecipientPayoutDetails(
+        dbTrolleyRecipient.trolley_id,
       );
 
-      const dbTrolleyRecipient =
-        await this.getDbTrolleyRecipientByUserId(userId);
+    if (!trolleyRecipientPayoutDetails) {
+      throw new Error(
+        `Recipient payout details not found for Trolley Recipient ID '${dbTrolleyRecipient.trolley_id}', for user ${userHandle}(${userId}).`,
+      );
+    }
 
-      if (!dbTrolleyRecipient) {
-        throw new Error(
-          `Trolley recipient not found for user ${userHandle}(${userId})!`,
-        );
-      }
+    let paymentRelease: payment_releases;
+    let paymentAmount: number;
 
-      const totalAmount = this.checkTotalAmount(winnings);
-      let paymentAmount = totalAmount;
-      let feeAmount = 0;
-      const trolleyRecipientPayoutDetails =
-        await this.trolleyService.getRecipientPayoutDetails(
-          dbTrolleyRecipient.trolley_id,
-        );
+    // Claim the payments (OWED -> PROCESSING) and record the release in a single
+    // transaction, before calling Trolley. Once this commits, any concurrent or
+    // repeated withdrawal of the same winnings is rejected.
+    try {
+      ({ paymentRelease, paymentAmount } = await this.prisma.$transaction(
+        async (tx) => {
+          const winnings = await this.getReleasableWinningsForUserId(
+            tx,
+            userId,
+            winningsIds,
+            true,
+          );
 
-      if (!trolleyRecipientPayoutDetails) {
-        throw new Error(
-          `Recipient payout details not found for Trolley Recipient ID '${dbTrolleyRecipient.trolley_id}', for user ${userHandle}(${userId}).`,
-        );
-      }
+          this.logger.log(
+            `Begin processing payments for user ${userHandle}(${userId})`,
+            winnings,
+          );
 
-      if (
-        trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
-        ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
-      ) {
-        const feePercent = Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
+          const totalAmount = this.checkTotalAmount(winnings);
+          let netAmount = totalAmount;
+          let feeAmount = 0;
 
-        feeAmount = +Math.min(
-          ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
-          feePercent * paymentAmount,
-        ).toFixed(2);
+          if (
+            trolleyRecipientPayoutDetails.payoutMethod === 'paypal' &&
+            ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT
+          ) {
+            const feePercent =
+              Number(ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT) / 100;
 
-        paymentAmount -= feeAmount;
-      }
+            feeAmount = +Math.min(
+              ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+              feePercent * netAmount,
+            ).toFixed(2);
 
-      this.logger.log(
-        `
-          Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${paymentAmount.toFixed(2)} USD.
+            netAmount -= feeAmount;
+          }
+
+          this.logger.log(
+            `
+          Total amount won: $${totalAmount.toFixed(2)} USD, to be paid: $${netAmount.toFixed(2)} USD.
           Payout method type: ${trolleyRecipientPayoutDetails.payoutMethod}.
         `,
-      );
+          );
 
-      const paymentRelease = await this.createDbPaymentRelease(
-        userId,
-        paymentAmount,
-        connectedPaymentMethod.payment_method_id,
-        dbTrolleyRecipient.trolley_id,
-        winnings,
-        {
-          netAmount: paymentAmount,
-          feeAmount,
-          totalAmount: totalAmount,
-          payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
-          env_trolley_paypal_fee_percent: ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
-          env_trolley_paypal_fee_max_amount:
-            ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+          await this.paymentsService.claimOwedPayments(winningsIds, tx);
+
+          const release = await this.createDbPaymentRelease(
+            tx,
+            userId,
+            netAmount,
+            connectedPaymentMethod.payment_method_id,
+            dbTrolleyRecipient.trolley_id,
+            winnings,
+            {
+              netAmount,
+              feeAmount,
+              totalAmount: totalAmount,
+              payoutMethod: trolleyRecipientPayoutDetails.payoutMethod,
+              env_trolley_paypal_fee_percent:
+                ENV_CONFIG.TROLLEY_PAYPAL_FEE_PERCENT,
+              env_trolley_paypal_fee_max_amount:
+                ENV_CONFIG.TROLLEY_PAYPAL_FEE_MAX_AMOUNT,
+            },
+          );
+
+          return { paymentRelease: release, paymentAmount: netAmount };
         },
-      );
-
-      const paymentBatch = await this.trolleyService.startBatchPayment(
-        `${userId}_${userHandle}`,
-      );
-
-      const trolleyPayment = await this.trolleyService.createPayment(
-        dbTrolleyRecipient.trolley_id,
-        paymentBatch.id,
-        paymentAmount,
-        paymentRelease.payment_release_id,
-        paymentMemo,
-      );
-
-      await this.updateDbReleaseRecord(paymentRelease, {
-        externalTxId: trolleyPayment.id,
-      });
-
-      try {
-        await this.paymentsService.updatePaymentProcessingState(
-          winningsIds,
-          payment_status.PROCESSING,
-        );
-      } catch (e) {
-        this.logger.error(
-          `Failed to update payment processing state: ${e?.message} for winnings '${winningsIds.join(',')}`,
-        );
-
-        // mark release as failed
-        await this.updateDbReleaseRecord(paymentRelease, {
-          status: 'FAILED',
-        });
-
-        await this.trolleyService.removePayment(
-          trolleyPayment.id,
-          paymentBatch.id,
-        );
-
-        throw new Error('Failed to update payment processing state!');
-      }
-
-      try {
-        await this.trolleyService.startProcessingPayment(paymentBatch.id);
-      } catch (error) {
-        const errorMsg = `Failed to release payment: ${error.message}`;
-        this.logger.error(errorMsg, error);
-
-        // revert to owed
-        await this.paymentsService.updatePaymentProcessingState(
-          winningsIds,
-          payment_status.OWED,
-        );
-
-        // mark release as failed
-        await this.updateDbReleaseRecord(paymentRelease, {
-          status: 'FAILED',
-        });
-
-        throw new Error(errorMsg);
-      }
+      ));
     } catch (error) {
       if (error.code === 'P2010' && error.meta?.code === '55P03') {
         this.logger.error(
@@ -417,9 +392,85 @@ export class WithdrawalService {
         throw new Error(
           'Some or all of the winnings you requested to process are either processing, on hold or already paid.',
         );
-      } else {
-        throw error;
       }
+
+      throw error;
     }
+
+    let paymentBatch: { id: string } | undefined;
+    let trolleyPayment: { id: string } | undefined;
+
+    try {
+      paymentBatch = await this.trolleyService.startBatchPayment(
+        `${userId}_${userHandle}`,
+      );
+
+      trolleyPayment = await this.trolleyService.createPayment(
+        dbTrolleyRecipient.trolley_id,
+        paymentBatch.id,
+        paymentAmount,
+        paymentRelease.payment_release_id,
+        paymentMemo,
+      );
+
+      await this.updateDbReleaseRecord(paymentRelease, {
+        externalTxId: trolleyPayment.id,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to create trolley payment for release ${paymentRelease.payment_release_id}: ${error.message}`,
+      );
+
+      if (trolleyPayment && paymentBatch) {
+        await this.trolleyService.removePayment(
+          trolleyPayment.id,
+          paymentBatch.id,
+        );
+      }
+
+      await this.rollbackClaimedRelease(paymentRelease, winningsIds);
+
+      throw error;
+    }
+
+    try {
+      await this.trolleyService.startProcessingPayment(paymentBatch.id);
+    } catch (error) {
+      const errorMsg = `Failed to release payment: ${error.message}`;
+      this.logger.error(
+        `${errorMsg}. Trolley may have started processing batch ${paymentBatch.id}; marking payments as FAILED for manual review and leaving release ${paymentRelease.payment_release_id} as PROCESSING.`,
+        error,
+      );
+
+      // The batch may have started on Trolley's side despite the error, so the
+      // payments must not become withdrawable again. FAILED makes the user
+      // contact support, who can verify the batch state on Trolley. The release
+      // stays PROCESSING so a later Trolley "processed" webhook can still mark
+      // the payments as PAID (webhooks skip FAILED releases).
+      await this.paymentsService.revertClaimedPayments(
+        winningsIds,
+        payment_status.FAILED,
+      );
+
+      throw new Error(errorMsg);
+    }
+  }
+
+  /**
+   * Undoes a claim made during withdrawal: marks the release as FAILED and
+   * reverts its PROCESSING payments back to OWED.
+   */
+  private async rollbackClaimedRelease(
+    paymentRelease: payment_releases,
+    winningsIds: string[],
+  ) {
+    await this.updateDbReleaseRecord(paymentRelease, {
+      status: 'FAILED',
+    });
+
+    await this.paymentsService.revertClaimedPayments(
+      winningsIds,
+      payment_status.OWED,
+    );
   }
 }

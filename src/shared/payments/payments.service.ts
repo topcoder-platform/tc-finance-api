@@ -168,9 +168,12 @@ export class PaymentsService {
   async updatePaymentProcessingState(
     winningsIds: string[],
     status: payment_status,
+    transaction?: Prisma.TransactionClient,
   ) {
+    const prismaClient = transaction || this.prisma;
+
     try {
-      const r = await this.prisma.payment.updateMany({
+      const r = await prismaClient.payment.updateMany({
         where: {
           winnings_id: { in: winningsIds },
         },
@@ -191,6 +194,76 @@ export class PaymentsService {
       throw new Error(
         `Error updating payment processing state: '${error.message}'`,
       );
+    }
+  }
+
+  /**
+   * Atomically moves the OWED, unpaid payments of the given winnings to PROCESSING.
+   *
+   * The status condition is evaluated by the UPDATE itself, so two concurrent
+   * withdrawals can never both claim the same payments: the second one sees
+   * PROCESSING rows and claims nothing. Throws if any winning could not be
+   * claimed; callers should run this inside a transaction so a partial claim
+   * is rolled back.
+   *
+   * @param winningsIds - The winnings whose payments should be claimed.
+   * @param transaction - The transaction to run the update in.
+   */
+  async claimOwedPayments(
+    winningsIds: string[],
+    transaction: Prisma.TransactionClient,
+  ) {
+    const claimed = await transaction.$queryRaw<{ winningsId: string }[]>`
+      UPDATE payment
+      SET payment_status = ${payment_status.PROCESSING}::payment_status,
+        version = version + 1,
+        updated_at = NOW()
+      WHERE winnings_id = ANY(${winningsIds}::uuid[])
+        AND payment_status = ${payment_status.OWED}::payment_status
+        AND date_paid IS NULL
+      RETURNING winnings_id::text AS "winningsId"
+    `;
+
+    const claimedIds = new Set(claimed.map((row) => row.winningsId));
+    const unclaimedIds = winningsIds.filter((id) => !claimedIds.has(id));
+
+    if (unclaimedIds.length > 0) {
+      throw new Error(
+        `Failed to claim payments for winnings '${unclaimedIds.join(',')}'; they are no longer OWED.`,
+      );
+    }
+  }
+
+  /**
+   * Moves payments claimed by `claimOwedPayments` out of PROCESSING.
+   * Only PROCESSING payments are touched, so a status set in the meantime
+   * (e.g. PAID by a webhook) is never overwritten.
+   *
+   * @param winningsIds - The winnings whose payments should be updated.
+   * @param status - OWED to make the payments withdrawable again, or FAILED
+   *   when the outcome on Trolley's side is unknown and needs manual review.
+   */
+  async revertClaimedPayments(
+    winningsIds: string[],
+    status: typeof payment_status.OWED | typeof payment_status.FAILED,
+  ) {
+    try {
+      await this.prisma.payment.updateMany({
+        where: {
+          winnings_id: { in: winningsIds },
+          payment_status: payment_status.PROCESSING,
+        },
+        data: {
+          version: { increment: 1 },
+          payment_status: status,
+          updated_at: new Date(),
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to set claimed payments to ${status} for winnings '${winningsIds.join(',')}': ${error?.message ?? error}`,
+      );
+      throw error;
     }
   }
 
