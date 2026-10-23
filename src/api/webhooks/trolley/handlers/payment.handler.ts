@@ -54,19 +54,22 @@ export class PaymentHandler {
     releaseState: string,
     metadata?: JsonObject,
   ): Promise<void> {
-    const winningIds = (
-      await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT winnings_id as id
-      FROM payment p
-      INNER JOIN payment_release_associations pra
-      ON pra.payment_id = p.payment_id
-      WHERE pra.payment_release_id::text = ${paymentId}
-      FOR UPDATE
-    `
-    ).map((w) => w.id);
+    let winningIds: string[] = [];
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        // lock inside the transaction so the rows stay locked until the updates commit
+        winningIds = (
+          await tx.$queryRaw<{ id: string }[]>`
+          SELECT winnings_id as id
+          FROM payment p
+          INNER JOIN payment_release_associations pra
+          ON pra.payment_id = p.payment_id
+          WHERE pra.payment_release_id::text = ${paymentId}
+          FOR UPDATE
+        `
+        ).map((w) => w.id);
+
         await this.paymentsService.updatePaymentProcessingState(
           winningIds,
           processingState,

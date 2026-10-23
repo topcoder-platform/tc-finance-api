@@ -150,7 +150,7 @@ export class OtpService {
       }
 
       this.logger.log(
-        `OTP code ${otpCode} verified successfully for action ${actionType}`,
+        `OTP code ${otpCode.slice(0, 2)}${'*'.repeat(otpCode.length - 2)} verified successfully for action ${actionType}`,
       );
 
       await tx.otp.update({
