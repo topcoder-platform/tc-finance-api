@@ -4,26 +4,16 @@ import { ENV_CONFIG } from 'src/config';
 import { Logger } from 'src/shared/global';
 import { PrismaService } from 'src/shared/global/prisma.service';
 import { TopcoderEmailService } from 'src/shared/topcoder/tc-email.service';
+import {
+  DuplicatePaymentRelease,
+  DuplicatePaymentsService,
+} from './duplicate-payments.service';
 
 /**
  * Fixed marker in the alert log line. Point the CloudWatch metric filter at it.
  */
 export const DUPLICATE_PAYMENTS_ALERT_MARKER =
   'DUPLICATE_PAYMENT_RELEASES_DETECTED';
-
-export interface DuplicatePaymentRelease {
-  userId: string;
-  release1Id: string;
-  release2Id: string;
-  release1Status: string | null;
-  release2Status: string | null;
-  release1CreatedAt: Date;
-  release2CreatedAt: Date;
-  trolleyPayment1Id: string | null;
-  trolleyPayment2Id: string | null;
-  sharedPayments: number;
-  sharedAmount: string;
-}
 
 /**
  * Safety net for double withdrawals: on a schedule, looks for pairs of active
@@ -36,6 +26,7 @@ export class DuplicatePaymentsMonitor {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tcEmailService: TopcoderEmailService,
+    private readonly duplicatePaymentsService: DuplicatePaymentsService,
   ) {}
 
   @Cron(ENV_CONFIG.DUPLICATE_PAYMENTS_CHECK_CRON, {
@@ -77,34 +68,11 @@ export class DuplicatePaymentsMonitor {
           return undefined;
         }
 
-        const duplicates = await tx.$queryRaw<DuplicatePaymentRelease[]>`
-          SELECT
-            r1.user_id                  AS "userId",
-            r1.payment_release_id::text AS "release1Id",
-            r2.payment_release_id::text AS "release2Id",
-            r1.status                   AS "release1Status",
-            r2.status                   AS "release2Status",
-            r1.created_at               AS "release1CreatedAt",
-            r2.created_at               AS "release2CreatedAt",
-            r1.external_transaction_id  AS "trolleyPayment1Id",
-            r2.external_transaction_id  AS "trolleyPayment2Id",
-            COUNT(*)::int               AS "sharedPayments",
-            SUM(p.total_amount)::text   AS "sharedAmount"
-          FROM payment_release_associations a
-          JOIN payment_release_associations b
-            ON b.payment_id = a.payment_id
-           AND b.payment_release_id <> a.payment_release_id
-          JOIN payment_releases r1 ON r1.payment_release_id = a.payment_release_id
-          JOIN payment_releases r2 ON r2.payment_release_id = b.payment_release_id
-          JOIN payment p           ON p.payment_id = a.payment_id
-          WHERE COALESCE(r1.status, '') NOT IN ('FAILED', 'RETURNED')
-            AND COALESCE(r2.status, '') NOT IN ('FAILED', 'RETURNED')
-            -- order each pair by creation so it is reported once, oldest first
-            AND (r1.created_at, r1.payment_release_id) < (r2.created_at, r2.payment_release_id)
-            AND r2.created_at >= NOW() - make_interval(hours => ${lookbackHours}::int)
-          GROUP BY r1.payment_release_id, r2.payment_release_id
-          ORDER BY r2.created_at DESC
-        `;
+        const duplicates =
+          await this.duplicatePaymentsService.findDuplicateReleases(
+            { since: new Date(Date.now() - lookbackHours * 60 * 60 * 1000) },
+            tx,
+          );
 
         if (duplicates.length === 0) {
           this.logger.debug(

@@ -25,9 +25,9 @@ jest.mock('src/config', () => ({ ENV_CONFIG: mockEnvConfig }));
 
 import {
   DUPLICATE_PAYMENTS_ALERT_MARKER,
-  DuplicatePaymentRelease,
   DuplicatePaymentsMonitor,
 } from './duplicate-payments.monitor';
+import { DuplicatePaymentRelease } from './duplicate-payments.service';
 
 const duplicate: DuplicatePaymentRelease = {
   userId: '500021412',
@@ -37,22 +37,25 @@ const duplicate: DuplicatePaymentRelease = {
   release2Status: 'PROCESSED',
   release1CreatedAt: new Date('2026-10-09T13:05:44Z'),
   release2CreatedAt: new Date('2026-10-09T13:06:23Z'),
+  release1Amount: '10893.00',
+  release2Amount: '10893.00',
   trolleyPayment1Id: 'P-Jj7B3JBkJsSVTNteSSXTkj',
   trolleyPayment2Id: 'P-QGc5yVN75pftMUF2d86sNv',
   sharedPayments: 8,
   sharedAmount: '10893.00',
+  sharedWinnings: [],
 };
 
 describe('DuplicatePaymentsMonitor', () => {
   let tx: { $queryRaw: jest.Mock };
   let prisma: { $transaction: jest.Mock };
   let tcEmailService: { sendEmail: jest.Mock };
+  let duplicatePaymentsService: { findDuplicateReleases: jest.Mock };
   let monitor: DuplicatePaymentsMonitor;
 
   const mockQueryResults = (locked: boolean, rows: unknown[] = []) => {
-    tx.$queryRaw
-      .mockResolvedValueOnce([{ locked }])
-      .mockResolvedValueOnce(rows);
+    tx.$queryRaw.mockResolvedValueOnce([{ locked }]);
+    duplicatePaymentsService.findDuplicateReleases.mockResolvedValueOnce(rows);
   };
 
   beforeEach(() => {
@@ -71,9 +74,11 @@ describe('DuplicatePaymentsMonitor', () => {
         ),
     };
     tcEmailService = { sendEmail: jest.fn().mockResolvedValue(undefined) };
+    duplicatePaymentsService = { findDuplicateReleases: jest.fn() };
     monitor = new DuplicatePaymentsMonitor(
       prisma as any,
       tcEmailService as any,
+      duplicatePaymentsService as any,
     );
   });
 
@@ -82,7 +87,9 @@ describe('DuplicatePaymentsMonitor', () => {
 
     await expect(monitor.checkForDuplicates()).resolves.toBeUndefined();
 
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(
+      duplicatePaymentsService.findDuplicateReleases,
+    ).not.toHaveBeenCalled();
     expect(tcEmailService.sendEmail).not.toHaveBeenCalled();
   });
 
@@ -131,14 +138,17 @@ describe('DuplicatePaymentsMonitor', () => {
     );
   });
 
-  it('passes the lookback window to the query', async () => {
+  it('searches only the lookback window, inside the locked transaction', async () => {
+    jest.useFakeTimers({ now: new Date('2026-10-23T12:00:00Z') });
     mockQueryResults(true, []);
 
     await monitor.checkForDuplicates();
 
-    const [strings, ...values] = tx.$queryRaw.mock.calls[1];
-    expect(strings.join('?')).toContain("NOT IN ('FAILED', 'RETURNED')");
-    expect(values).toContain(2);
+    expect(duplicatePaymentsService.findDuplicateReleases).toHaveBeenCalledWith(
+      { since: new Date('2026-10-23T10:00:00Z') },
+      tx,
+    );
+    jest.useRealTimers();
   });
 
   it('only logs the alert when email is not configured', async () => {
