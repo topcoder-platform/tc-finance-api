@@ -163,7 +163,8 @@ export class ConfigEnv {
 
   @IsString()
   @IsOptional()
-  SENDGRID_TEMPLATE_ID_DUPLICATE_PAYMENTS_ALERT?: string;
+  SENDGRID_TEMPLATE_ID_DUPLICATE_PAYMENTS_ALERT?: string =
+    'd-ad7a0c9723c449e1ad0b9aa929e68a0d';
 
   @IsString()
   BILLING_ACCOUNTS_DB_URL!: string;
