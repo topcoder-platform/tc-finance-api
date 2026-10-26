@@ -3,15 +3,17 @@ import {
   NestMiddleware,
   UnauthorizedException,
 } from '@nestjs/common';
-import * as jwt from 'jsonwebtoken';
+import { createJwtVerifier, type JwtVerifier } from 'tc-core-library-js';
 import { ENV_CONFIG } from 'src/config';
-import { getSigningKey } from '../jwt';
 import { Logger } from 'src/shared/global';
 
 const logger = new Logger(`Auth/TokenValidatorMiddleware`);
 
 @Injectable()
 export class TokenValidatorMiddleware implements NestMiddleware {
+  private verifier?: JwtVerifier;
+
+  /** Verifies the request token with the shared issuer policy and sets the finance identity; returns next or throws UnauthorizedException. */
   async use(req: any, res: Response, next: (error?: any) => void) {
     const [type, idToken] = req.headers.authorization?.split(' ') ?? [];
 
@@ -21,8 +23,19 @@ export class TokenValidatorMiddleware implements NestMiddleware {
 
     let decoded: any;
     try {
-      const signingKey = await getSigningKey(idToken);
-      decoded = jwt.verify(idToken, signingKey);
+      this.verifier ??= createJwtVerifier({
+        issuers: [
+          {
+            issuer: `${ENV_CONFIG.AUTH0_M2M_TOKEN_URL.replace(/\/$/, '')}/`,
+            algorithm: 'RS256',
+            audience: [
+              ENV_CONFIG.AUTH0_M2M_AUDIENCE,
+              ENV_CONFIG.AUTH0_CLIENT_ID,
+            ],
+          },
+        ],
+      });
+      decoded = await this.verifier.verify(idToken);
     } catch (error) {
       logger.error('Error verifying JWT', error);
       throw new UnauthorizedException('Invalid or expired JWT!');
@@ -33,18 +46,20 @@ export class TokenValidatorMiddleware implements NestMiddleware {
       return next();
     }
 
-    req.isM2M = !!decoded.scope;
+    req.isM2M = decoded.isMachine === true;
     const aud = req.isM2M
       ? ENV_CONFIG.AUTH0_M2M_AUDIENCE
       : ENV_CONFIG.AUTH0_CLIENT_ID;
 
-    if (decoded.aud !== aud) {
+    if (
+      !(Array.isArray(decoded.aud) ? decoded.aud : [decoded.aud]).includes(aud)
+    ) {
       req.idTokenVerified = false;
       return next();
     }
 
     req.idTokenVerified = true;
-    if (decoded.scope) {
+    if (req.isM2M) {
       req.m2mTokenScope = decoded.scope;
       req.m2mTokenAudience = decoded.aud;
       req.m2mClientId = decoded.azp;

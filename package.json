@@ -28,7 +28,7 @@
     "@nestjs/platform-express": "^11.1.28",
     "@nestjs/swagger": "^11.4.6",
     "@prisma/client": "^6.19.3",
-    "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#develop",
+    "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#74b3b02d6d60307531b4206f4fafa9509d113f24",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "cors": "^2.8.5",
@@ -44,7 +44,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "trolleyhq": "^1.2.0",
-    "winston": "^3.18.3"
+    "winston": "^3.18.3",
+    "tc-core-library-js": "github:topcoder-platform/tc-core-library-js#v4.0.0-rc.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
