@@ -57,6 +57,7 @@ describe('WinningsRepository', () => {
   const ONE_DAY = 24 * 60 * 60 * 1000;
 
   let findManyMock: jest.Mock;
+  let queryRawMock: jest.Mock;
   let winningsRepo: WinningsRepository;
 
   beforeEach(() => {
@@ -64,8 +65,9 @@ describe('WinningsRepository', () => {
 
     findManyMock = jest.fn().mockResolvedValue([]);
 
+    queryRawMock = jest.fn().mockResolvedValue([]);
     const prismaMock = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $queryRaw: queryRawMock,
       winnings: {
         findMany: findManyMock,
       },
@@ -187,6 +189,79 @@ describe('WinningsRepository', () => {
     expect(where.payment.some.payment_status).toEqual({
       equals: PaymentStatus.OWED,
     });
+  });
+
+  it('flags payments included in several processing/processed releases', async () => {
+    findManyMock.mockResolvedValueOnce([splitWinning([{}, {}])]);
+    const releases = [
+      {
+        releaseId: 'release-1',
+        status: 'PROCESSED',
+        createdAt: new Date('2026-10-20T10:00:00.000Z'),
+        amount: '3680',
+        externalTransactionId: 'P-1',
+      },
+      {
+        releaseId: 'release-2',
+        status: 'PROCESSING',
+        createdAt: new Date('2026-10-20T10:00:01.000Z'),
+        amount: '3680',
+        externalTransactionId: 'P-2',
+      },
+    ];
+    queryRawMock.mockResolvedValueOnce(
+      releases.map((r) => ({ ...r, paymentId: 'installment-2' })),
+    );
+
+    const result = await winningsRepo.searchWinnings(
+      {},
+      {
+        includeCount: false,
+        includePayoutStatus: false,
+        includeDuplicateReleases: true,
+      },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
+    expect(queryRawMock.mock.calls[0].slice(1)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          values: ['installment-1', 'installment-2'],
+        }),
+        expect.objectContaining({ values: ['PROCESSING', 'PROCESSED'] }),
+      ]),
+    );
+    expect(result.data?.winnings[0].duplicateReleases).toEqual([
+      { paymentId: 'installment-2', installmentNumber: 2, releases },
+    ]);
+  });
+
+  it('returns an empty duplicate list when no payment was released twice', async () => {
+    findManyMock.mockResolvedValueOnce([splitWinning([{}])]);
+
+    const result = await winningsRepo.searchWinnings(
+      {},
+      {
+        includeCount: false,
+        includePayoutStatus: false,
+        includeDuplicateReleases: true,
+      },
+    );
+
+    expect(result.data?.winnings[0].duplicateReleases).toEqual([]);
+  });
+
+  it('does not look up releases unless requested', async () => {
+    findManyMock.mockResolvedValueOnce([splitWinning([{}])]);
+
+    const result = await winningsRepo.searchWinnings(
+      {},
+      { includeCount: false, includePayoutStatus: false },
+    );
+
+    expect(queryRawMock).not.toHaveBeenCalled();
+    expect(result.data?.winnings[0]).not.toHaveProperty('duplicateReleases');
   });
 
   it('filters getWinningsByExternalId by external_id instead of winner_id', async () => {
