@@ -87,7 +87,9 @@ export class AdminController {
         body,
       );
 
-    const result = await this.winningsRepo.searchWinnings(filters);
+    const result = await this.winningsRepo.searchWinnings(filters, {
+      includeDuplicateReleases: true,
+    });
 
     if (result.error) {
       result.status = ResponseStatusType.ERROR;
