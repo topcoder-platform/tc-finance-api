@@ -24,16 +24,10 @@ export class TokenValidatorMiddleware implements NestMiddleware {
     let decoded: any;
     try {
       this.verifier ??= createJwtVerifier({
-        issuers: [
-          {
-            issuer: `${ENV_CONFIG.AUTH0_M2M_TOKEN_URL.replace(/\/$/, '')}/`,
-            algorithm: 'RS256',
-            audience: [
-              ENV_CONFIG.AUTH0_M2M_AUDIENCE,
-              ENV_CONFIG.AUTH0_CLIENT_ID,
-            ],
-          },
-        ],
+        VALID_ISSUERS: ENV_CONFIG.VALID_ISSUERS,
+        AUTH_SECRET: ENV_CONFIG.AUTH_SECRET,
+        JWT_AUDIENCE: ENV_CONFIG.JWT_AUDIENCE,
+        AUTH0_AUDIENCE: ENV_CONFIG.AUTH0_AUDIENCE,
       });
       decoded = await this.verifier.verify(idToken);
     } catch (error) {
@@ -47,11 +41,10 @@ export class TokenValidatorMiddleware implements NestMiddleware {
     }
 
     req.isM2M = decoded.isMachine === true;
-    const aud = req.isM2M
-      ? ENV_CONFIG.AUTH0_M2M_AUDIENCE
-      : ENV_CONFIG.AUTH0_CLIENT_ID;
+    const aud = req.isM2M ? ENV_CONFIG.AUTH0_AUDIENCE : ENV_CONFIG.JWT_AUDIENCE;
 
     if (
+      (req.isM2M || decoded.aud !== undefined) &&
       !(Array.isArray(decoded.aud) ? decoded.aud : [decoded.aud]).includes(aud)
     ) {
       req.idTokenVerified = false;
