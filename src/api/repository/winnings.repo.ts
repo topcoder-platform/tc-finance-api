@@ -15,6 +15,7 @@ import {
   WinningRequestDto,
   SearchWinningResult,
   WinningsCategory,
+  DuplicateReleaseDto,
   WinningDto,
 } from 'src/dto/winning.dto';
 import { PrismaService } from 'src/shared/global/prisma.service';
@@ -36,7 +37,12 @@ const CURRENT_INSTALLMENTS = {
 interface SearchWinningsOptions {
   includeCount?: boolean;
   includePayoutStatus?: boolean;
+  /** Flags payments paid out by more than one release (admin listings only). */
+  includeDuplicateReleases?: boolean;
 }
+
+// Release states in which a payout has been sent to (or accepted by) the provider.
+const ACTIVE_RELEASE_STATUSES = ['PROCESSING', 'PROCESSED'];
 
 /**
  * Reads winnings for member/admin Wallet listings, exports and external-ID
@@ -322,6 +328,55 @@ export class WinningsRepository {
   }
 
   /**
+   * Finds payments that belong to more than one processing/processed release,
+   * i.e. payments that were (or are being) paid out more than once.
+   *
+   * @param paymentIds Payment rows to check.
+   * @returns The active releases of each duplicated payment, keyed by payment id.
+   */
+  private async getDuplicateReleasesForPayments(
+    paymentIds: string[],
+  ): Promise<Record<string, DuplicateReleaseDto[]>> {
+    if (!paymentIds.length) {
+      return {};
+    }
+
+    const rows = await this.prisma.$queryRaw<
+      (DuplicateReleaseDto & { paymentId: string })[]
+    >`
+      SELECT
+        pra.payment_id::text         AS "paymentId",
+        pr.payment_release_id::text  AS "releaseId",
+        pr.status                    AS "status",
+        pr.created_at                AS "createdAt",
+        pr.total_net_amount::text    AS "amount",
+        pr.external_transaction_id   AS "externalTransactionId"
+      FROM payment_release_associations pra
+      JOIN payment_releases pr ON pr.payment_release_id = pra.payment_release_id
+      WHERE pra.payment_id::text IN (${Prisma.join(paymentIds)})
+        AND UPPER(COALESCE(pr.status, '')) IN (${Prisma.join(ACTIVE_RELEASE_STATUSES)})
+        AND pra.payment_id IN (
+          SELECT a.payment_id
+          FROM payment_release_associations a
+          JOIN payment_releases r ON r.payment_release_id = a.payment_release_id
+          WHERE a.payment_id::text IN (${Prisma.join(paymentIds)})
+            AND UPPER(COALESCE(r.status, '')) IN (${Prisma.join(ACTIVE_RELEASE_STATUSES)})
+          GROUP BY a.payment_id
+          HAVING COUNT(*) > 1
+        )
+      ORDER BY pr.created_at ASC
+    `;
+
+    return rows.reduce<Record<string, DuplicateReleaseDto[]>>(
+      (map, { paymentId, ...release }) => {
+        (map[paymentId] ??= []).push(release);
+        return map;
+      },
+      {},
+    );
+  }
+
+  /**
    * Searches winnings with every current numbered installment payment row.
    *
    * @param searchProps Listing filters and pagination from the request body.
@@ -336,6 +391,7 @@ export class WinningsRepository {
     const result = new ResponseDto<SearchWinningResult>();
     const includeCount = options.includeCount ?? true;
     const includePayoutStatus = options.includePayoutStatus ?? true;
+    const includeDuplicateReleases = options.includeDuplicateReleases ?? false;
 
     try {
       let winnerIds: string[] | undefined;
@@ -401,11 +457,26 @@ export class WinningsRepository {
         includePayoutStatus && winnings?.length
           ? await this.getUsersPayoutStatusForWinnings(winnings)
           : {};
+      const duplicateReleasesMap =
+        includeDuplicateReleases && winnings?.length
+          ? await this.getDuplicateReleasesForPayments(
+              winnings.flatMap((w) => w.payment.map((p) => p.payment_id)),
+            )
+          : {};
       const totalItems = includeCount ? count : winnings.length;
 
       result.data = {
         winnings: winnings.map((item) => {
           const attributes = (item.attributes ?? {}) as object;
+          const duplicateReleases = includeDuplicateReleases
+            ? item.payment
+                .filter((p) => duplicateReleasesMap[p.payment_id])
+                .map((p) => ({
+                  paymentId: p.payment_id,
+                  installmentNumber: p.installment_number as number,
+                  releases: duplicateReleasesMap[p.payment_id],
+                }))
+            : undefined;
 
           return {
             id: item.winning_id,
@@ -451,6 +522,7 @@ export class WinningsRepository {
             paymentStatus: usersPayoutStatusMap[
               item.winner_id
             ] as WinningDto['paymentStatus'],
+            ...(duplicateReleases ? { duplicateReleases } : {}),
           };
         }),
         pagination: {

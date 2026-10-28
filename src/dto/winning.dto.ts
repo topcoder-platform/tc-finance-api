@@ -110,6 +110,26 @@ export class PayoutStatus {
   taxFormSetupComplete: boolean;
 }
 
+export class DuplicateReleaseDto {
+  releaseId: string;
+  status: string | null;
+  createdAt: Date;
+  amount: string;
+  externalTransactionId: string | null;
+}
+
+export class DuplicatePaymentReleasesDto {
+  @ApiProperty({ description: 'Payment row paid out by several releases' })
+  paymentId: string;
+  installmentNumber: number;
+  @ApiProperty({
+    description:
+      'PROCESSING/PROCESSED releases containing this payment, oldest first',
+    type: [DuplicateReleaseDto],
+  })
+  releases: DuplicateReleaseDto[];
+}
+
 /**
  * Winning read model used by Wallet, CSV exports and external-ID consumers.
  * Monetary summaries describe installment face values, not payout eligibility.
@@ -143,6 +163,14 @@ export class WinningDto {
   createdAt: Date;
   updatedAt: Date;
   releaseDate: Date;
+
+  @ApiProperty({
+    description:
+      'Admin search only: payments of this winning included in more than one PROCESSING/PROCESSED payment release (double payment).',
+    type: [DuplicatePaymentReleasesDto],
+    required: false,
+  })
+  duplicateReleases?: DuplicatePaymentReleasesDto[];
 }
 
 export class WinningRequestDto extends SortPagination {

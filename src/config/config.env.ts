@@ -127,6 +127,45 @@ export class ConfigEnv {
   @IsInt({ each: true })
   TGBillingAccounts = [80000062, 80002800];
 
+  @IsBoolean()
+  @IsOptional()
+  // read the raw env value: implicit conversion has already turned 'false' into true
+  @Transform(({ obj, key }) => {
+    const raw: unknown = (obj as Record<string, unknown>)[key];
+    if (raw === undefined || raw === null || raw === '') return true;
+    if (typeof raw === 'boolean') return raw;
+    return typeof raw !== 'string' || raw.toLowerCase() !== 'false';
+  })
+  DUPLICATE_PAYMENTS_CHECK_ENABLED: boolean = true;
+
+  @IsString()
+  @IsOptional()
+  DUPLICATE_PAYMENTS_CHECK_CRON = '0 * * * *';
+
+  // Only releases created within this window are checked, so each duplicate
+  // alerts on a few runs instead of on every run forever.
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  DUPLICATE_PAYMENTS_CHECK_LOOKBACK_HOURS: number = 2;
+
+  @IsString({ each: true })
+  @IsOptional()
+  @Transform(({ value }) =>
+    (Array.isArray(value)
+      ? (value as unknown[])
+      : String(value ?? '').split(',')
+    )
+      .map((email) => String(email).trim())
+      .filter(Boolean),
+  )
+  DUPLICATE_PAYMENTS_ALERT_EMAILS: string[] = [];
+
+  @IsString()
+  @IsOptional()
+  SENDGRID_TEMPLATE_ID_DUPLICATE_PAYMENTS_ALERT?: string =
+    'd-ad7a0c9723c449e1ad0b9aa929e68a0d';
+
   @IsString()
   BILLING_ACCOUNTS_DB_URL!: string;
 }

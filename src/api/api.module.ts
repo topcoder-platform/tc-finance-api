@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { HealthCheckController } from './health-check/healthCheck.controller';
 import { GlobalProvidersModule } from 'src/shared/global/globalProviders.module';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TokenValidatorMiddleware } from 'src/core/auth/middleware/tokenValidator.middleware';
 import { CreateRequestStoreMiddleware } from 'src/core/request/createRequestStore.middleware';
 import { AuthGuard, RolesGuard } from 'src/core/auth/guards';
@@ -18,9 +19,11 @@ import { WalletModule } from './wallet/wallet.module';
 import { WithdrawalModule } from './withdrawal/withdrawal.module';
 import { ChallengesModule } from './challenges/challenges.module';
 import { ChallengePaymentsModule } from './challenge-payments/challenge-payments.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     GlobalProvidersModule,
     TopcoderModule,
     PaymentProvidersModule,
@@ -31,6 +34,7 @@ import { ChallengePaymentsModule } from './challenge-payments/challenge-payments
     WalletModule,
     WithdrawalModule,
     ChallengesModule,
+    MonitoringModule,
   ],
   controllers: [HealthCheckController],
   providers: [
