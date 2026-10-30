@@ -36,14 +36,14 @@ All environment variables should be defined in a `.env` file in the project root
 - **Type**: String (UUID)
 - **Required**: Yes
 - **Description**: Auth0 client ID for user authentication
-- **Notes**: Used to validate user JWT tokens
+- **Notes**: Retained legacy application setting; inbound browser verification now uses `JWT_AUDIENCE`.
 - **How to get**: Auth0 Dashboard → Applications → Your Application → Client ID
 
 #### `AUTH0_CERT`
 
 - **Type**: String (RSA Public Key)
-- **Required**: Yes
-- **Description**: RSA public key for JWT signature verification
+- **Required**: No (unused by the shared verifier)
+- **Description**: Legacy setting; verification now uses the trusted issuer JWKS
 - **Format**: PEM format with BEGIN/END markers
 - **How to get**: Auth0 Dashboard → Applications → Advanced Settings → Certificates
 
@@ -77,8 +77,8 @@ All environment variables should be defined in a `.env` file in the project root
 - **Type**: String (URL)
 - **Required**: Yes
 - **Description**: Auth0 token endpoint for M2M authentication
-- **Example**: `https://topcoder-dev.auth0.com/oauth/token`
-- **Format**: `https://{auth0-domain}/oauth/token`
+- **Example**: `https://topcoder-dev.auth0.com`
+- **Format**: `https://{auth0-domain}`
 
 #### `AUTH0_M2M_GRANT_TYPE`
 
@@ -296,3 +296,11 @@ All environment variables should be defined in a `.env` file in the project root
    # or
    vim .env
    ```
+
+### Shared inbound JWT validation
+
+`VALID_ISSUERS`, `AUTH_SECRET`, `JWT_AUDIENCE`, and `AUTH0_AUDIENCE` are loaded from
+the common appvar path. See the README shared JWT deployment section for values
+and requirements. These replace `AUTH0_CERT` and `AUTH0_CLIENT_ID` as access-token
+verification settings. `AUTH0_M2M_TOKEN_URL` is a base URL such as
+`https://topcoder-dev.auth0.com`; the outbound client appends `/oauth/token`.

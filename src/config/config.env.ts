@@ -12,6 +12,22 @@ import {
 
 export class ConfigEnv {
   @IsString()
+  @IsNotEmpty()
+  VALID_ISSUERS!: string;
+
+  @IsString()
+  @IsOptional()
+  AUTH_SECRET?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  JWT_AUDIENCE!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  AUTH0_AUDIENCE!: string;
+
+  @IsString()
   @IsOptional()
   API_BASE = '/v6/finance';
 
