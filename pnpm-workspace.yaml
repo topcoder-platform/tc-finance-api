@@ -1,0 +1,47 @@
+packages:
+- .
+blockExoticSubdeps: false
+autoInstallPeers: true
+overrides:
+  brace-expansion@^1: 1.1.21
+  fast-uri@^3: 3.1.9
+  file-type@>=13.0.0 <21.3.2: 21.3.2
+  follow-redirects: 1.16.2
+  form-data: 4.0.6
+  lodash: 4.18.1
+  multer: 2.5.0
+  path-to-regexp: 8.4.2
+  qs: 6.17.1
+  brace-expansion@^2: 2.1.7
+  brace-expansion@>=3: 5.0.12
+  minimatch@<9: file:tools/minimatch-compat
+  minimatch@>=9: 11.0.3
+  glob@>=9: 14.0.3
+  body-parser@^2: 2.4.0
+  proxy-addr: 2.0.8
+  '@xhmikosr/decompress@^10': 10.2.2
+  js-yaml@^3: 3.15.2
+  js-yaml@^4: 4.3.2
+  js-yaml@^5: 5.5.0
+  '@humanfs/node': 0.16.8
+  piscina@^4: 4.9.4
+  baseline-browser-mapping: 2.11.0
+  browserslist: 4.28.8
+  axios@<1: 0.34.0
+  axios@>=1: 1.21.0
+  tc-core-library-js: https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/a25576b8b038211d1ba910eca2d900271ba6659d
+  deepmerge-ts: 8.0.0
+  defu: 6.1.7
+  effect@^3: 3.22.0
+  hono@^4: 4.12.34
+  '@prisma/config@6.19.3>deepmerge-ts': 8.0.0
+allowBuilds:
+  '@nestjs/core': false
+  '@scarf/scarf': false
+  '@swc/core': true
+  dtrace-provider: false
+  unrs-resolver: true
+  '@parcel/watcher': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
