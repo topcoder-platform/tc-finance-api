@@ -4,7 +4,7 @@
   "description": "",
   "author": "",
   "private": true,
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@11.15.1",
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
@@ -20,62 +20,62 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "deploy:dev": "BRANCH=$(git rev-parse --abbrev-ref HEAD) && TAG=\"dev-${BRANCH}\" && git tag -d \"$TAG\" 2>/dev/null; git push origin \":refs/tags/$TAG\" 2>/dev/null; git tag \"$TAG\" && git push origin \"$TAG\"",
-    "postinstall": "pnpm exec prisma generate"
+    "postinstall": "pnpm exec prisma generate",
+    "test:dependency-compat": "node --test tools/minimatch-compat/index.test.cjs"
   },
   "dependencies": {
-    "@nestjs/common": "^11.1.28",
-    "@nestjs/core": "^11.1.28",
-    "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/common": "^11.2.8",
+    "@nestjs/core": "^11.2.8",
+    "@nestjs/platform-express": "^11.2.8",
     "@nestjs/schedule": "^6.1.3",
-    "@nestjs/swagger": "^11.4.6",
+    "@nestjs/swagger": "^11.4.7",
     "@prisma/client": "^6.19.3",
     "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#74b3b02d6d60307531b4206f4fafa9509d113f24",
     "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.2",
-    "cors": "^2.8.5",
-    "csv": "^6.4.1",
-    "csv-stringify": "^6.6.0",
-    "dotenv": "^17.2.3",
+    "class-validator": "^0.14.4",
+    "cors": "^2.8.6",
+    "csv-stringify": "^6.9.0",
+    "dotenv": "^17.4.2",
     "json-stringify-safe": "^5.0.1",
-    "jsonwebtoken": "^9.0.2",
-    "jwks-rsa": "^3.2.0",
-    "lodash": "^4.18.1",
-    "nanoid": "^5.1.6",
+    "jsonwebtoken": "^9.0.3",
+    "jwks-rsa": "^3.2.2",
+    "lodash": "4.18.1",
+    "nanoid": "^5.1.16",
     "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "tc-core-library-js": "https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/a25576b8b038211d1ba910eca2d900271ba6659d",
     "trolleyhq": "^1.2.0",
-    "winston": "^3.18.3",
-    "tc-core-library-js": "github:topcoder-platform/tc-core-library-js#v4.0.0-rc.1"
+    "winston": "^3.19.0"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.6",
+    "@eslint/eslintrc": "^3.3.7",
     "@eslint/js": "^9.39.5",
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
-    "@nestjs/testing": "^11.1.28",
-    "@swc/cli": "^0.8.1",
-    "@swc/core": "^1.15.47",
-    "@types/express": "^5.0.4",
+    "@nestjs/testing": "^11.2.8",
+    "@swc/cli": "^0.8.2",
+    "@swc/core": "^1.16.21",
+    "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/json-stringify-safe": "^5.0.3",
-    "@types/lodash": "^4.17.20",
-    "@types/node": "^24.9.1",
+    "@types/lodash": "^4.17.27",
+    "@types/node": "^24.19.2",
     "@types/supertest": "^6.0.3",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
-    "globals": "^16.4.0",
-    "jest": "^30.4.2",
-    "prettier": "^3.6.2",
+    "eslint-plugin-prettier": "^5.5.7",
+    "globals": "^16.5.0",
+    "jest": "^30.5.2",
+    "prettier": "^3.9.10",
     "source-map-support": "^0.5.21",
-    "supertest": "^7.1.4",
-    "ts-jest": "^29.4.12",
+    "supertest": "^7.3.1",
+    "ts-jest": "^29.4.15",
     "ts-loader": "^9.6.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.66.0"
+    "typescript-eslint": "^8.72.1"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -99,11 +99,5 @@
   },
   "prisma": {
     "seed": "node --experimental-strip-types prisma/seed.ts"
-  },
-  "pnpm": {
-    "overrides": {
-      "axios@<1.0.0": "0.33.0",
-      "@nestjs/swagger@11.4.6>js-yaml": "5.2.2"
-    }
   }
 }

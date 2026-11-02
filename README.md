@@ -436,3 +436,15 @@ machine tokens from the Auth0 tenant using `VALID_ISSUERS`. Legacy human HMAC
 tokens may omit audience; RSA tokens and all machine tokens must have the correct
 audience. `AUTH0_M2M_TOKEN_URL` remains the base Auth0 URL used for outbound token
 requests, not a source of inbound issuer trust.
+
+### Security dependency validation
+
+Use the Node 24 release in `.nvmrc` and the pinned pnpm version from
+`package.json`. `pnpm install --frozen-lockfile`, `pnpm exec eslint 'src/**/*.ts'`,
+`pnpm build`, `pnpm test --runInBand`, `pnpm test:dependency-compat`, and
+`pnpm audit` validate dependency changes. The local minimatch adapter preserves
+legacy build-tool interfaces while using the maintained matcher.
+
+The runtime retains Prisma 6 and the generated billing client contract, uses a
+patched digest-pinned Node 24 / Alpine image, and runs as the non-root `node`
+user. Repository Trivy scanning includes medium-severity and unfixed findings.
