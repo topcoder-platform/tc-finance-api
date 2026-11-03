@@ -448,3 +448,23 @@ legacy build-tool interfaces while using the maintained matcher.
 The runtime retains Prisma 6 and the generated billing client contract, uses a
 patched digest-pinned Node 24 / Alpine image, and runs as the non-root `node`
 user. Repository Trivy scanning includes medium-severity and unfixed findings.
+
+## Deployment secret precedence and verification
+
+CircleCI uses tc-deploy-scripts v1.4.17 pinned to commit
+`31be63398bb230d551579a41de7b21ef7f1674e4`. Before execution,
+`deployment/prepare-deploy-script.py` applies checked adaptations and rejects
+unexpected upstream changes. Shared `/config/common/global-appvar` references
+are loaded first, followed by service `appvar` references; service settings win
+when names overlap. Each secret name appears exactly once in the task definition.
+No Parameter Store values are changed or printed by the adaptation.
+
+Registration and update errors fail the job. The ECS waiter must finish on the
+new task-definition ARN with a completed deployment and the desired running
+count; an old healthy deployment or rollback cannot count as success.
+Regression tests run before deployment and can be run locally with:
+
+```sh
+DEPLOY_SCRIPT_SOURCE=/path/to/pinned/tc-deploy-scripts/master_deploy.sh \
+  python3 -B -m unittest discover -s deployment -p 'test_*.py'
+```
