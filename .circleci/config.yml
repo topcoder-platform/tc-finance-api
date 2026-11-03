@@ -24,6 +24,10 @@ install_deploy_scripts: &install_deploy_scripts
         cp ../buildscript/buildenv.sh .
         cp ../buildscript/awsconfiguration.sh .
         cp ../buildscript/psvar-processor.sh .
+        test "$(git -C ../buildscript rev-parse HEAD)" = "31be63398bb230d551579a41de7b21ef7f1674e4"
+        DEPLOY_SCRIPT_SOURCE=../buildscript/master_deploy.sh python3 -B -m unittest discover -s deployment -p 'test_*.py'
+        python3 deployment/prepare-deploy-script.py master_deploy.sh
+        bash -n master_deploy.sh
 
 
 build_and_deploy_steps: &build_and_deploy_steps
@@ -43,7 +47,7 @@ build_and_deploy_steps: &build_and_deploy_steps
               source awsenvconf
               ./psvar-processor.sh -t appenv -p /config/${APPNAME}/deployvar
               source deployvar_env
-              ./master_deploy.sh -d ECS -e $DEPLOY_ENV -t latest -j /config/${APPNAME}/appvar,/config/common/global-appvar -i ${APPNAME} -p FARGATE
+              ./master_deploy.sh -d ECS -e $DEPLOY_ENV -t latest -j /config/common/global-appvar,/config/${APPNAME}/appvar -i ${APPNAME} -p FARGATE
 
 jobs:
     build-dev:
