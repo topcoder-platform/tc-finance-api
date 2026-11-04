@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "environment": "prod",
+  "accountId": "409275337247",
+  "region": "us-east-1",
+  "deployRoleArn": "arn:aws:iam::409275337247:role/tc-finance-api-prod-deploy",
+  "taskRoleArn": null,
+  "executionRoleArn": "arn:aws:iam::409275337247:role/ecsTaskExecutionRole",
+  "cluster": "tc-finance-serverless",
+  "service": "finance-api-v6",
+  "taskFamily": "finance-api-v6",
+  "circleciOrgId": "947bef5e-1669-415d-b83c-4fc85155b7df",
+  "circleciProjectId": "6969b6d3-cb5f-46c9-94df-1e73eacd7918",
+  "repository": "github.com/topcoder-platform/tc-finance-api",
+  "branch": "master",
+  "images": {
+    "finance-api-v6": "finance-api-v6"
+  }
+}

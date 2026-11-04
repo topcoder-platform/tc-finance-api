@@ -24,11 +24,9 @@ RUN find node_modules -type f -name 'Dockerfile*' -delete
 
 FROM ${NODE_IMAGE} AS runtime
 
-ARG RESET_DB_ARG=false
 ARG SEED_DATA_ARG=""
 
 ENV NODE_ENV=production \
-    RESET_DB=$RESET_DB_ARG \
     SEED_DATA=$SEED_DATA_ARG \
     PRISMA_CLI_BINARY_TARGETS=linux-musl-openssl-3.0.x
 
