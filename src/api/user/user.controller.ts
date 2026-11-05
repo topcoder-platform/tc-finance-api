@@ -85,10 +85,7 @@ export class UserController {
     // Include them when filtering by On Hold so those records are visible.
     const searchBody = { ...body } as WinningRequestDto;
     if (body.status === PaymentStatus.ON_HOLD) {
-      searchBody.status = [
-        PaymentStatus.ON_HOLD,
-        PaymentStatus.ON_HOLD_ADMIN,
-      ];
+      searchBody.status = [PaymentStatus.ON_HOLD, PaymentStatus.ON_HOLD_ADMIN];
     }
 
     const result = await this.winningsRepo.searchWinnings(searchBody);

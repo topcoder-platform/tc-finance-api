@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# node:22-alpine, resolved 2026-07-29 to Node.js 22.23.2 on Alpine 3.24.
-ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+# Node 24 LTS with the existing Prisma 6 client contract.
+ARG NODE_IMAGE=node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
 
 FROM ${NODE_IMAGE} AS builder
 
@@ -10,12 +10,12 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN apk upgrade --no-cache && npm install -g pnpm@11.15.1
 
 COPY . .
 
 RUN pnpm install --frozen-lockfile --prod=false
-RUN pnpm run build
+RUN pnpm run build && pnpm test --runInBand && pnpm test:dependency-compat
 RUN pnpm prune --prod
 # Git dependencies may ship their own Dockerfiles. They are not runtime assets,
 # and retaining them causes image-level misconfiguration scanners to inspect
@@ -24,11 +24,9 @@ RUN find node_modules -type f -name 'Dockerfile*' -delete
 
 FROM ${NODE_IMAGE} AS runtime
 
-ARG RESET_DB_ARG=false
 ARG SEED_DATA_ARG=""
 
 ENV NODE_ENV=production \
-    RESET_DB=$RESET_DB_ARG \
     SEED_DATA=$SEED_DATA_ARG \
     PRISMA_CLI_BINARY_TARGETS=linux-musl-openssl-3.0.x
 
@@ -36,7 +34,8 @@ WORKDIR /app
 
 # The runtime invokes Node and the local Prisma executable directly. Remove the
 # bundled package managers, their vulnerable dependency trees, and build headers.
-RUN rm -rf \
+RUN apk upgrade --no-cache \
+    && rm -rf \
       /opt/yarn-v1.22.22 \
       /usr/local/include/node \
       /usr/local/lib/node_modules/corepack \

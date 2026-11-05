@@ -386,3 +386,85 @@ For detailed deployment documentation, see [DEPLOYMENT.md](./docs/DEPLOYMENT.md)
 ## Support
 
 For issues and questions, please contact the Topcoder platform team.
+
+## Shared authentication and bus client (v6 refresh)
+
+This branch uses `tc-core-library-js` **4.0.0-rc.1**. Use its named
+`createJwtVerifier` / `createJwtAuthenticator`, `createM2MClient`, and
+`createBusApiClient` exports for shared authentication and bus API publishing.
+Service-specific roles, scopes, sessions and ownership checks remain in this service.
+The former bus wrapper dependency and local JWT cryptography must not be reintroduced.
+
+RSA verification requires an exact configured issuer and audience (`JWT_AUDIENCE`
+for client tokens, `AUTH0_AUDIENCE` for machine/API tokens, or this service's explicit
+issuer-policy settings). HMAC secrets must be at least 32 bytes; no default secret
+is supplied. Expiry is enforced. Machine identity comes from the shared verifier,
+not the presence of scopes. Supply real development credentials through the service's
+existing environment configuration before deployment.
+
+Bus publishers use `createBusApiClient(config).postEvent(event)` with the existing
+event envelope and optional key. Configure `BUSAPI_URL` for v6 and the existing
+OAuth credentials/token provider. The client uses bounded HTTPS requests and does
+not retry POSTs automatically. Application retry/outbox behavior remains local.
+
+See the [core migration guide](https://github.com/topcoder-platform/tc-core-library-js/blob/v4.0.0-rc.1/MIGRATION.md)
+for the API mapping, compatibility requirements, and rollout scope.
+
+The `@topcoder/billing-accounts-api-v6` database client dependency is pinned to its matching refresh commit so it cannot pull the legacy core or bus wrapper back into this dependency graph.
+
+## Shared JWT deployment configuration
+
+Development deployments load `/config/common/global-appvar` alongside the service's
+application parameters. JWT verification uses the same four settings as the other
+v6 services: `VALID_ISSUERS` (JSON array or comma-separated exact issuers),
+`AUTH_SECRET` (the existing shared HS256 signing key, at least 32 UTF-8 bytes),
+`JWT_AUDIENCE` (the browser application's audience), and `AUTH0_AUDIENCE` (the
+machine/API audience). RSA keys are fetched over HTTPS from the trusted issuer's
+`/.well-known/jwks.json`. Audience settings must reach the shared verifier; OAuth
+client IDs/secrets used for outbound requests are independent of JWT audiences.
+
+The development browser audience is `BXWXUWnilVUPdN01t2Se29Tw2ZYNGZvH`, and the
+machine audience is `https://m2m.topcoder-dev.com/`. Use the existing Parameter Store
+secret rather than creating a per-service key. Reconcile any service-specific
+overrides of these four keys with the global values before deployment. Parameters
+are consumed on deployment/task startup; changing Parameter Store alone does not
+replace running tasks. Existing role, scope, ownership and active-session checks
+continue after JWT verification.
+
+Finance now validates browser tokens from the custom-domain issuer as well as
+machine tokens from the Auth0 tenant using `VALID_ISSUERS`. Legacy human HMAC
+tokens may omit audience; RSA tokens and all machine tokens must have the correct
+audience. `AUTH0_M2M_TOKEN_URL` remains the base Auth0 URL used for outbound token
+requests, not a source of inbound issuer trust.
+
+### Security dependency validation
+
+Use the Node 24 release in `.nvmrc` and the pinned pnpm version from
+`package.json`. `pnpm install --frozen-lockfile`, `pnpm exec eslint 'src/**/*.ts'`,
+`pnpm build`, `pnpm test --runInBand`, `pnpm test:dependency-compat`, and
+`pnpm audit` validate dependency changes. The local minimatch adapter preserves
+legacy build-tool interfaces while using the maintained matcher.
+
+The runtime retains Prisma 6 and the generated billing client contract, uses a
+patched digest-pinned Node 24 / Alpine image, and runs as the non-root `node`
+user. Repository Trivy scanning includes medium-severity and unfixed findings.
+
+## Deployment secret precedence and verification
+
+CircleCI uses tc-deploy-scripts v1.4.17 pinned to commit
+`31be63398bb230d551579a41de7b21ef7f1674e4`. Before execution,
+`deployment/prepare-deploy-script.py` applies checked adaptations and rejects
+unexpected upstream changes. Shared `/config/common/global-appvar` references
+are loaded first, followed by service `appvar` references; service settings win
+when names overlap. Each secret name appears exactly once in the task definition.
+No Parameter Store values are changed or printed by the adaptation.
+
+Registration and update errors fail the job. The ECS waiter must finish on the
+new task-definition ARN with a completed deployment and the desired running
+count; an old healthy deployment or rollback cannot count as success.
+Regression tests run before deployment and can be run locally with:
+
+```sh
+DEPLOY_SCRIPT_SOURCE=/path/to/pinned/tc-deploy-scripts/master_deploy.sh \
+  python3 -B -m unittest discover -s deployment -p 'test_*.py'
+```

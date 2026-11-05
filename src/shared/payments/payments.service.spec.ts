@@ -80,11 +80,7 @@ describe('PaymentsService', () => {
         payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       };
 
-      await service.updatePaymentProcessingState(
-        ['w-1'],
-        'PAID' as any,
-        tx as any,
-      );
+      await service.updatePaymentProcessingState(['w-1'], 'PAID', tx as any);
 
       expect(tx.payment.updateMany).toHaveBeenCalled();
       expect(prisma.payment.updateMany).not.toHaveBeenCalled();

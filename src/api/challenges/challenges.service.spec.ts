@@ -557,8 +557,8 @@ describe('ChallengesService', () => {
           type,
           task: { isTask: false },
         } as any,
-        [{ handle: 'winner1', userId: 123, placement: 1 }] as any,
-        [{ type: PrizeType.USD, value: 500 }] as any,
+        [{ handle: 'winner1', userId: 123, placement: 1 }],
+        [{ type: PrizeType.USD, value: 500 }],
       );
 
       expect(payments.map((payment) => payment.description)).toEqual([
