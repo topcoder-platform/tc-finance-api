@@ -58,7 +58,12 @@ describe('Finance shared JWT configuration', () => {
 
   it('accepts the browser custom-domain issuer and shared browser audience', async () => {
     const token = jwt.sign(
-      { emailVerified: true, sub: 'user', userId: '42', email: 'test@example.test' },
+      {
+        emailVerified: true,
+        sub: 'user',
+        userId: '42',
+        email: 'test@example.test',
+      },
       privateKey,
       {
         algorithm: 'RS256',
@@ -114,13 +119,17 @@ describe('Finance shared JWT configuration', () => {
   it.each(['outbound-client', 'untrusted-api'])(
     'rejects an untrusted audience %s',
     async (audience) => {
-      const token = jwt.sign({ emailVerified: true, userId: '42' }, privateKey, {
-        algorithm: 'RS256',
-        keyid: 'test-key',
-        issuer: 'https://browser.example.test/',
-        audience,
-        expiresIn: 300,
-      });
+      const token = jwt.sign(
+        { emailVerified: true, userId: '42' },
+        privateKey,
+        {
+          algorithm: 'RS256',
+          keyid: 'test-key',
+          issuer: 'https://browser.example.test/',
+          audience,
+          expiresIn: 300,
+        },
+      );
       await expect(validate(token)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
