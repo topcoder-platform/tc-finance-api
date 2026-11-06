@@ -35,21 +35,21 @@ describe('DuplicatePaymentsController', () => {
     );
   });
 
-  it('is restricted to Payment Admin', () => {
+  it('is restricted to Administrator', () => {
     const roles = Reflect.getMetadata(
       ROLES_KEY,
       // eslint-disable-next-line @typescript-eslint/unbound-method
       DuplicatePaymentsController.prototype.getDuplicateReleases,
     );
 
-    expect(roles).toEqual(['Payment Admin']);
+    expect(roles).toEqual(['Administrator']);
   });
 
-  it('returns the whole history with member handles when no days are given', async () => {
+  it('returns every release from October 2025 with member handles when no days are given', async () => {
     const result = await controller.getDuplicateReleases({});
 
     expect(duplicatePaymentsService.findDuplicateReleases).toHaveBeenCalledWith(
-      { since: undefined },
+      { since: undefined, releasedFrom: new Date('2025-10-01T00:00:00Z') },
     );
     expect(result.status).toBe('success');
     expect(result.data).toEqual([{ ...row, handle: 'sreekarReddy07' }]);
@@ -61,7 +61,10 @@ describe('DuplicatePaymentsController', () => {
     await controller.getDuplicateReleases({ days: 7 });
 
     expect(duplicatePaymentsService.findDuplicateReleases).toHaveBeenCalledWith(
-      { since: new Date('2026-10-16T00:00:00Z') },
+      {
+        since: new Date('2026-10-16T00:00:00Z'),
+        releasedFrom: new Date('2025-10-01T00:00:00Z'),
+      },
     );
     jest.useRealTimers();
   });
