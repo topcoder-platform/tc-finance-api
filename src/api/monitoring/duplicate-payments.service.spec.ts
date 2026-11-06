@@ -36,8 +36,10 @@ describe('DuplicatePaymentsService', () => {
   it('searches the whole history when no date is given', async () => {
     await service.findDuplicateReleases();
 
-    const sinceFilter = lastQuery(prisma).values.at(-1);
+    const [sinceFilter, releasedFromFilter] =
+      lastQuery(prisma).values.slice(-2);
     expect(sinceFilter.sql).toBe('');
+    expect(releasedFromFilter.sql).toBe('');
   });
 
   it('filters on the newer release creation date when a date is given', async () => {
@@ -45,9 +47,21 @@ describe('DuplicatePaymentsService', () => {
 
     await service.findDuplicateReleases({ since });
 
-    const sinceFilter = lastQuery(prisma).values.at(-1);
+    const [sinceFilter, releasedFromFilter] =
+      lastQuery(prisma).values.slice(-2);
     expect(sinceFilter.sql).toBe('AND r2.created_at >= ?');
     expect(sinceFilter.values).toEqual([since]);
+    expect(releasedFromFilter.sql).toBe('');
+  });
+
+  it('filters on the older release creation date when releasedFrom is given', async () => {
+    const releasedFrom = new Date('2025-10-01T00:00:00Z');
+
+    await service.findDuplicateReleases({ releasedFrom });
+
+    const releasedFromFilter = lastQuery(prisma).values.at(-1);
+    expect(releasedFromFilter.sql).toBe('AND r1.created_at >= ?');
+    expect(releasedFromFilter.values).toEqual([releasedFrom]);
   });
 
   it('runs on the given transaction client', async () => {

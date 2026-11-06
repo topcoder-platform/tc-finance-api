@@ -36,15 +36,21 @@ export class DuplicatePaymentsService {
   /**
    * @param options.since - Only report pairs whose newer release was created
    *   at or after this date. Omit to search the whole history.
+   * @param options.releasedFrom - Only report pairs where both releases were
+   *   created at or after this date. Omit to include older releases.
    * @param prismaClient - Transaction client to run the query in.
    * @returns one row per pair of releases, newest first.
    */
   findDuplicateReleases(
-    options: { since?: Date } = {},
+    options: { since?: Date; releasedFrom?: Date } = {},
     prismaClient: Prisma.TransactionClient = this.prisma,
   ) {
     const sinceFilter = options.since
       ? Prisma.sql`AND r2.created_at >= ${options.since}`
+      : Prisma.empty;
+    // r1 is the older release of the pair, so this covers both releases
+    const releasedFromFilter = options.releasedFrom
+      ? Prisma.sql`AND r1.created_at >= ${options.releasedFrom}`
       : Prisma.empty;
 
     return prismaClient.$queryRaw<DuplicatePaymentRelease[]>`
@@ -83,6 +89,7 @@ export class DuplicatePaymentsService {
         -- order each pair by creation so it is reported once, oldest first
         AND (r1.created_at, r1.payment_release_id) < (r2.created_at, r2.payment_release_id)
         ${sinceFilter}
+        ${releasedFromFilter}
       GROUP BY r1.payment_release_id, r2.payment_release_id
       ORDER BY r2.created_at DESC
     `;
