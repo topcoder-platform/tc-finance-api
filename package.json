@@ -44,7 +44,7 @@
     "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "tc-core-library-js": "https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/58de37670180e183e8378c3d203df0112a0414f6",
+    "tc-core-library-js": "https://codeload.github.com/topcoder-platform/tc-core-library-js/tar.gz/c7c8fab502b7152dd06b1ce46cdb703e0e13b357",
     "trolleyhq": "^1.2.0",
     "winston": "^3.19.0"
   },
