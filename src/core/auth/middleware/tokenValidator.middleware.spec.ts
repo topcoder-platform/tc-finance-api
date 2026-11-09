@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- Test fixtures set the shared verifier's process-level legacy policy. */
 import { UnauthorizedException } from '@nestjs/common';
 import { generateKeyPairSync } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -33,13 +34,26 @@ const { JwksClient } = sharedRequire('jwks-rsa') as {
 };
 
 describe('Finance shared JWT configuration', () => {
+  const previousLegacy = process.env.LEGACY_HS256_ISSUERS;
+  const previousDeadline = process.env.LEGACY_HS256_ACCEPT_UNTIL;
   beforeEach(() => {
+    process.env.LEGACY_HS256_ISSUERS = 'https://legacy.example.test';
+    process.env.LEGACY_HS256_ACCEPT_UNTIL = new Date(
+      Date.now() + 3_600_000,
+    ).toISOString();
     jest.spyOn(JwksClient.prototype, 'getSigningKey').mockResolvedValue({
       getPublicKey: () =>
         publicKey.export({ type: 'spki', format: 'pem' }).toString(),
     });
   });
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    if (previousLegacy === undefined) delete process.env.LEGACY_HS256_ISSUERS;
+    else process.env.LEGACY_HS256_ISSUERS = previousLegacy;
+    if (previousDeadline === undefined)
+      delete process.env.LEGACY_HS256_ACCEPT_UNTIL;
+    else process.env.LEGACY_HS256_ACCEPT_UNTIL = previousDeadline;
+  });
 
   /** Runs a real JWT through Finance middleware without external user/database lookups.
    * @param token Signed JWT. @returns Request populated by middleware; rejects for invalid authentication.
@@ -58,7 +72,12 @@ describe('Finance shared JWT configuration', () => {
 
   it('accepts the browser custom-domain issuer and shared browser audience', async () => {
     const token = jwt.sign(
-      { sub: 'user', userId: '42', email: 'test@example.test' },
+      {
+        sub: 'user',
+        emailVerified: true,
+        userId: '42',
+        email: 'test@example.test',
+      },
       privateKey,
       {
         algorithm: 'RS256',
@@ -101,7 +120,7 @@ describe('Finance shared JWT configuration', () => {
 
   it('accepts a verified legacy human token without an audience', async () => {
     const token = jwt.sign(
-      { userId: '42', email: 'test@example.test' },
+      { emailVerified: true, userId: '42', email: 'test@example.test' },
       'finance-test-signing-secret-at-least-32-bytes',
       { issuer: 'https://legacy.example.test', expiresIn: 300 },
     );
@@ -114,13 +133,17 @@ describe('Finance shared JWT configuration', () => {
   it.each(['outbound-client', 'untrusted-api'])(
     'rejects an untrusted audience %s',
     async (audience) => {
-      const token = jwt.sign({ userId: '42' }, privateKey, {
-        algorithm: 'RS256',
-        keyid: 'test-key',
-        issuer: 'https://browser.example.test/',
-        audience,
-        expiresIn: 300,
-      });
+      const token = jwt.sign(
+        { emailVerified: true, userId: '42' },
+        privateKey,
+        {
+          algorithm: 'RS256',
+          keyid: 'test-key',
+          issuer: 'https://browser.example.test/',
+          audience,
+          expiresIn: 300,
+        },
+      );
       await expect(validate(token)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
@@ -128,7 +151,7 @@ describe('Finance shared JWT configuration', () => {
   );
 
   it('rejects an issuer outside the shared allowlist', async () => {
-    const token = jwt.sign({ userId: '42' }, privateKey, {
+    const token = jwt.sign({ emailVerified: true, userId: '42' }, privateKey, {
       algorithm: 'RS256',
       keyid: 'test-key',
       issuer: 'https://untrusted.example.test/',
