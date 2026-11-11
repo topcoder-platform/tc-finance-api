@@ -17,6 +17,12 @@ import {
 } from './duplicate-payments.dto';
 import { DuplicatePaymentsService } from './duplicate-payments.service';
 
+/**
+ * Payouts moved to Trolley in October 2025. The Trolley Logs report only
+ * covers releases made from then on.
+ */
+export const TROLLEY_LOGS_START = new Date('2025-10-01T00:00:00Z');
+
 @ApiTags('AdminPaymentReleases')
 @Controller('/admin/payment-releases')
 @ApiBearerAuth()
@@ -27,16 +33,16 @@ export class DuplicatePaymentsController {
   ) {}
 
   @Get('/duplicates')
-  // not scoped by billing account, so restricted to roles that see all payments
-  @Roles(Role.PaymentAdmin)
+  // backs the Wallet Admin Trolley Logs tab; not scoped by billing account
+  @Roles(Role.Administrator)
   @ApiOperation({
-    summary: 'Report payment releases that contain the same payments',
+    summary: 'Trolley Logs: pairs of payment releases that share payments',
     description:
-      'Roles: Payment Admin. Lists pairs of active (not FAILED or RETURNED) payment releases that share payments, i.e. payments that were withdrawn more than once.',
+      'Roles: Administrator. Lists pairs of active (not FAILED or RETURNED) payment releases that contain the same payments. Only releases created from October 2025 (Trolley payouts) are included.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Duplicate payment releases retrieved successfully.',
+    description: 'Release pairs retrieved successfully.',
     type: ResponseDto<DuplicatePaymentReleaseDto[]>,
   })
   @HttpCode(HttpStatus.OK)
@@ -48,7 +54,10 @@ export class DuplicatePaymentsController {
       : undefined;
 
     const duplicates =
-      await this.duplicatePaymentsService.findDuplicateReleases({ since });
+      await this.duplicatePaymentsService.findDuplicateReleases({
+        since,
+        releasedFrom: TROLLEY_LOGS_START,
+      });
 
     const handles = duplicates.length
       ? await this.tcMembersService.getHandlesByUserIds(
