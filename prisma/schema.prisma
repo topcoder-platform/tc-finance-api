@@ -22,6 +22,8 @@ model audit {
   note        String?
   created_at  DateTime @default(now()) @db.Timestamp(6)
   winnings    winnings @relation(fields: [winnings_id], references: [winning_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_audit_created_at")
 }
 
 model origin {
