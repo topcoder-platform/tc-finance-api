@@ -37,6 +37,7 @@ describe('ActionLogService', () => {
     expect(sql).toContain('payment.installment_number = 1');
     expect(sql).toContain('ORDER BY payment.version DESC NULLS LAST');
     expect(sql).toContain('LIMIT 1');
+    expect(sql).not.toContain('SELECT *');
   });
 
   it('classifies the action texts written by Wallet Admin', async () => {

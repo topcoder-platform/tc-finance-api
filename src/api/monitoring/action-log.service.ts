@@ -73,7 +73,12 @@ export class ActionLogService {
       FROM audit a
       JOIN winnings w ON w.winning_id = a.winnings_id
       LEFT JOIN LATERAL (
-        SELECT *
+        SELECT
+          payment.payment_id,
+          payment.total_amount,
+          payment.payment_status,
+          payment.release_date,
+          payment.date_paid
         FROM payment
         WHERE payment.winnings_id = a.winnings_id
           AND payment.installment_number = 1
