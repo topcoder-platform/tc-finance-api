@@ -22,7 +22,7 @@ RUN pnpm prune --prod
 # unrelated container definitions.
 RUN find node_modules -type f -name 'Dockerfile*' -delete
 
-FROM ${NODE_IMAGE} AS runtime
+FROM alpine:3.24 AS runtime
 
 ARG SEED_DATA_ARG=""
 
@@ -32,22 +32,10 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-# The runtime invokes Node and the local Prisma executable directly. Remove the
-# bundled package managers, their vulnerable dependency trees, and build headers.
 RUN apk upgrade --no-cache \
-    && rm -rf \
-      /opt/yarn-v1.22.22 \
-      /usr/local/include/node \
-      /usr/local/lib/node_modules/corepack \
-      /usr/local/lib/node_modules/npm \
-    && rm -f \
-      /usr/local/bin/corepack \
-      /usr/local/bin/npm \
-      /usr/local/bin/npx \
-      /usr/local/bin/pnpm \
-      /usr/local/bin/pnpx \
-      /usr/local/bin/yarn \
-      /usr/local/bin/yarnpkg
+    && apk add --no-cache ca-certificates 'nodejs~24' 'nodejs>=24.22.3-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' \
+    && addgroup -S -g 1000 node \
+    && adduser -S -D -u 1000 -G node node
 
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist ./dist
