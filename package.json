@@ -31,7 +31,7 @@
     "@nestjs/schedule": "12.0.4",
     "@nestjs/swagger": "12.1.2",
     "@prisma/client": "7.10.1",
-    "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#2265e237314f655d15ce8c9ae9cb71132952e789&path:packages/ba-prisma-client",
+    "@topcoder/billing-accounts-api-v6": "github:topcoder-platform/billing-accounts-api-v6#fe2be2cea2b60d54d2db282ce9b9e0760dd9dea7&path:packages/ba-prisma-client",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "cors": "^2.8.6",

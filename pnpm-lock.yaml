@@ -64,8 +64,8 @@ importers:
         specifier: 7.10.1
         version: 7.10.1(@typescript/typescript6@6.0.2)(prisma@7.10.1(@types/node@24.19.2)(@types/react@19.3.3)(@typescript/typescript6@6.0.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
       '@topcoder/billing-accounts-api-v6':
-        specifier: github:topcoder-platform/billing-accounts-api-v6#2265e237314f655d15ce8c9ae9cb71132952e789&path:packages/ba-prisma-client
-        version: prisma-client-90da6b3d4cea27ccc2a9ac00414a3744b8a923471f109d49330927464c55da4b@https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/2265e237314f655d15ce8c9ae9cb71132952e789#path:packages/ba-prisma-client
+        specifier: github:topcoder-platform/billing-accounts-api-v6#fe2be2cea2b60d54d2db282ce9b9e0760dd9dea7&path:packages/ba-prisma-client
+        version: prisma-client-90da6b3d4cea27ccc2a9ac00414a3744b8a923471f109d49330927464c55da4b@https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/fe2be2cea2b60d54d2db282ce9b9e0760dd9dea7#path:packages/ba-prisma-client
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -3851,8 +3851,8 @@ packages:
     resolution: {integrity: sha512-byhRAPguVKMQIj4kjJwJ5lAskVhfuiSdiYl/aLTWpgkGEmic2jYhJh1yE9ih8Ox44Xg9ccCT11/S6QrzSJuNrg==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  prisma-client-90da6b3d4cea27ccc2a9ac00414a3744b8a923471f109d49330927464c55da4b@https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/2265e237314f655d15ce8c9ae9cb71132952e789#path:packages/ba-prisma-client:
-    resolution: {gitHosted: true, integrity: sha512-Yc3wU6MurniTKx3X6W+r3zAEDyXzHkNMwiaKYnl+/1FXOzjFZjzey+7moHZYhlk8uIo9sB1bCd8xqNCia5UhiA==, path: packages/ba-prisma-client, tarball: https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/2265e237314f655d15ce8c9ae9cb71132952e789}
+  prisma-client-90da6b3d4cea27ccc2a9ac00414a3744b8a923471f109d49330927464c55da4b@https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/fe2be2cea2b60d54d2db282ce9b9e0760dd9dea7#path:packages/ba-prisma-client:
+    resolution: {gitHosted: true, integrity: sha512-J21871juBsOmI+e4Ez1eJ71gXxl7XjAO+6PQIv6BnRwTrO5t7Jb0a7bQ76eAofYItBxaiB2Rz71jJpnoTFhbjw==, path: packages/ba-prisma-client, tarball: https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/fe2be2cea2b60d54d2db282ce9b9e0760dd9dea7}
     version: 7.10.1
 
   prisma@7.10.1:
@@ -8506,7 +8506,7 @@ snapshots:
       '@jest/schemas': 30.5.0
       ansi-styles: 5.2.0
 
-  prisma-client-90da6b3d4cea27ccc2a9ac00414a3744b8a923471f109d49330927464c55da4b@https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/2265e237314f655d15ce8c9ae9cb71132952e789#path:packages/ba-prisma-client:
+  prisma-client-90da6b3d4cea27ccc2a9ac00414a3744b8a923471f109d49330927464c55da4b@https://codeload.github.com/topcoder-platform/billing-accounts-api-v6/tar.gz/fe2be2cea2b60d54d2db282ce9b9e0760dd9dea7#path:packages/ba-prisma-client:
     dependencies:
       '@prisma/client-runtime-utils': 7.10.1
 
