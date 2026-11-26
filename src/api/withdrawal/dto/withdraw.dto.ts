@@ -9,7 +9,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { ENV_CONFIG } from 'src/config';
+import { ENV_CONFIG } from '../../../config';
 
 export class WithdrawRequestDtoBase {
   @ApiProperty({

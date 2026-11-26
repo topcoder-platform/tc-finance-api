@@ -1,8 +1,8 @@
 import { Controller, Get, Version, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { Public } from 'src/core/auth/decorators';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { Logger } from 'src/shared/global';
+import { Public } from '../../core/auth/decorators';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { Logger } from '../../shared/global';
 
 export enum HealthCheckStatus {
   healthy = 'healthy',

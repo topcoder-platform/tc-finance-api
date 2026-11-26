@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { UserInfo } from 'src/dto/user.type';
-import { TrolleyService as Trolley } from 'src/shared/global/trolley.service';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
-import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { UserInfo } from '../../dto/user.type';
+import { TrolleyService as Trolley } from '../../shared/global/trolley.service';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { BASIC_MEMBER_FIELDS } from '../../shared/topcoder';
+import { TopcoderMembersService } from '../../shared/topcoder/members.service';
 
 @Injectable()
 export class TrolleyService {

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
+import { TopcoderModule } from '../../shared/topcoder/topcoder.module';
 import { ActionLogController } from './action-log.controller';
 import { ActionLogService } from './action-log.service';
 import { DuplicatePaymentsController } from './duplicate-payments.controller';

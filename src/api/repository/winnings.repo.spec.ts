@@ -1,5 +1,5 @@
-import { DateFilterType } from 'src/dto/date-filter.type';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { DateFilterType } from '../../dto/date-filter.type';
+import { PaymentStatus } from '../../dto/payment.dto';
 import { payment, Prisma } from '@prisma/client';
 
 jest.mock('src/shared/global', () => ({

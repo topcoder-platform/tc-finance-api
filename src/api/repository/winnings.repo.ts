@@ -8,18 +8,18 @@ import {
   winnings_type,
 } from '@prisma/client';
 import { uniq } from 'lodash';
-import { ResponseDto } from 'src/dto/api-response.dto';
-import { DateFilterType } from 'src/dto/date-filter.type';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { ResponseDto } from '../../dto/api-response.dto';
+import { DateFilterType } from '../../dto/date-filter.type';
+import { PaymentStatus } from '../../dto/payment.dto';
 import {
   WinningRequestDto,
   SearchWinningResult,
   WinningsCategory,
   DuplicateReleaseDto,
   WinningDto,
-} from 'src/dto/winning.dto';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { Logger } from 'src/shared/global';
+} from '../../dto/winning.dto';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { Logger } from '../../shared/global';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 

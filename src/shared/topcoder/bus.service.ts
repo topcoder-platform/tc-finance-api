@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createBusApiClient, type BusApiClient } from 'tc-core-library-js';
-import { ENV_CONFIG } from 'src/config';
+import { ENV_CONFIG } from '../../config';
 import { TopcoderM2MService } from './topcoder-m2m.service';
 
 /** Publishes finance events through the shared bus client using the service M2M identity. */

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { ENV_CONFIG } from 'src/config';
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { ENV_CONFIG } from '../../config';
+import { PrismaService } from '../../shared/global/prisma.service';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
@@ -11,13 +11,13 @@ import {
   reference_type,
   winnings_type,
 } from '@prisma/client';
-import { TrolleyService } from 'src/shared/global/trolley.service';
-import { PaymentsService } from 'src/shared/payments';
-import { TopcoderChallengesService } from 'src/shared/topcoder/challenges.service';
-import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
-import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
-import { Logger } from 'src/shared/global';
-import { OtpService } from 'src/shared/global/otp.service';
+import { TrolleyService } from '../../shared/global/trolley.service';
+import { PaymentsService } from '../../shared/payments';
+import { TopcoderChallengesService } from '../../shared/topcoder/challenges.service';
+import { TopcoderMembersService } from '../../shared/topcoder/members.service';
+import { BasicMemberInfo, BASIC_MEMBER_FIELDS } from '../../shared/topcoder';
+import { Logger } from '../../shared/global';
+import { OtpService } from '../../shared/global/otp.service';
 import { isWiproEmail } from './withdrawal.utils';
 
 const TROLLEY_MINIMUM_PAYMENT_AMOUNT =

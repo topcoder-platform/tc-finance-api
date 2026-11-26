@@ -14,10 +14,10 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 
-import { Role } from 'src/core/auth/auth.constants';
-import { Roles, User } from 'src/core/auth/decorators';
-import { UserInfo } from 'src/dto/user.type';
-import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { Role } from '../../core/auth/auth.constants';
+import { Roles, User } from '../../core/auth/decorators';
+import { UserInfo } from '../../dto/user.type';
+import { ResponseDto, ResponseStatusType } from '../../dto/api-response.dto';
 
 import { WithdrawalService } from './withdrawal.service';
 import { WithdrawRequestDto } from './dto/withdraw.dto';

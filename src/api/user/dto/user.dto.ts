@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsEnum } from 'class-validator';
-import { DateFilterType } from 'src/dto/date-filter.type';
-import { PaymentStatus } from 'src/dto/payment.dto';
-import { SortPagination } from 'src/dto/sort-pagination.dto';
-import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
+import { DateFilterType } from '../../../dto/date-filter.type';
+import { PaymentStatus } from '../../../dto/payment.dto';
+import { SortPagination } from '../../../dto/sort-pagination.dto';
+import { WinningsCategory, WinningsType } from '../../../dto/winning.dto';
 
 export class UserWinningRequestDto extends SortPagination {
   @ApiProperty({

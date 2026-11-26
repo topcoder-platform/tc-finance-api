@@ -6,10 +6,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { Role } from 'src/core/auth/auth.constants';
-import { Roles } from 'src/core/auth/decorators';
-import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
-import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+import { Role } from '../../core/auth/auth.constants';
+import { Roles } from '../../core/auth/decorators';
+import { ResponseDto, ResponseStatusType } from '../../dto/api-response.dto';
+import { TopcoderMembersService } from '../../shared/topcoder/members.service';
 
 import {
   DuplicatePaymentReleaseDto,

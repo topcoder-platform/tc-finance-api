@@ -1,4 +1,4 @@
-import { Role } from 'src/core/auth/auth.constants';
+import { Role } from '../../core/auth/auth.constants';
 import { AccessControlService } from './access-control.service';
 import { RoleAccessProvider } from './role-access.interface';
 

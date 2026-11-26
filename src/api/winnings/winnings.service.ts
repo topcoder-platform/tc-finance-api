@@ -14,35 +14,35 @@ import {
   winnings_type,
 } from '@prisma/client';
 
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { PrismaService } from '../../shared/global/prisma.service';
 
 import {
   WinningCreateResponseDto,
   WinningCreateRequestDto,
   WinningsCategory,
   WinningsType,
-} from 'src/dto/winning.dto';
-import { ResponseDto } from 'src/dto/api-response.dto';
-import { PaymentCreateRequestDto, PaymentStatus } from 'src/dto/payment.dto';
+} from '../../dto/winning.dto';
+import { ResponseDto } from '../../dto/api-response.dto';
+import { PaymentCreateRequestDto, PaymentStatus } from '../../dto/payment.dto';
 import { OriginRepository } from '../repository/origin.repo';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
-import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
-import { BASIC_MEMBER_FIELDS } from 'src/shared/topcoder';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
-import { TopcoderEmailService } from 'src/shared/topcoder/tc-email.service';
+import { TopcoderMembersService } from '../../shared/topcoder/members.service';
+import { BASIC_MEMBER_FIELDS } from '../../shared/topcoder';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '../../shared/global';
+import { TopcoderEmailService } from '../../shared/topcoder/tc-email.service';
 import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
 import { PrizeType } from '../challenges/models';
-import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
-import { TopcoderEngagementsService } from 'src/shared/topcoder/engagements.service';
+import { BillingAccountsService } from '../../shared/topcoder/billing-accounts.service';
+import { TopcoderEngagementsService } from '../../shared/topcoder/engagements.service';
 import {
   isTestChallenge,
   TopcoderChallengeInfo,
   TopcoderChallengesService,
-} from 'src/shared/topcoder/challenges.service';
-import { TopcoderM2MHttpError } from 'src/shared/topcoder/topcoder-m2m.service';
-import { resolveChallengeMemberPaymentAmount } from 'src/shared/payments/challenge-payment-amount.util';
+} from '../../shared/topcoder/challenges.service';
+import { TopcoderM2MHttpError } from '../../shared/topcoder/topcoder-m2m.service';
+import { resolveChallengeMemberPaymentAmount } from '../../shared/payments/challenge-payment-amount.util';
 
 const BUDGET_LEDGER_DECIMAL_PLACES = 4;
 const PAYMENT_DECIMAL_PLACES = 2;

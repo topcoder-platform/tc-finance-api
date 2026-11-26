@@ -6,7 +6,7 @@ jest.mock('src/shared/topcoder/members.service', () => ({
   TopcoderMembersService: class {},
 }));
 
-import { ROLES_KEY } from 'src/core/auth/decorators/roles.decorator';
+import { ROLES_KEY } from '../../core/auth/decorators/roles.decorator';
 import { DuplicatePaymentsController } from './duplicate-payments.controller';
 
 describe('DuplicatePaymentsController', () => {

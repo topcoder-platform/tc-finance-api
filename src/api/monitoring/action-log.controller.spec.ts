@@ -4,8 +4,8 @@ jest.mock('./action-log.service', () => ({
 
 import { BadRequestException } from '@nestjs/common';
 
-import { ROLES_KEY } from 'src/core/auth/decorators/roles.decorator';
-import { WinningsCategory } from 'src/dto/winning.dto';
+import { ROLES_KEY } from '../../core/auth/decorators/roles.decorator';
+import { WinningsCategory } from '../../dto/winning.dto';
 
 import { ActionLogController } from './action-log.controller';
 import { ActionLogPaymentSource } from './action-log.dto';

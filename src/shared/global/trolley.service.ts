@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import trolley from 'trolleyhq';
 import { pick } from 'lodash';
 import { Injectable } from '@nestjs/common';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '.';
 
 const TROLLEY_ACCESS_KEY = ENV_CONFIG.TROLLEY_ACCESS_KEY;
 const TROLLEY_SECRET_KEY = ENV_CONFIG.TROLLEY_SECRET_KEY;

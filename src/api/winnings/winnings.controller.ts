@@ -16,16 +16,16 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 
-import { M2mScope, Role } from 'src/core/auth/auth.constants';
-import { AllowedM2mScope, User, Roles, M2M } from 'src/core/auth/decorators';
-import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
-import { UserInfo } from 'src/dto/user.type';
+import { M2mScope, Role } from '../../core/auth/auth.constants';
+import { AllowedM2mScope, User, Roles, M2M } from '../../core/auth/decorators';
+import { ResponseDto, ResponseStatusType } from '../../dto/api-response.dto';
+import { UserInfo } from '../../dto/user.type';
 import {
   WinningCreateResponseDto,
   WinningCreateRequestDto,
   WinningRequestDto,
   WinningDto,
-} from 'src/dto/winning.dto';
+} from '../../dto/winning.dto';
 import { WinningsService } from './winnings.service';
 import { WinningsRepository } from '../repository/winnings.repo';
 

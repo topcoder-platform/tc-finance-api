@@ -14,10 +14,10 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { UserInfo } from 'src/dto/user.type';
-import { M2mScope } from 'src/core/auth/auth.constants';
-import { AllowedM2mScope, M2M, User } from 'src/core/auth/decorators';
-import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { UserInfo } from '../../dto/user.type';
+import { M2mScope } from '../../core/auth/auth.constants';
+import { AllowedM2mScope, M2M, User } from '../../core/auth/decorators';
+import { ResponseDto, ResponseStatusType } from '../../dto/api-response.dto';
 import { ChallengesService } from './challenges.service';
 
 @ApiTags('Challenges')

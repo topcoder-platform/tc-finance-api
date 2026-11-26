@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { ConfigEnv } from './config.env';
-import { Logger } from 'src/shared/global';
+import { Logger } from '../shared/global';
 
 const logger = new Logger('ENV_CONFIG');
 

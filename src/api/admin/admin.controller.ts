@@ -21,23 +21,23 @@ import {
 } from '@nestjs/swagger';
 import { stringify } from 'csv-stringify/sync';
 
-import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
-import { Role } from 'src/core/auth/auth.constants';
-import { Roles, User } from 'src/core/auth/decorators';
+import { TopcoderMembersService } from '../../shared/topcoder/members.service';
+import { Role } from '../../core/auth/auth.constants';
+import { Roles, User } from '../../core/auth/decorators';
 
 import { AdminService } from './admin.service';
-import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
+import { ResponseDto, ResponseStatusType } from '../../dto/api-response.dto';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 
 import {
   WinningRequestDto,
   SearchWinningResult,
   WinningsCategory,
-} from 'src/dto/winning.dto';
+} from '../../dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
 import { WinningPaymentDetailsDto } from './dto/payment-details.dto';
-import { AccessControlService } from 'src/shared/access-control';
+import { AccessControlService } from '../../shared/access-control';
 
 @ApiTags('AdminWinnings')
 @Controller('/admin')

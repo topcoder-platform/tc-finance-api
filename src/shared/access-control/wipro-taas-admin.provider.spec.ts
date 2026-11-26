@@ -3,7 +3,7 @@ jest.mock('src/shared/global/prisma.service', () => ({
 }));
 
 import { winnings_category } from '@prisma/client';
-import { Role } from 'src/core/auth/auth.constants';
+import { Role } from '../../core/auth/auth.constants';
 import { WiproTaasAdminProvider } from './wipro-taas-admin.provider';
 
 describe('WiproTaasAdminProvider', () => {

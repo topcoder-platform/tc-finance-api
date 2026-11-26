@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { PrismaService } from '../../shared/global/prisma.service';
 
 export interface DuplicateSharedWinning {
   winningId: string;

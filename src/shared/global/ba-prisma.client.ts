@@ -1,6 +1,7 @@
-import { PrismaClientOptions } from '@prisma/client/runtime/library';
-import { PrismaClient as BaPrismaClient } from '@topcoder/billing-accounts-api-v6/packages/ba-prisma-client';
-import { ENV_CONFIG } from 'src/config';
+import { createPostgresAdapter } from '../../prisma-adapter';
+import { PrismaClientOptions } from '@prisma/client/runtime/client';
+import { PrismaClient as BaPrismaClient } from '@topcoder/billing-accounts-api-v6';
+import { ENV_CONFIG } from '../../config';
 
 const clientOptions = {
   transactionOptions: {
@@ -24,7 +25,7 @@ export const getBaClient = (): BaPrismaClient => {
     }
     baPrismaClient = new BaPrismaClient({
       ...clientOptions,
-      datasources: { db: { url: ENV_CONFIG.BILLING_ACCOUNTS_DB_URL } },
+      adapter: createPostgresAdapter(ENV_CONFIG.BILLING_ACCOUNTS_DB_URL),
     });
   }
   return baPrismaClient;

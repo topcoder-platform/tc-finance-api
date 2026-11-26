@@ -4,8 +4,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { createJwtVerifier, type JwtVerifier } from 'tc-core-library-js';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
+import { ENV_CONFIG } from '../../../config';
+import { Logger } from '../../../shared/global';
 
 const logger = new Logger(`Auth/TokenValidatorMiddleware`);
 

@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AllowedM2mScope, Roles, User } from 'src/core/auth/decorators';
-import { M2mScope, Role } from 'src/core/auth/auth.constants';
-import { UserInfo } from 'src/dto/user.type';
+import { AllowedM2mScope, Roles, User } from '../../core/auth/decorators';
+import { M2mScope, Role } from '../../core/auth/auth.constants';
+import { UserInfo } from '../../dto/user.type';
 import { ChallengePaymentsService } from './challenge-payments.service';
 
 @ApiTags('Payments')

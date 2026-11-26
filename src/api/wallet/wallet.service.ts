@@ -1,19 +1,19 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { PrismaService } from '../../shared/global/prisma.service';
 
-import { WalletDetailDto } from 'src/dto/wallet.dto';
-import { ResponseDto } from 'src/dto/api-response.dto';
-import { WinningsType } from 'src/dto/winning.dto';
+import { WalletDetailDto } from '../../dto/wallet.dto';
+import { ResponseDto } from '../../dto/api-response.dto';
+import { WinningsType } from '../../dto/winning.dto';
 import { TaxFormRepository } from '../repository/taxForm.repo';
 import { PaymentMethodRepository } from '../repository/paymentMethod.repo';
 import {
   RecipientTaxDetails,
   TrolleyService,
-} from 'src/shared/global/trolley.service';
-import { Logger } from 'src/shared/global';
+} from '../../shared/global/trolley.service';
+import { Logger } from '../../shared/global';
 import { IdentityVerificationRepository } from '../repository/identity-verification.repo';
-import { ENV_CONFIG } from 'src/config';
+import { ENV_CONFIG } from '../../config';
 
 /**
  * The winning service.

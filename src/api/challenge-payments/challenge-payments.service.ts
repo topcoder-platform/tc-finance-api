@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
-import { Logger } from 'src/shared/global';
-import { ENV_CONFIG } from 'src/config';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { TopcoderM2MService } from '../../shared/topcoder/topcoder-m2m.service';
+import { Logger } from '../../shared/global';
+import { ENV_CONFIG } from '../../config';
 import {
   ChallengeResource,
   ResourceRole,
@@ -47,7 +47,7 @@ interface SerializedWinning {
   datePaid: string | null;
 }
 
-interface PaginatedResponse {
+export interface PaginatedResponse {
   winnings: SerializedWinning[];
   pagination: {
     totalItems: number;

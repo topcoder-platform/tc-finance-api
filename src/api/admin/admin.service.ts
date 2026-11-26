@@ -12,28 +12,28 @@ import {
   winnings_category,
   winnings_type,
 } from '@prisma/client';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { PaymentsService } from 'src/shared/payments';
-import { AccessControlService } from 'src/shared/access-control/access-control.service';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { PaymentsService } from '../../shared/payments';
+import { AccessControlService } from '../../shared/access-control/access-control.service';
 
-import { ResponseDto } from 'src/dto/api-response.dto';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { ResponseDto } from '../../dto/api-response.dto';
+import { PaymentStatus } from '../../dto/payment.dto';
 import { PrizeType } from '../challenges/models';
 import { WinningAuditDto, AuditPayoutDto } from './dto/audit.dto';
 import { WinningUpdateRequestDto } from './dto/winnings.dto';
-import { Logger } from 'src/shared/global';
-import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
+import { Logger } from '../../shared/global';
+import { BillingAccountsService } from '../../shared/topcoder/billing-accounts.service';
 import {
   TopcoderEngagementAssignment,
   TopcoderEngagementDetails,
   TopcoderEngagementsService,
-} from 'src/shared/topcoder/engagements.service';
-import { TopcoderMembersService } from 'src/shared/topcoder/members.service';
+} from '../../shared/topcoder/engagements.service';
+import { TopcoderMembersService } from '../../shared/topcoder/members.service';
 import {
   TopcoderChallengeInfo,
   TopcoderChallengesService,
-} from 'src/shared/topcoder/challenges.service';
-import { resolveChallengeMemberPaymentAmount } from 'src/shared/payments/challenge-payment-amount.util';
+} from '../../shared/topcoder/challenges.service';
+import { resolveChallengeMemberPaymentAmount } from '../../shared/payments/challenge-payment-amount.util';
 import {
   PaymentCycle,
   WinningPaymentDetailsDto,

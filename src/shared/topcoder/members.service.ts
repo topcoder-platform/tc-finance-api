@@ -2,8 +2,8 @@ import { chunk } from 'lodash';
 import { Injectable } from '@nestjs/common';
 import { MEMBER_FIELDS } from './member.types';
 import { TopcoderM2MService } from './topcoder-m2m.service';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '../global';
 
 const { TOPCODER_API_V6_BASE_URL: TC_API_BASE } = ENV_CONFIG;
 

@@ -16,16 +16,16 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 
-import { Role } from 'src/core/auth/auth.constants';
-import { Roles, User } from 'src/core/auth/decorators';
+import { Role } from '../../core/auth/auth.constants';
+import { Roles, User } from '../../core/auth/decorators';
 import { WinningsRepository } from '../repository/winnings.repo';
-import { ResponseDto, ResponseStatusType } from 'src/dto/api-response.dto';
-import { PaymentStatus } from 'src/dto/payment.dto';
-import { SearchWinningResult, WinningRequestDto } from 'src/dto/winning.dto';
-import { UserInfo } from 'src/dto/user.type';
+import { ResponseDto, ResponseStatusType } from '../../dto/api-response.dto';
+import { PaymentStatus } from '../../dto/payment.dto';
+import { SearchWinningResult, WinningRequestDto } from '../../dto/winning.dto';
+import { UserInfo } from '../../dto/user.type';
 import { UserWinningRequestDto } from './dto/user.dto';
-import { PaymentsService } from 'src/shared/payments';
-import { Logger } from 'src/shared/global';
+import { PaymentsService } from '../../shared/payments';
+import { Logger } from '../../shared/global';
 
 @ApiTags('UserWinning')
 @Controller('/user')
@@ -59,7 +59,7 @@ export class UserController {
     @Body() body: UserWinningRequestDto,
     @User() user: UserInfo,
   ): Promise<ResponseDto<SearchWinningResult>> {
-    if ((body as WinningRequestDto).externalIds) {
+    if ('externalIds' in body && body.externalIds) {
       throw new BadRequestException('Search by external IDs is not supported');
     }
 
@@ -83,7 +83,10 @@ export class UserController {
 
     // Member Wallet shows ON_HOLD_ADMIN task/engagement payments as "Created".
     // Include them when filtering by On Hold so those records are visible.
-    const searchBody = { ...body } as WinningRequestDto;
+    const searchBody: WinningRequestDto = {
+      ...body,
+      status: body.status ? [body.status] : undefined,
+    };
     if (body.status === PaymentStatus.ON_HOLD) {
       searchBody.status = [PaymentStatus.ON_HOLD, PaymentStatus.ON_HOLD_ADMIN];
     }

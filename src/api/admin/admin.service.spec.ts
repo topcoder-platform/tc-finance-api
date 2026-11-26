@@ -45,7 +45,7 @@ jest.mock('src/shared/topcoder/challenges.service', () => ({
 }));
 
 import { AdminService } from './admin.service';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { PaymentStatus } from '../../dto/payment.dto';
 
 describe('AdminService', () => {
   let service: AdminService;

@@ -4,7 +4,7 @@ import {
   Prisma,
   user_payment_methods,
 } from '@prisma/client';
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { PrismaService } from '../../shared/global/prisma.service';
 
 @Injectable()
 export class PaymentMethodRepository {

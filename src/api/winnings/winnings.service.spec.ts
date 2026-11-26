@@ -30,7 +30,7 @@ import {
   WinningsService,
 } from './winnings.service';
 import { PrizeType } from '../challenges/models';
-import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
+import { WinningsCategory, WinningsType } from '../../dto/winning.dto';
 
 interface TestTransactionClient {
   payment: {

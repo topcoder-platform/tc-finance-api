@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TrolleyHeaders, TrolleyService } from './trolley/trolley.service';
-import { Public } from 'src/core/auth/decorators';
-import { Logger } from 'src/shared/global';
+import { Public } from '../../core/auth/decorators';
+import { Logger } from '../../shared/global';
 
 @Public()
 @ApiTags('Webhooks')

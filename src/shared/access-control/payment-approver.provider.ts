@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RoleAccessProvider } from './role-access.interface';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { Role } from 'src/core/auth/auth.constants';
+import { PrismaService } from '../global/prisma.service';
+import { Role } from '../../core/auth/auth.constants';
 import { winnings_category } from '@prisma/client';
 
 const allowedCategories: winnings_category[] = [

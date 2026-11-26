@@ -11,7 +11,7 @@ import {
   Min,
 } from 'class-validator';
 
-import { WinningsCategory } from 'src/dto/winning.dto';
+import { WinningsCategory } from '../../dto/winning.dto';
 
 export enum ActionLogType {
   STATUS_CHANGE = 'STATUS_CHANGE',
