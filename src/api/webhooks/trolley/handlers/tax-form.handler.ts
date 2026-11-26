@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { PrismaService } from '../../../../shared/global/prisma.service';
 import {
   tax_form_status,
   trolley_recipient,
   user_tax_form_associations,
 } from '@prisma/client';
-import { PaymentsService } from 'src/shared/payments';
+import { PaymentsService } from '../../../../shared/payments';
 import {
   TrolleyTaxFormStatus,
   TaxFormStatusUpdatedEvent,
   TaxFormStatusUpdatedEventData,
   TaxFormWebhookEvent,
 } from './tax-form.types';
-import { Logger } from 'src/shared/global';
+import { Logger } from '../../../../shared/global';
 
 @Injectable()
 export class TaxFormHandler {

@@ -8,7 +8,7 @@ import {
   IsEnum,
   IsOptional,
 } from 'class-validator';
-import { PrizeType } from 'src/api/challenges/models';
+import { PrizeType } from '../api/challenges/models';
 
 export enum PaymentStatus {
   PAID = 'PAID',

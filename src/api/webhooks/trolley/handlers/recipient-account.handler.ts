@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
-import { PrismaService } from 'src/shared/global/prisma.service';
+import { PrismaService } from '../../../../shared/global/prisma.service';
 import {
   RecipientAccountDeleteEventData,
   RecipientAccountEventData,
   RecipientAccountWebhookEvent,
 } from './recipient-account.types';
 import { payment_method_status } from '@prisma/client';
-import { PaymentsService } from 'src/shared/payments';
-import { Logger } from 'src/shared/global';
+import { PaymentsService } from '../../../../shared/payments';
+import { Logger } from '../../../../shared/global';
 
 @Injectable()
 export class RecipientAccountHandler {

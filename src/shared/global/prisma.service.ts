@@ -1,6 +1,7 @@
+import { createPostgresAdapter } from '../../prisma-adapter';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { Logger } from 'src/shared/global';
+import { Logger } from '.';
 
 @Injectable()
 export class PrismaService
@@ -14,6 +15,7 @@ export class PrismaService
 
   constructor() {
     super({
+      adapter: createPostgresAdapter(process.env.DATABASE_URL),
       transactionOptions: {
         timeout: 20000, // 20s
       },

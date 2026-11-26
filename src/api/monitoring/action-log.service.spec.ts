@@ -4,7 +4,7 @@ jest.mock('src/shared/global/prisma.service', () => ({
 
 import { Prisma } from '@prisma/client';
 
-import { WinningsCategory } from 'src/dto/winning.dto';
+import { WinningsCategory } from '../../dto/winning.dto';
 
 import { ActionLogPaymentSource } from './action-log.dto';
 import { ActionLogService } from './action-log.service';

@@ -5,7 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ENV_CONFIG } from './config';
-import { Logger } from 'src/shared/global';
+import { Logger } from './shared/global';
 
 const API_DOCS_URL = `${ENV_CONFIG.API_BASE}/api-docs`;
 

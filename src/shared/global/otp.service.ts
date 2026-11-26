@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import crypto from 'crypto';
 import { otp, reference_type } from '@prisma/client';
-import { ENV_CONFIG } from 'src/config';
+import { ENV_CONFIG } from '../../config';
 import { TopcoderEmailService } from '../topcoder/tc-email.service';
 import { BasicMemberInfo } from '../topcoder';
 

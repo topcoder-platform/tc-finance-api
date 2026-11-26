@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Role } from 'src/core/auth/auth.constants';
+import { Role } from '../../core/auth/auth.constants';
 import { RoleAccessProvider } from './role-access.interface';
 
 @Injectable()

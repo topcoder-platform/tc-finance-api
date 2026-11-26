@@ -26,8 +26,8 @@ jest.mock('src/shared/global', () => ({
 
 import { ChallengesService } from './challenges.service';
 import { PrizeType } from './models';
-import { WinningsCategory } from 'src/dto/winning.dto';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { WinningsCategory } from '../../dto/winning.dto';
+import { PaymentStatus } from '../../dto/payment.dto';
 import { CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE } from '../winnings/winnings.service';
 
 describe('ChallengesService', () => {

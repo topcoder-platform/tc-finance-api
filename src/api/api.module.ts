@@ -1,12 +1,12 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { HealthCheckController } from './health-check/healthCheck.controller';
-import { GlobalProvidersModule } from 'src/shared/global/globalProviders.module';
+import { GlobalProvidersModule } from '../shared/global/globalProviders.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { TokenValidatorMiddleware } from 'src/core/auth/middleware/tokenValidator.middleware';
-import { CreateRequestStoreMiddleware } from 'src/core/request/createRequestStore.middleware';
-import { AuthGuard, RolesGuard } from 'src/core/auth/guards';
-import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
+import { TokenValidatorMiddleware } from '../core/auth/middleware/tokenValidator.middleware';
+import { CreateRequestStoreMiddleware } from '../core/request/createRequestStore.middleware';
+import { AuthGuard, RolesGuard } from '../core/auth/guards';
+import { TopcoderModule } from '../shared/topcoder/topcoder.module';
 import { OriginRepository } from './repository/origin.repo';
 import { TaxFormRepository } from './repository/taxForm.repo';
 import { PaymentMethodRepository } from './repository/paymentMethod.repo';

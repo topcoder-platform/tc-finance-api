@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TopcoderModule } from 'src/shared/topcoder/topcoder.module';
+import { TopcoderModule } from '../../shared/topcoder/topcoder.module';
 import { TrolleyController } from './trolley.controller';
 import { TrolleyService } from './trolley.service';
 

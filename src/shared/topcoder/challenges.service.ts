@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '../global';
 
 import {
   TopcoderM2MHttpError,

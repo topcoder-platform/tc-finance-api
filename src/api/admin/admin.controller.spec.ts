@@ -15,12 +15,12 @@ jest.mock('src/shared/access-control', () => ({
 }));
 
 import { AdminController } from './admin.controller';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { PaymentStatus } from '../../dto/payment.dto';
 import {
   WinningRequestDto,
   WinningsCategory,
   WinningsType,
-} from 'src/dto/winning.dto';
+} from '../../dto/winning.dto';
 
 describe('AdminController', () => {
   let controller: AdminController;

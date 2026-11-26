@@ -6,10 +6,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { TrolleyService } from './trolley.service';
-import { Roles, User } from 'src/core/auth/decorators';
-import { UserInfo } from 'src/dto/user.type';
-import { Role } from 'src/core/auth/auth.constants';
-import { ResponseDto } from 'src/dto/api-response.dto';
+import { Roles, User } from '../../core/auth/decorators';
+import { UserInfo } from '../../dto/user.type';
+import { Role } from '../../core/auth/auth.constants';
+import { ResponseDto } from '../../dto/api-response.dto';
 
 @ApiTags('PaymentProviders')
 @Controller('/trolley')

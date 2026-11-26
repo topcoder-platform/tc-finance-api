@@ -8,7 +8,7 @@ import {
   Min,
   IsDateString,
 } from 'class-validator';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { PaymentStatus } from '../../../dto/payment.dto';
 
 export class WinningUpdateRequestDto {
   @ApiProperty({

@@ -1,6 +1,7 @@
+import { createPostgresAdapter } from '../src/prisma-adapter';
 import { PrismaClient, Prisma } from '@prisma/client'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({ adapter: createPostgresAdapter(process.env.DATABASE_URL) })
 
 const winningData: Prisma.winningsCreateInput[] = [
   {
@@ -150,6 +151,7 @@ const paymentMethodData: Prisma.payment_methodCreateInput[] = [
 
 const paymentData: Prisma.paymentCreateInput[] = [
   {
+    billing_account: 'seed-billing-account',
     payment_id: '4c885122-ad42-435b-a98e-a46963af3582',
     net_amount: new Prisma.Decimal(200.50),
     gross_amount: new Prisma.Decimal(123.12),
@@ -164,6 +166,7 @@ const paymentData: Prisma.paymentCreateInput[] = [
     }
   },
   {
+    billing_account: 'seed-billing-account',
     payment_id: '873ff3f6-2420-436b-98ec-d0f3172c6c8b',
     net_amount: new Prisma.Decimal(500.0),
     gross_amount: new Prisma.Decimal(200.0),
@@ -178,6 +181,7 @@ const paymentData: Prisma.paymentCreateInput[] = [
     }
   },
   {
+    billing_account: 'seed-billing-account',
     payment_id: '52a98c78-242e-4867-a741-6759083cb8c8',
     net_amount: new Prisma.Decimal(400.0),
     gross_amount: new Prisma.Decimal(210.0),
@@ -192,6 +196,7 @@ const paymentData: Prisma.paymentCreateInput[] = [
     }
   },
   {
+    billing_account: 'seed-billing-account',
     payment_id: 'ecdaf46f-e9a0-455f-bfdb-660c97c89ab8',
     net_amount: new Prisma.Decimal(200.0),
     gross_amount: new Prisma.Decimal(450.0),
@@ -206,6 +211,7 @@ const paymentData: Prisma.paymentCreateInput[] = [
     }
   },
   {
+    billing_account: 'seed-billing-account',
     payment_id: '830c2033-5021-4d52-b744-907192212184',
     net_amount: new Prisma.Decimal(120.0),
     gross_amount: new Prisma.Decimal(550.0),

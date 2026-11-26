@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { TopcoderEmailService } from 'src/shared/topcoder/tc-email.service';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '../../shared/global';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { TopcoderEmailService } from '../../shared/topcoder/tc-email.service';
 import {
   DuplicatePaymentRelease,
   DuplicatePaymentsService,

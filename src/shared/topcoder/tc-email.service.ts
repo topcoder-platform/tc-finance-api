@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ENV_CONFIG } from 'src/config';
+import { ENV_CONFIG } from '../../config';
 import { TopcoderBusService } from './bus.service';
 
 export interface EmailEventPayload {

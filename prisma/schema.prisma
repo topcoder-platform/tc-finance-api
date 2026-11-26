@@ -1,17 +1,14 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["extendedIndexes"]
-  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
 }
 generator externalClient {
   provider = "prisma-client-js"
   output   = "../packages/finance-prisma-client"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model audit {

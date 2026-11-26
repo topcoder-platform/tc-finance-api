@@ -13,8 +13,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '../../shared/global';
 import {
   Challenge,
   ChallengeResource,
@@ -26,18 +26,18 @@ import {
   ResourceRole,
   Winner,
 } from './models';
-import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
-import { TopcoderM2MService } from 'src/shared/topcoder/topcoder-m2m.service';
-import { ChallengeStatuses } from 'src/dto/challenge.dto';
-import { PaymentStatus } from 'src/dto/payment.dto';
+import { BillingAccountsService } from '../../shared/topcoder/billing-accounts.service';
+import { TopcoderM2MService } from '../../shared/topcoder/topcoder-m2m.service';
+import { ChallengeStatuses } from '../../dto/challenge.dto';
+import { PaymentStatus } from '../../dto/payment.dto';
 import {
   CHALLENGE_BUDGET_SYNC_SKIP_ATTRIBUTE,
   WinningsService,
 } from '../winnings/winnings.service';
-import { WinningsCategory, WinningsType } from 'src/dto/winning.dto';
+import { WinningsCategory, WinningsType } from '../../dto/winning.dto';
 import { WinningsRepository } from '../repository/winnings.repo';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { isTestChallenge } from 'src/shared/topcoder/challenges.service';
+import { PrismaService } from '../../shared/global/prisma.service';
+import { isTestChallenge } from '../../shared/topcoder/challenges.service';
 
 interface PaymentPayload {
   handle: string;

@@ -1,7 +1,7 @@
 import { createM2MClient, type M2MClient } from 'tc-core-library-js';
 import { Injectable } from '@nestjs/common';
-import { ENV_CONFIG } from 'src/config';
-import { Logger } from 'src/shared/global';
+import { ENV_CONFIG } from '../../config';
+import { Logger } from '../global';
 
 /**
  * Error raised when a Topcoder M2M-backed HTTP request receives a non-2xx

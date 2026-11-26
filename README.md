@@ -143,7 +143,7 @@ For detailed architecture diagrams and data flow, see [ARCHITECTURE.md](./docs/A
 
 ### Prerequisites
 
-- Node.js v22.13.1+ (see `.nvmrc`)
+- Node.js v26.13.1+ (see `.nvmrc`)
 - PostgreSQL v16
 - pnpm package manager
 - Docker (optional, for containerized database)

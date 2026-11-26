@@ -1,8 +1,8 @@
 import { Injectable, Module } from '@nestjs/common';
-import { AccessControlService } from 'src/shared/access-control/access-control.service';
-import { PaymentBaProvider } from 'src/shared/access-control/payment-ba.provider';
-import { PaymentApproverProvider } from 'src/shared/access-control/payment-approver.provider';
-import { WiproTaasAdminProvider } from 'src/shared/access-control/wipro-taas-admin.provider';
+import { AccessControlService } from './access-control.service';
+import { PaymentBaProvider } from './payment-ba.provider';
+import { PaymentApproverProvider } from './payment-approver.provider';
+import { WiproTaasAdminProvider } from './wipro-taas-admin.provider';
 import { TopcoderModule } from '../topcoder/topcoder.module';
 
 @Injectable()

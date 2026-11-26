@@ -1,6 +1,6 @@
 import { Logger as NestLogger } from '@nestjs/common';
 import stringify from 'json-stringify-safe';
-import { getStore } from 'src/core/request/requestStore';
+import { getStore } from '../../core/request/requestStore';
 
 export class Logger extends NestLogger {
   private get store() {

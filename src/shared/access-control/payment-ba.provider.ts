@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { RoleAccessProvider } from './role-access.interface';
-import { BillingAccountsService } from 'src/shared/topcoder/billing-accounts.service';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { Role } from 'src/core/auth/auth.constants';
+import { BillingAccountsService } from '../topcoder/billing-accounts.service';
+import { PrismaService } from '../global/prisma.service';
+import { Role } from '../../core/auth/auth.constants';
 
 @Injectable()
 export class PaymentBaProvider implements RoleAccessProvider {

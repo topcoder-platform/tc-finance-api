@@ -1,9 +1,9 @@
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { isNumber, includes } from 'lodash';
-import { ENV_CONFIG } from 'src/config';
-import { ChallengeStatuses } from 'src/dto/challenge.dto';
-import { Logger } from 'src/shared/global';
-import { getBaClient } from 'src/shared/global/ba-prisma.client';
+import { ENV_CONFIG } from '../../config';
+import { ChallengeStatuses } from '../../dto/challenge.dto';
+import { Logger } from '../global';
+import { getBaClient } from '../global/ba-prisma.client';
 import {
   TopcoderM2MHttpError,
   TopcoderM2MService,

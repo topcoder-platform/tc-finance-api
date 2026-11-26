@@ -5,11 +5,11 @@ import {
   PaymentWebhookEvent,
 } from './payment.types';
 import { WebhookEvent } from '../../webhooks.decorators';
-import { PaymentsService } from 'src/shared/payments';
+import { PaymentsService } from '../../../../shared/payments';
 import { payment_status } from '@prisma/client';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { JsonObject } from '@prisma/client/runtime/library';
-import { Logger } from 'src/shared/global';
+import { PrismaService } from '../../../../shared/global/prisma.service';
+import { JsonObject } from '@prisma/client/runtime/client';
+import { Logger } from '../../../../shared/global';
 
 @Injectable()
 export class PaymentHandler {

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { JsonObject } from '@prisma/client/runtime/library';
+import { JsonObject } from '@prisma/client/runtime/client';
 import { PrismaService } from '../global/prisma.service';
 import { payment_status, Prisma } from '@prisma/client';
 import { uniq } from 'lodash';
-import { Logger } from 'src/shared/global';
+import { Logger } from '../global';
 
 @Injectable()
 export class PaymentsService {

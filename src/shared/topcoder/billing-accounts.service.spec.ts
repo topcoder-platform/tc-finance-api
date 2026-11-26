@@ -29,7 +29,7 @@ jest.mock('src/shared/global/ba-prisma.client', () => ({
   getBaClient: jest.fn(() => mockBaClient),
 }));
 
-import { ChallengeStatuses } from 'src/dto/challenge.dto';
+import { ChallengeStatuses } from '../../dto/challenge.dto';
 import { BillingAccountsService } from './billing-accounts.service';
 
 describe('BillingAccountsService', () => {

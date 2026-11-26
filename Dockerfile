@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Node 24 LTS with the existing Prisma 6 client contract.
-ARG NODE_IMAGE=node:24.22.2-alpine3.24@sha256:8a32c8cf649a49915a66e81e7a609223c708d0adabf288ee3f4077d765542f85
+ARG NODE_IMAGE=node:26.13.1-alpine3.24@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
 
 FROM ${NODE_IMAGE} AS builder
 
@@ -33,13 +32,14 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 RUN apk upgrade --no-cache \
-    && apk add --no-cache ca-certificates 'nodejs~24' 'nodejs>=24.22.3-r0' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' \
+    && apk add --no-cache ca-certificates 'nodejs-current~26.13.1' 'zlib>=1.4-r0' 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' \
     && addgroup -S -g 1000 node \
     && adduser -S -D -u 1000 -G node node
 
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/prisma ./prisma
+COPY --from=builder --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/appStartUp.sh ./appStartUp.sh
 RUN chmod 0555 ./appStartUp.sh

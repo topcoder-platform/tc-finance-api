@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookEvent } from '../../webhooks.decorators';
-import { PrismaService } from 'src/shared/global/prisma.service';
-import { PaymentsService } from 'src/shared/payments';
-import { Logger } from 'src/shared/global';
+import { PrismaService } from '../../../../shared/global/prisma.service';
+import { PaymentsService } from '../../../../shared/payments';
+import { Logger } from '../../../../shared/global';
 import {
   RecipientVerificationStatusUpdateEventData,
   RecipientVerificationType,
