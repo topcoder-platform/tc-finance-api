@@ -2,7 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/shared/global/prisma.service';
 
-import { ActionLogType } from './action-log.dto';
+import { WinningsCategory } from 'src/dto/winning.dto';
+
+import { ActionLogPaymentSource, ActionLogType } from './action-log.dto';
+
+/** Categories that are not Topcoder payments. */
+const NON_TOPCODER_CATEGORIES: Record<
+  Exclude<ActionLogPaymentSource, ActionLogPaymentSource.TOPCODER>,
+  WinningsCategory
+> = {
+  [ActionLogPaymentSource.TAAS]: WinningsCategory.TAAS_PAYMENT,
+  [ActionLogPaymentSource.TOPGEAR]: WinningsCategory.TOPGEAR_PAYMENT,
+};
+
+export interface ActionLogFilters {
+  /** Only return actions made at or after this date. */
+  since: Date;
+  /** Only return actions made at or before this date. */
+  until?: Date;
+  paymentSource?: ActionLogPaymentSource;
+  categories?: WinningsCategory[];
+  adminUserId?: string;
+}
 
 export interface ActionLogEntry {
   auditId: string;
@@ -35,15 +56,46 @@ export class ActionLogService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * @param since - Only return actions made at or after this date.
+   * @param filters - Date range, payment source and category, and admin to
+   *   filter the actions by.
    * @param prismaClient - Transaction client to run the query in.
    * @returns one row per audited action, newest first, with the current state
    *   of the payment's first installment.
    */
   findActions(
-    since: Date,
+    filters: ActionLogFilters,
     prismaClient: Prisma.TransactionClient = this.prisma,
   ) {
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`a.created_at >= ${filters.since}`,
+    ];
+
+    if (filters.until) {
+      conditions.push(Prisma.sql`a.created_at <= ${filters.until}`);
+    }
+
+    if (filters.paymentSource === ActionLogPaymentSource.TOPCODER) {
+      conditions.push(
+        Prisma.sql`(w.category IS NULL OR w.category::text NOT IN (${Prisma.join(
+          Object.values(NON_TOPCODER_CATEGORIES),
+        )}))`,
+      );
+    } else if (filters.paymentSource) {
+      conditions.push(
+        Prisma.sql`w.category::text = ${NON_TOPCODER_CATEGORIES[filters.paymentSource]}`,
+      );
+    }
+
+    if (filters.categories?.length) {
+      conditions.push(
+        Prisma.sql`w.category::text IN (${Prisma.join(filters.categories)})`,
+      );
+    }
+
+    if (filters.adminUserId) {
+      conditions.push(Prisma.sql`a.user_id = ${filters.adminUserId}`);
+    }
+
     // action texts are written by AdminService.updateWinnings
     return prismaClient.$queryRaw<ActionLogEntry[]>`
       SELECT
@@ -85,8 +137,23 @@ export class ActionLogService {
         ORDER BY payment.version DESC NULLS LAST
         LIMIT 1
       ) p ON TRUE
-      WHERE a.created_at >= ${since}
+      WHERE ${Prisma.join(conditions, ' AND ')}
       ORDER BY a.created_at DESC
     `;
+  }
+
+  /**
+   * @returns the user IDs of every admin who has made a Wallet Admin payment
+   *   change, so the log can be filtered by admins who no longer hold a
+   *   payment role.
+   */
+  findAdminUserIds(
+    prismaClient: Prisma.TransactionClient = this.prisma,
+  ): Promise<string[]> {
+    return prismaClient.$queryRaw<{ userId: string }[]>`
+      SELECT DISTINCT a.user_id AS "userId"
+      FROM audit a
+      ORDER BY a.user_id
+    `.then((rows) => rows.map((row) => row.userId));
   }
 }
